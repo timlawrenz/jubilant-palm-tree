@@ -12,7 +12,7 @@ The ultimate goal is not just to predict complexity, but to validate a methodolo
 
 **✅ Phase 1: Data Generation & Preprocessing** 
 
-The initial data collection and preprocessing phase has been successfully implemented:
+The complete data collection, processing, and dataset assembly phase has been successfully implemented:
 
 1. **Source Code Aggregation** (`scripts/01_clone_repos.sh`)
    - Automated cloning of 8 high-quality Ruby repositories
@@ -27,24 +27,52 @@ The initial data collection and preprocessing phase has been successfully implem
    - Structured JSON output with method metadata: repository name, file path, line numbers, raw source code
    - Successfully tested on real repositories (2,437+ methods extracted from 291+ files)
 
-3. **Project Infrastructure**
+3. **AST Processing & Complexity Analysis** (`scripts/03_process_methods.rb`)
+   - Comprehensive AST analysis using Ruby parser gem
+   - Cyclomatic complexity calculation for each extracted method
+   - Enhanced data structure with JSON-serialized AST representations
+   - Output to structured JSONL format in `./output/processed_methods.jsonl`
+
+4. **Dataset Assembly & Cleaning** (`scripts/04_assemble_dataset.rb`)
+   - Final dataset filtering by complexity range (2.0 ≤ complexity ≤ 100.0)
+   - Removal of edge cases: too simple (<2.0) or too complex (>100.0) methods
+   - Unique UUID assignment to each method entry
+   - Automated train/validation/test splitting (80/10/10)
+   - Clean JSONL output files ready for machine learning training
+   - Final dataset: 1,896 methods from 2,437 original extractions (77.8% retention)
+
+5. **Project Infrastructure**
    - Comprehensive documentation with methodology explanation
    - Proper `.gitignore` configuration excluding cloned repositories
-   - Output directory structure for generated datasets
+   - Complete dataset pipeline from source code to ML-ready format
 
 ### Current Dataset
 
-The project currently contains extracted method data in `./output/`:
-- `methods.json` - Complete dataset of extracted Ruby methods
-- `sinatra_methods.json` - Subset focusing on Sinatra framework methods
+The project now contains a complete, cleaned, and ML-ready dataset in the `./dataset/` directory:
 
-Each method entry includes:
+**Final Dataset Statistics:**
+- **Train set**: `train.jsonl` - 1,517 method entries
+- **Validation set**: `validation.jsonl` - 190 method entries  
+- **Test set**: `test.jsonl` - 189 method entries
+- **Total**: 1,896 filtered methods (from 2,437 original extractions)
+- **Complexity range**: 2.0 to 96.1 (filtered from broader range)
+- **Data format**: JSONL with enhanced structure including AST and complexity data
+
+**Legacy datasets** in `./output/`:
+- `processed_methods.jsonl` - Complete processed dataset before splitting
+- `methods.json` - Original extracted methods (superseded)
+- `sinatra_methods.json` - Sinatra framework subset (superseded)
+
+Each final dataset entry includes:
 ```json
 {
-  "repo_name": "sinatra",
-  "file_path": "./repos/sinatra/lib/sinatra/base.rb", 
-  "start_line": 36,
-  "raw_source": "def accept\n  @env['sinatra.accept'] ||= if @env.include?('HTTP_ACCEPT')\n    # method implementation\n  end\nend"
+  "repo_name": "liquid",
+  "file_path": "./repos/liquid/lib/liquid/variable.rb", 
+  "start_line": 62,
+  "raw_source": "def strict_parse(markup)\n  @filters = []\n  # ... method implementation\nend",
+  "complexity_score": 22.4,
+  "ast_json": "{\"type\":\"def\",\"children\":[...]}",
+  "id": "9167fdae-f91d-49e4-ab6b-d32a5a878748"
 }
 ```
 
@@ -55,6 +83,7 @@ Each method entry includes:
 - Ruby (version 2.7+ recommended)
 - Git
 - `parser` gem for Ruby AST processing
+- `jq` (optional, for viewing JSON data)
 
 ### Setup & Usage
 
@@ -86,10 +115,21 @@ Each method entry includes:
    ruby scripts/02_extract_methods.rb
    ```
 
-5. **View extracted data:**
+5. **Process methods and calculate complexity:**
    ```bash
-   ls output/
-   head -n 20 output/methods.json
+   ruby scripts/03_process_methods.rb
+   ```
+
+6. **Assemble final dataset:**
+   ```bash
+   ruby scripts/04_assemble_dataset.rb
+   ```
+
+7. **View final dataset:**
+   ```bash
+   ls dataset/
+   wc -l dataset/*.jsonl
+   head -n 1 dataset/train.jsonl | jq .
    ```
 
 ## Project Structure
@@ -97,14 +137,21 @@ Each method entry includes:
 ```
 jubilant-palm-tree/
 ├── scripts/
-│   ├── 01_clone_repos.sh      # Repository cloning automation
-│   └── 02_extract_methods.rb  # Method extraction from Ruby files
-├── output/
-│   ├── methods.json           # Complete extracted methods dataset
-│   └── sinatra_methods.json   # Sinatra-specific subset
-├── repos/                     # Cloned repositories (excluded from git)
-├── Gemfile                    # Ruby dependency management
-└── README.md                  # Project documentation
+│   ├── 01_clone_repos.sh         # Repository cloning automation
+│   ├── 02_extract_methods.rb     # Method extraction from Ruby files
+│   ├── 03_process_methods.rb     # AST processing and complexity calculation
+│   └── 04_assemble_dataset.rb    # Dataset filtering, cleaning, and splitting
+├── dataset/                      # Final ML-ready dataset
+│   ├── train.jsonl              # Training set (1,517 entries)
+│   ├── validation.jsonl         # Validation set (190 entries)
+│   └── test.jsonl               # Test set (189 entries)
+├── output/                       # Intermediate processing files
+│   ├── processed_methods.jsonl   # Complete processed dataset
+│   ├── methods.json             # Original extracted methods
+│   └── sinatra_methods.json     # Sinatra-specific subset
+├── repos/                        # Cloned repositories (excluded from git)
+├── Gemfile                       # Ruby dependency management
+└── README.md                     # Project documentation
 ```
 
 ## Future Development Suggestions
@@ -156,7 +203,8 @@ These improvements would provide a solid foundation for collaborative developmen
 
 ## Next Steps
 
-With Phase 1 complete, the project is ready to move forward with:
-- **Phase 2**: AST Processing & Feature Engineering
-- **Phase 3**: GNN Model Architecture & Training
-- **Phase 4**: Complexity Prediction & Validation
+With Phase 1 complete and the ML-ready dataset assembled, the project is ready to move forward with:
+- **Phase 2**: GNN Model Architecture Design & Implementation
+- **Phase 3**: Model Training & Hyperparameter Tuning  
+- **Phase 4**: Complexity Prediction Validation & Evaluation
+- **Phase 5**: Advanced Generative Model Development
