@@ -148,9 +148,42 @@ A complete training pipeline has been implemented for GNN model training:
    - Best model weights automatically saved
    - Test scripts verify minimum requirements (2+ epochs)
 
+**✅ Phase 5: Heuristic Benchmark Implementation**
+
+A non-AI baseline benchmark has been implemented to establish the minimum performance target:
+
+1. **Heuristic Benchmark Script** (`scripts/benchmark_heuristic.rb`)
+   - Reads test.jsonl dataset (189 method entries)
+   - Implements keyword-based complexity prediction
+   - Counts complexity-indicating keywords in method source code
+   - Compares predictions to true complexity scores
+   - Calculates and reports Mean Absolute Error (MAE)
+
+2. **Heuristic Algorithm**
+   - **Keywords counted**: Control flow (if, else, while, for), iterators (each, map, select), exception handling (rescue, ensure), block operations (yield, lambda), and other complexity indicators
+   - **Scaling formula**: Base complexity (2.0) + (keyword_count × 1.5)
+   - **Coverage**: 73 different complexity-indicating keywords and operators
+
+3. **Benchmark Results**
+   - **Final MAE**: 4.4617 on test dataset
+   - **Test entries processed**: 189 methods successfully
+   - **Complexity range**: True scores from 2.0 to 96.1, predictions from 2.0 to 54.5
+   - **This is the baseline score that the GNN model needs to beat**
+
+4. **Benchmark Validation**
+   - Successfully processes entire test dataset without errors
+   - Provides detailed statistics on prediction accuracy
+   - Offers sample-by-sample error analysis for first 5 entries
+
 ### Current Dataset
 
 The project now contains a complete, cleaned, and ML-ready dataset in the `./dataset/` directory:
+
+**Heuristic Benchmark Results:**
+- **Heuristic MAE on test set**: 4.4617 (Mean Absolute Error)
+- **This is the baseline score that the GNN needs to beat**
+- **Benchmark method**: Simple keyword counting heuristic
+- **Test entries processed**: 189 methods from test.jsonl
 
 **Final Dataset Statistics:**
 - **Train set**: `train.jsonl` - 1,517 method entries
@@ -257,6 +290,12 @@ When processed through the `RubyASTDataset`, each entry becomes:
    wc -l dataset/*.jsonl
    head -n 1 dataset/train.jsonl | jq .
    ```
+
+8. **Run heuristic benchmark (optional):**
+   ```bash
+   ruby scripts/benchmark_heuristic.rb dataset/test.jsonl
+   ```
+   This calculates the baseline MAE that the GNN needs to beat.
 
 #### Phase 2: Python Environment & Graph Processing
 
@@ -399,7 +438,8 @@ jubilant-palm-tree/
 │   ├── 01_clone_repos.sh         # Repository cloning automation
 │   ├── 02_extract_methods.rb     # Method extraction from Ruby files
 │   ├── 03_process_methods.rb     # AST processing and complexity calculation
-│   └── 04_assemble_dataset.rb    # Dataset filtering, cleaning, and splitting
+│   ├── 04_assemble_dataset.rb    # Dataset filtering, cleaning, and splitting
+│   └── benchmark_heuristic.rb    # Heuristic complexity prediction benchmark
 ├── dataset/                      # Final ML-ready dataset
 │   ├── train.jsonl              # Training set (1,517 entries)
 │   ├── validation.jsonl         # Validation set (190 entries)
