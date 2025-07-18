@@ -37,7 +37,6 @@ venv.bak/
 
 # PyTorch model files
 *.pth
-*.pt
 
 # Common development files
 .DS_Store
