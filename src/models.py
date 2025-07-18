@@ -174,13 +174,16 @@ class ASTDecoder(torch.nn.Module):
                                     [b * num_nodes + j, b * num_nodes + i]])
             batch_indices.extend([b] * num_nodes)
         
+        # Determine device from embedding to ensure tensor consistency
+        device = embedding.device
+        
         if edge_list:
-            edge_index = torch.tensor(edge_list, dtype=torch.long).t().contiguous()
+            edge_index = torch.tensor(edge_list, dtype=torch.long, device=device).t().contiguous()
         else:
             # No edges case
-            edge_index = torch.empty((2, 0), dtype=torch.long)
+            edge_index = torch.empty((2, 0), dtype=torch.long, device=device)
         
-        batch_tensor = torch.tensor(batch_indices, dtype=torch.long)
+        batch_tensor = torch.tensor(batch_indices, dtype=torch.long, device=device)
         
         # Flatten node features for GNN processing
         x = node_features.reshape(-1, self.hidden_dim)  # (batch_size * num_nodes, hidden_dim)
