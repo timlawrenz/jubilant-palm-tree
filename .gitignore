@@ -1,0 +1,17 @@
+# Exclude cloned repositories from version control
+repos/
+
+# Common development files
+.DS_Store
+*.log
+*.tmp
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.local
