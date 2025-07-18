@@ -115,6 +115,39 @@ A complete Graph Neural Network architecture has been implemented for Ruby compl
    - All model configurations tested and working
    - Error handling for invalid configurations
 
+**✅ Phase 4: Training & Validation Loop**
+
+A complete training pipeline has been implemented for GNN model training:
+
+1. **Main Training Script** (`train.py`)
+   - Initializes GNN model with configurable architecture
+   - Creates train and validation data loaders
+   - Sets up Adam optimizer and MSELoss criterion
+   - Implements epoch-based training loop
+   - Performs validation after each epoch
+   - Logs training and validation loss to console
+   - Saves best performing model weights automatically
+
+2. **Training Features**
+   - Configurable training parameters (epochs, batch size, learning rate)
+   - Support for both GCN and SAGE model types
+   - Automatic best model saving based on validation loss
+   - Progress tracking with epoch timing
+   - Final model checkpoint saving
+   - GPU support (auto-detects CUDA availability)
+
+3. **Model Persistence**
+   - Best model saved as `best_model.pt` with metadata
+   - Final model saved as `final_model.pt`
+   - Checkpoint includes epoch, losses, and model configuration
+   - Models can be loaded for inference or continued training
+
+4. **Training Validation**
+   - Successfully runs for multiple epochs without crashing
+   - Training and validation loss printed each epoch
+   - Best model weights automatically saved
+   - Test scripts verify minimum requirements (2+ epochs)
+
 ### Current Dataset
 
 The project now contains a complete, cleaned, and ML-ready dataset in the `./dataset/` directory:
@@ -287,7 +320,23 @@ When processed through the `RubyASTDataset`, each entry becomes:
     python example_gnn_usage.py
     ```
 
-17. **Explore the data with Jupyter:**
+16. **Train the GNN model:**
+    ```bash
+    python train.py
+    ```
+    
+    This will:
+    - Train the model for 10 epochs
+    - Print training and validation loss each epoch
+    - Save the best model to `best_model.pt`
+    - Save the final model to `final_model.pt`
+
+17. **Test model loading and inference:**
+    ```bash
+    python test_model_loading.py
+    ```
+
+18. **Explore the data with Jupyter:**
     ```bash
     source venv/bin/activate  # Ensure virtual environment is active
     jupyter notebook notebooks/01_data_exploration.ipynb
@@ -369,6 +418,8 @@ jubilant-palm-tree/
 ├── test_gnn_models.py          # Comprehensive test suite for GNN models
 ├── example_usage.py            # Example usage of dataset and DataLoader
 ├── example_gnn_usage.py        # Advanced GNN model demonstration and training setup
+├── train.py                    # Main training script for GNN models
+├── test_model_loading.py       # Test script for model loading and inference
 ├── repos/                      # Cloned repositories (excluded from git)
 ├── Gemfile                     # Ruby dependency management
 ├── venv/                       # Python virtual environment (excluded from git)
@@ -427,18 +478,18 @@ These improvements would provide a solid foundation for collaborative developmen
 
 ## Next Steps
 
-With Phases 1, 2, and 3 complete, the project is ready to move forward with:
-- **Phase 4**: GNN Model Training & Hyperparameter Tuning  
-- **Phase 5**: Complexity Prediction Validation & Evaluation
-- **Phase 6**: Model Optimization & Production Deployment
+With Phases 1, 2, 3, and 4 complete, the project is ready to move forward with:
+- **Phase 5**: Model Performance Analysis & Hyperparameter Tuning  
+- **Phase 6**: Complexity Prediction Validation & Evaluation
+- **Phase 7**: Model Optimization & Production Deployment
 
 ### Immediate Next Actions
 
-1. **Implement full training loop** using the provided DataLoader and GNN models
+1. **Hyperparameter tuning** for optimal model performance between GCN and SAGE architectures
 2. **Add model evaluation metrics** (MAE, RMSE, R²) for complexity prediction accuracy
-3. **Hyperparameter tuning** for optimal model performance between GCN and SAGE architectures
-4. **Cross-validation** to ensure robust performance across different Ruby codebases
-5. **Model comparison** between different architectures and layer configurations
+3. **Cross-validation** to ensure robust performance across different Ruby codebases
+4. **Model comparison** between different architectures and layer configurations
+5. **Performance analysis** of complexity prediction accuracy on test set
 
 ### Python GNN Development Environment
 
