@@ -22,6 +22,7 @@ This project explores the potential of Graph Neural Networks (GNNs) to understan
 - ✅ Decoder reconstructs AST structure from embeddings with configurable target nodes
 - ✅ Complete forward pass: AST_in → embedding → AST_out implemented and tested
 - ✅ Support for frozen encoder weights to preserve pre-trained representations
+- ✅ **AST Reconstruction Loss Function** - Custom loss combining node type prediction and edge structure comparison
 - 🔄 Training pipeline for autoencoder optimization (future work)
 - 🔄 Advanced metrics for AST reconstruction quality (future work)
 
@@ -43,6 +44,7 @@ best_model.pt           # Pre-trained model with learned embeddings
 ```python
 # Complete AST reconstruction pipeline
 from src.models import ASTAutoencoder
+from src.loss import ast_reconstruction_loss, ast_reconstruction_loss_simple
 
 # Initialize autoencoder
 autoencoder = ASTAutoencoder(
@@ -57,6 +59,11 @@ autoencoder = ASTAutoencoder(
 result = autoencoder(ast_data)
 embedding = result['embedding']           # (batch_size, 64)
 reconstruction = result['reconstruction'] # Full AST structure
+
+# Compute reconstruction loss for training
+loss = ast_reconstruction_loss_simple(ast_data, reconstruction)
+# Or use the full loss with edge prediction:
+# loss = ast_reconstruction_loss(ast_data, reconstruction, node_weight=1.0, edge_weight=0.5)
 ```
 
 ### Development Setup
@@ -72,6 +79,38 @@ pip install -r requirements.txt
 # Verify setup
 python test_dataset.py
 python test_gnn_models.py
+python test_autoencoder.py
+python test_loss.py           # Test new loss functions
+```
+
+### AST Reconstruction Loss Functions ⚡
+
+The project now includes specialized loss functions for training the AST autoencoder:
+
+```python
+from src.loss import ast_reconstruction_loss, ast_reconstruction_loss_simple
+
+# Simple node-type prediction loss (recommended)
+loss = ast_reconstruction_loss_simple(original_ast, reconstructed_ast)
+
+# Full loss with node + edge prediction
+loss = ast_reconstruction_loss(
+    original_ast, 
+    reconstructed_ast,
+    node_weight=1.0,    # Weight for node type loss
+    edge_weight=0.5     # Weight for edge prediction loss
+)
+```
+
+**Loss Components:**
+- **Node Type Loss**: Cross-entropy loss for predicting correct AST node types from 74-dimensional one-hot encoded features
+- **Edge Prediction Loss**: Simplified loss for graph connectivity (compares edge counts and structure)
+- **Batch Support**: Handles variable-sized graphs in batched training
+- **Gradient Flow**: Optimized for training decoder parameters
+
+**Demo Usage:**
+```bash
+python demo_loss.py          # Interactive demonstration
 ```
 
 ## Project Structure
@@ -81,6 +120,9 @@ jubilant-palm-tree/
 ├── README_phase1.md          # Complete Phase 1 documentation
 ├── dataset/                  # ML-ready Ruby method dataset
 ├── src/                      # GNN models and training code
+│   ├── models.py            # ASTAutoencoder, RubyComplexityGNN, ASTDecoder
+│   ├── loss.py              # AST reconstruction loss functions
+│   └── data_processing.py   # Dataset loading and preprocessing
 ├── scripts/                  # Data extraction pipeline
 ├── notebooks/                # Analysis and visualization
 └── requirements.txt          # Python dependencies
