@@ -74,13 +74,46 @@ A complete data ingestion pipeline has been implemented to convert Ruby AST data
    - Direct compatibility with `torch_geometric.data.Data` objects
    - Easy conversion to PyTorch tensors when libraries are available
    - Batch format compatible with `torch_geometric.data.Batch`
-   - Ready for GNN model training with existing `RubyComplexityGNN` model
+   - Ready for GNN model training with `RubyComplexityGNN` model
 
 5. **Comprehensive Testing & Validation**
    - Complete test suite validating all functionality (`test_dataset.py`)
    - Example usage script demonstrating all features (`example_usage.py`)
    - Verified successful loading and collation of graph batches
    - All tests passing: dataset loading, item access, batch collation, DataLoader simulation
+
+**✅ Phase 3: GNN Model Implementation**
+
+A complete Graph Neural Network architecture has been implemented for Ruby complexity prediction:
+
+1. **GNN Model Definition** (`src/models.py`)
+   - `RubyComplexityGNN` class as torch.nn.Module
+   - Support for both SAGEConv and GCNConv layers for message passing
+   - Configurable number of layers (2-4 layers typical)
+   - Global mean pooling layer for graph-level embeddings
+   - Final linear regression head outputting single complexity score
+   - Configurable dropout for regularization
+
+2. **Model Architecture Features**
+   - Input dimension: 74 (Ruby AST node features)
+   - Hidden dimensions: 32-128 (configurable)
+   - Layer types: GCN (Graph Convolutional) or SAGE (GraphSAGE)
+   - Global pooling: `global_mean_pool` for graph-level representation
+   - Output: Single regression value for complexity prediction
+   - Parameter counts: 3K-118K depending on configuration
+
+3. **DataLoader Integration**
+   - Fully compatible with DataLoader from Phase 2
+   - Processes batched graph data efficiently
+   - Handles variable graph sizes in each batch
+   - Automatic batch index management for PyTorch Geometric
+
+4. **Model Validation & Testing**
+   - Comprehensive test suite (`test_gnn_models.py`)
+   - Example usage demonstrations (`example_gnn_usage.py`)
+   - Verified single sample and batch processing
+   - All model configurations tested and working
+   - Error handling for invalid configurations
 
 ### Current Dataset
 
@@ -244,10 +277,69 @@ When processed through the `RubyASTDataset`, each entry becomes:
         pass
     ```
 
-14. **Explore the data with Jupyter:**
+14. **Test the GNN models:**
+    ```bash
+    python test_gnn_models.py
+    ```
+
+15. **Run GNN model examples:**
+    ```bash
+    python example_gnn_usage.py
+    ```
+
+17. **Explore the data with Jupyter:**
     ```bash
     source venv/bin/activate  # Ensure virtual environment is active
     jupyter notebook notebooks/01_data_exploration.ipynb
+    ```
+    ```python
+    # Import required modules
+    from src.data_processing import RubyASTDataset, create_data_loaders
+    from src.models import RubyComplexityGNN
+    import torch
+    from torch_geometric.data import Data
+    
+    # Create data loaders
+    train_loader, val_loader = create_data_loaders(
+        "dataset/train.jsonl", 
+        "dataset/validation.jsonl", 
+        batch_size=32
+    )
+    
+    # Create GNN model (choose GCN or SAGE)
+    model = RubyComplexityGNN(
+        input_dim=74,
+        hidden_dim=64,
+        num_layers=3,
+        conv_type='SAGE',  # or 'GCN'
+        dropout=0.1
+    )
+    
+    # Training setup
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    criterion = torch.nn.MSELoss()
+    
+    # Process a batch
+    for batch in train_loader:
+        # Convert to PyTorch tensors
+        x = torch.tensor(batch['x'], dtype=torch.float)
+        edge_index = torch.tensor(batch['edge_index'], dtype=torch.long)
+        y = torch.tensor(batch['y'], dtype=torch.float)
+        batch_idx = torch.tensor(batch['batch'], dtype=torch.long)
+        
+        # Create PyTorch Geometric Data object
+        data = Data(x=x, edge_index=edge_index, batch=batch_idx)
+        
+        # Forward pass
+        predictions = model(data)
+        loss = criterion(predictions.squeeze(), y)
+        
+        # Backward pass
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        
+        break  # Process one batch for example
     ```
 
 ## Project Structure
@@ -266,7 +358,7 @@ jubilant-palm-tree/
 ├── src/                         # Python source code for GNN training
 │   ├── __init__.py              # Package initialization
 │   ├── data_processing.py       # Data loading, AST conversion, and Dataset class
-│   └── models.py                # PyTorch Geometric GNN model implementations
+│   └── models.py                # PyTorch Geometric GNN model implementations (GCN & SAGE)
 ├── notebooks/                   # Jupyter notebooks for analysis
 │   └── 01_data_exploration.ipynb # Data exploration and visualization
 ├── output/                      # Intermediate processing files
@@ -274,7 +366,9 @@ jubilant-palm-tree/
 │   ├── methods.json            # Original extracted methods
 │   └── sinatra_methods.json    # Sinatra-specific subset
 ├── test_dataset.py             # Comprehensive test suite for data pipeline
+├── test_gnn_models.py          # Comprehensive test suite for GNN models
 ├── example_usage.py            # Example usage of dataset and DataLoader
+├── example_gnn_usage.py        # Advanced GNN model demonstration and training setup
 ├── repos/                      # Cloned repositories (excluded from git)
 ├── Gemfile                     # Ruby dependency management
 ├── venv/                       # Python virtual environment (excluded from git)
@@ -333,18 +427,18 @@ These improvements would provide a solid foundation for collaborative developmen
 
 ## Next Steps
 
-With Phases 1 and 2 complete, the project is ready to move forward with:
-- **Phase 3**: GNN Model Training & Hyperparameter Tuning
-- **Phase 4**: Complexity Prediction Validation & Evaluation  
-- **Phase 5**: Model Optimization & Production Deployment
+With Phases 1, 2, and 3 complete, the project is ready to move forward with:
+- **Phase 4**: GNN Model Training & Hyperparameter Tuning  
+- **Phase 5**: Complexity Prediction Validation & Evaluation
+- **Phase 6**: Model Optimization & Production Deployment
 
 ### Immediate Next Actions
 
-1. **Install PyTorch and PyTorch Geometric** for full GNN training capability
-2. **Implement training loop** using the provided DataLoader and existing GNN model
-3. **Add model evaluation metrics** (MAE, RMSE, R²) for complexity prediction accuracy
-4. **Hyperparameter tuning** for optimal model performance
-5. **Cross-validation** to ensure robust performance across different Ruby codebases
+1. **Implement full training loop** using the provided DataLoader and GNN models
+2. **Add model evaluation metrics** (MAE, RMSE, R²) for complexity prediction accuracy
+3. **Hyperparameter tuning** for optimal model performance between GCN and SAGE architectures
+4. **Cross-validation** to ensure robust performance across different Ruby codebases
+5. **Model comparison** between different architectures and layer configurations
 
 ### Python GNN Development Environment
 
@@ -352,7 +446,7 @@ The project now includes a comprehensive Python environment for Graph Neural Net
 
 **Core Libraries Available:**
 - `torch` (2.7.1+): Deep learning framework
-- `torch_geometric` (2.6.1): Graph neural network extensions
+- `torch_geometric` (2.6.1+): Graph neural network extensions
 - `pandas` (2.3.1): Data manipulation and analysis  
 - `tqdm` (4.67.1): Progress bars for training loops
 
@@ -364,12 +458,16 @@ The project now includes a comprehensive Python environment for Graph Neural Net
 
 **Ready-to-Use Components:**
 - `src/data_processing.py`: Complete data ingestion and graph conversion pipeline
-- `src/models.py`: PyTorch Geometric GNN model implementations
-- `test_dataset.py`: Comprehensive testing suite
-- `example_usage.py`: Usage examples and PyTorch integration guide
+- `src/models.py`: PyTorch Geometric GNN model implementations (GCN and SAGE)
+- `test_dataset.py`: Comprehensive data pipeline testing suite
+- `test_gnn_models.py`: Complete GNN model validation and testing
+- `example_usage.py`: Basic usage examples and PyTorch integration guide
+- `example_gnn_usage.py`: Advanced GNN model demonstration and training setup
 - `notebooks/01_data_exploration.ipynb`: Data exploration and visualization notebook
 
-**Data Pipeline Status:**
-✅ **COMPLETE**: A DataLoader can successfully load and collate batches of graph objects from the training dataset without errors.
+**Data Pipeline & Model Status:**
+✅ **COMPLETE**: DataLoader successfully loads and collates batches of graph objects from training dataset
+✅ **COMPLETE**: GNN models (GCN and SAGE) process batched data and output complexity predictions
+✅ **COMPLETE**: Full integration between data pipeline and GNN models verified
 
-The Python environment can process the complete Ruby method dataset (1,896 methods across train/validation/test splits) and is fully ready for GNN training with the implemented AST-to-graph conversion pipeline.
+The Python environment can process the complete Ruby method dataset (1,896 methods across train/validation/test splits) and includes working GNN models ready for training and evaluation.
