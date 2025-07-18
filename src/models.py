@@ -243,11 +243,31 @@ class ASTAutoencoder(torch.nn.Module):
             dropout=dropout
         )
         
-        # Load pre-trained weights if provided
+        # Load pre-trained weights if provided and adjust encoder config if needed
+        self.encoder_weights_path = encoder_weights_path
         if encoder_weights_path is not None:
             try:
                 checkpoint = torch.load(encoder_weights_path, map_location='cpu')
-                self.encoder.load_state_dict(checkpoint)
+                # Check if checkpoint contains model config and use it to create compatible encoder
+                if 'model_config' in checkpoint:
+                    saved_config = checkpoint['model_config']
+                    # Recreate encoder with saved configuration if it differs from current
+                    if (saved_config.get('conv_type', conv_type) != conv_type or
+                        saved_config.get('hidden_dim', hidden_dim) != hidden_dim or
+                        saved_config.get('num_layers', num_layers) != num_layers or
+                        saved_config.get('dropout', dropout) != dropout):
+                        print(f"Adjusting encoder config to match saved model: conv_type={saved_config.get('conv_type', conv_type)}")
+                        self.encoder = RubyComplexityGNN(
+                            input_dim=encoder_input_dim,
+                            hidden_dim=saved_config.get('hidden_dim', hidden_dim),
+                            num_layers=saved_config.get('num_layers', num_layers),
+                            conv_type=saved_config.get('conv_type', conv_type),
+                            dropout=saved_config.get('dropout', dropout)
+                        )
+                        # Update hidden_dim for decoder compatibility
+                        hidden_dim = saved_config.get('hidden_dim', hidden_dim)
+                
+                self.encoder.load_state_dict(checkpoint['model_state_dict'])
                 print(f"Loaded encoder weights from {encoder_weights_path}")
             except FileNotFoundError:
                 print(f"Warning: Could not find encoder weights at {encoder_weights_path}")
