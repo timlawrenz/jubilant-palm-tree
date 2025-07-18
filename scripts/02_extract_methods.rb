@@ -75,7 +75,6 @@ class MethodExtractor
       initial_count = @methods.length
       extract_methods_from_ast(ast, content, file_path, repo_name)
       new_methods = @methods.length - initial_count
-      puts "  Found #{new_methods} methods" if new_methods > 0 || ruby_files.length <= 10
       
     rescue => e
       puts "Error processing #{file_path}: #{e.message}"
