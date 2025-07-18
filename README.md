@@ -16,11 +16,14 @@ This project explores the potential of Graph Neural Networks (GNNs) to understan
 
 ## Phase 2 Goals (Current)
 
-🎯 **GNN-based AST Decoder Development**
-- Build and train a generative GNN model that can reconstruct Ruby method ASTs
-- Validate that learned embeddings contain sufficient structural information for code generation
-- Develop decoder architecture that maps embeddings → syntactically correct Ruby ASTs
-- Establish foundation for advanced code generation capabilities
+🎯 **GNN-based AST Decoder Development** ✅
+- ✅ Built ASTAutoencoder that combines existing RubyComplexityGNN (encoder) with new ASTDecoder
+- ✅ Encoder can extract meaningful 64-dimensional embeddings from Ruby method ASTs
+- ✅ Decoder reconstructs AST structure from embeddings with configurable target nodes
+- ✅ Complete forward pass: AST_in → embedding → AST_out implemented and tested
+- ✅ Support for frozen encoder weights to preserve pre-trained representations
+- 🔄 Training pipeline for autoencoder optimization (future work)
+- 🔄 Advanced metrics for AST reconstruction quality (future work)
 
 ## Quick Start
 
@@ -34,6 +37,26 @@ This project explores the potential of Graph Neural Networks (GNNs) to understan
 ./dataset/               # 1,896 processed Ruby methods (train/val/test splits)
 ./src/models.py         # Trained GNN models for complexity prediction
 best_model.pt           # Pre-trained model with learned embeddings
+```
+
+### New Autoencoder Architecture ✨
+```python
+# Complete AST reconstruction pipeline
+from src.models import ASTAutoencoder
+
+# Initialize autoencoder
+autoencoder = ASTAutoencoder(
+    encoder_input_dim=74,      # Ruby AST node feature dimension
+    node_output_dim=74,        # Reconstructed node features
+    hidden_dim=64,             # Embedding dimension
+    freeze_encoder=True,       # Freeze pre-trained weights
+    encoder_weights_path="best_model.pt"
+)
+
+# Forward pass: AST → embedding → reconstructed AST
+result = autoencoder(ast_data)
+embedding = result['embedding']           # (batch_size, 64)
+reconstruction = result['reconstruction'] # Full AST structure
 ```
 
 ### Development Setup
