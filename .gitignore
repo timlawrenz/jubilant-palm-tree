@@ -1,10 +1,6 @@
 # Exclude cloned repositories from version control
 repos/
 
-# Exclude folders tracked by Git LFS
-output/
-dataset/
-
 # Python specific
 __pycache__/
 *.py[cod]
