@@ -81,11 +81,14 @@ Each final dataset entry includes:
 ### Prerequisites
 
 - Ruby (version 2.7+ recommended)
+- Python (version 3.8+ recommended)
 - Git
 - `parser` gem for Ruby AST processing
 - `jq` (optional, for viewing JSON data)
 
 ### Setup & Usage
+
+#### Phase 1: Ruby Data Extraction
 
 1. **Clone the repository:**
    ```bash
@@ -132,11 +135,46 @@ Each final dataset entry includes:
    head -n 1 dataset/train.jsonl | jq .
    ```
 
+#### Phase 2: Python Environment for GNN Training
+
+6. **Set up Python virtual environment:**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+7. **Install Python dependencies:**
+   ```bash
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
+
+8. **Verify installation:**
+   ```bash
+   python -c "import torch, torch_geometric, pandas; print('✅ All libraries installed successfully')"
+   ```
+
+9. **Explore the data with Jupyter:**
+   ```bash
+   source venv/bin/activate  # Ensure virtual environment is active
+   jupyter notebook notebooks/01_data_exploration.ipynb
+   ```
+
+10. **Test Python modules:**
+    ```bash
+    python -c "
+    import sys; sys.path.append('src')
+    from data_processing import load_methods_json, methods_to_dataframe
+    methods = load_methods_json('output/methods.json')
+    df = methods_to_dataframe(methods)
+    print(f'Loaded {len(df)} Ruby methods for GNN training')
+    "
+    ```
+
 ## Project Structure
 
 ```
 jubilant-palm-tree/
-├── scripts/
 │   ├── 01_clone_repos.sh         # Repository cloning automation
 │   ├── 02_extract_methods.rb     # Method extraction from Ruby files
 │   ├── 03_process_methods.rb     # AST processing and complexity calculation
@@ -145,12 +183,20 @@ jubilant-palm-tree/
 │   ├── train.jsonl              # Training set (1,517 entries)
 │   ├── validation.jsonl         # Validation set (190 entries)
 │   └── test.jsonl               # Test set (189 entries)
+├── notebooks/                 # Jupyter notebooks for analysis
+│   └── 01_data_exploration.ipynb # Data exploration and visualization
 ├── output/                       # Intermediate processing files
 │   ├── processed_methods.jsonl   # Complete processed dataset
 │   ├── methods.json             # Original extracted methods
 │   └── sinatra_methods.json     # Sinatra-specific subset
+├── src/                       # Python source code for GNN training
+│   ├── __init__.py            # Package initialization
+│   ├── data_processing.py     # Data loading and preprocessing utilities
+│   └── models.py              # PyTorch Geometric GNN model implementations
 ├── repos/                        # Cloned repositories (excluded from git)
 ├── Gemfile                       # Ruby dependency management
+├── venv/                      # Python virtual environment (excluded from git)
+├── requirements.txt           # Python dependencies for GNN training
 └── README.md                     # Project documentation
 ```
 
@@ -160,7 +206,9 @@ To improve the development workflow and project maintainability, consider implem
 
 ### 1. Dependency Management
 - **✅ Created a Gemfile** to manage Ruby dependencies
-- Current dependencies: `parser` gem for AST processing
+- **✅ Created requirements.txt** for Python ML dependencies
+- Current Ruby dependencies: `parser` gem for AST processing
+- Current Python dependencies: `torch`, `torch_geometric`, `pandas`, `tqdm`, and supporting libraries
 - Future: Add development and testing dependencies as needed
 
 ### 2. Testing Infrastructure
@@ -203,8 +251,30 @@ These improvements would provide a solid foundation for collaborative developmen
 
 ## Next Steps
 
-With Phase 1 complete and the ML-ready dataset assembled, the project is ready to move forward with:
-- **Phase 2**: GNN Model Architecture Design & Implementation
-- **Phase 3**: Model Training & Hyperparameter Tuning  
-- **Phase 4**: Complexity Prediction Validation & Evaluation
-- **Phase 5**: Advanced Generative Model Development
+With Phase 1 complete and Python environment established, the project is ready to move forward with:
+- **Phase 2**: AST Processing & Feature Engineering
+- **Phase 3**: GNN Model Architecture & Training  
+- **Phase 4**: Complexity Prediction & Validation
+
+### Python GNN Development Environment
+
+The project now includes a comprehensive Python environment for Graph Neural Network development:
+
+**Core Libraries Installed:**
+- `torch` (2.7.1+): Deep learning framework
+- `torch_geometric` (2.6.1): Graph neural network extensions
+- `pandas` (2.3.1): Data manipulation and analysis
+- `tqdm` (4.67.1): Progress bars for training loops
+
+**Development Tools:**
+- `jupyter`: Interactive notebook environment
+- `matplotlib` & `seaborn`: Data visualization
+- `scikit-learn`: Additional ML utilities
+- `numpy`: Numerical computing
+
+**Ready-to-Use Components:**
+- `src/data_processing.py`: Utilities for loading and preprocessing Ruby method data
+- `src/models.py`: PyTorch Geometric GNN model implementations
+- `notebooks/01_data_exploration.ipynb`: Data exploration and visualization notebook
+
+The Python environment can directly process the Ruby-extracted method data (2,437 methods currently available) and is ready for AST processing and GNN training implementation.
