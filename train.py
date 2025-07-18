@@ -134,7 +134,7 @@ def main():
     
     # Training configuration
     config = {
-        'epochs': 10,  # Train for more than 2 epochs as required
+        'epochs': 100,  # Train for 100 epochs as specified in the final report requirements
         'batch_size': 32,
         'learning_rate': 0.001,
         'hidden_dim': 64,
