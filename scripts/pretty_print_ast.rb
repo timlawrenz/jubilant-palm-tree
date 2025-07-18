@@ -244,7 +244,11 @@ class ASTPrettyPrinter
 
   def should_omit_parentheses?(method_name)
     # Common methods that look better without parentheses
-    %w[raise puts print p require require_relative include extend].include?(method_name)
+    common_methods = %w[raise puts print p require require_relative include extend]
+    # Operators that should not have parentheses
+    operators = %w[+ - * / % ** == != < > <= >= <=> === =~ !~ << >> & | ^ ~ && ||]
+    
+    common_methods.include?(method_name) || operators.include?(method_name)
   end
 
   def convert_block(node, indent_level)
@@ -255,19 +259,59 @@ class ASTPrettyPrinter
 
     result = convert_node(call_node)
     
-    if block_args && block_args['children'] && !block_args['children'].empty?
-      result += " { |#{convert_node(block_args)}|"
+    # Determine if we should use do...end (for multi-line) or { } (for single-line)
+    use_do_end = should_use_do_end_block?(block_body)
+    
+    if use_do_end
+      # Multi-line do...end block
+      if block_args && block_args['children'] && !block_args['children'].empty?
+        result += " do |#{convert_node(block_args)}|\n"
+      else
+        result += " do\n"
+      end
+
+      if block_body
+        body_code = convert_node(block_body, indent_level + 1)
+        result += body_code
+        result += "\n"
+      end
+
+      result += "#{indent(indent_level)}end"
     else
-      result += " {"
-    end
+      # Single-line { } block
+      if block_args && block_args['children'] && !block_args['children'].empty?
+        result += " { |#{convert_node(block_args)}|"
+      else
+        result += " {"
+      end
 
-    if block_body
-      body_code = convert_node(block_body)
-      result += " #{body_code} "
-    end
+      if block_body
+        body_code = convert_node(block_body)
+        result += " #{body_code} "
+      end
 
-    result += "}"
+      result += "}"
+    end
+    
     result
+  end
+
+  def should_use_do_end_block?(block_body)
+    return false unless block_body
+    
+    # Use do...end for multi-statement blocks
+    if block_body['type'] == 'begin'
+      children = block_body['children'] || []
+      return children.length > 1
+    end
+    
+    # Use do...end for complex single statements (control flow, etc.)
+    case block_body['type']
+    when 'if', 'unless', 'case', 'while', 'until', 'for', 'def', 'class', 'module'
+      true
+    else
+      false
+    end
   end
 
   def convert_string(node)
@@ -521,16 +565,36 @@ class ASTPrettyPrinter
 
   def convert_and(node)
     children = node['children'] || []
-    left = convert_node(children[0])
-    right = convert_node(children[1])
+    left = convert_node_with_precedence(children[0], 'and')
+    right = convert_node_with_precedence(children[1], 'and')
     "#{left} && #{right}"
   end
 
   def convert_or(node)
     children = node['children'] || []
-    left = convert_node(children[0])
-    right = convert_node(children[1])
+    left = convert_node_with_precedence(children[0], 'or')
+    right = convert_node_with_precedence(children[1], 'or')
     "#{left} || #{right}"
+  end
+
+  def convert_node_with_precedence(node, parent_op)
+    return convert_node(node) unless node.is_a?(Hash) && node['type']
+    
+    # Define operator precedence (higher number = higher precedence)
+    precedence = {
+      'or' => 1,   # ||
+      'and' => 2   # &&
+    }
+    
+    node_op = node['type']
+    
+    # Add parentheses if the child operator has lower precedence than parent
+    if precedence[node_op] && precedence[parent_op] && 
+       precedence[node_op] < precedence[parent_op]
+      "(#{convert_node(node)})"
+    else
+      convert_node(node)
+    end
   end
 
   def convert_not(node)
@@ -550,9 +614,16 @@ class ASTPrettyPrinter
 
   def convert_pair(node)
     children = node['children'] || []
-    key = convert_node(children[0])
-    value = convert_node(children[1])
-    "#{key} => #{value}"
+    key = children[0]
+    value = children[1]
+    
+    # Use modern syntax for symbol keys (key: value instead of :key => value)
+    if key && key['type'] == 'sym'
+      key_name = key['children'][0]
+      "#{key_name}: #{convert_node(value)}"
+    else
+      "#{convert_node(key)} => #{convert_node(value)}"
+    end
   end
 
   def convert_splat(node)
@@ -686,15 +757,34 @@ class ASTPrettyPrinter
   def convert_case(node, indent_level)
     children = node['children'] || []
     expr = children[0]
-    when_branches = children[1..-1]
+    branches = children[1..-1]
 
     result = "#{indent(indent_level)}case #{convert_node(expr)}\n"
     
-    when_branches.each do |when_node|
-      if when_node
-        result += convert_node(when_node, indent_level)
-        result += "\n"
+    # Separate when branches from else clause
+    when_branches = []
+    else_clause = nil
+    
+    branches.each do |branch|
+      if branch && branch['type'] == 'when'
+        when_branches << branch
+      elsif branch && branch['type'] != 'when'
+        # This is likely the else clause (any non-when node at the end)
+        else_clause = branch
       end
+    end
+    
+    # Process when branches
+    when_branches.each do |when_node|
+      result += convert_node(when_node, indent_level)
+      result += "\n"
+    end
+    
+    # Process else clause if present
+    if else_clause
+      result += "#{indent(indent_level)}else\n"
+      result += convert_node(else_clause, indent_level + 1)
+      result += "\n"
     end
     
     result += "#{indent(indent_level)}end"
@@ -837,19 +927,23 @@ end
 
 # Command-line interface
 if __FILE__ == $0
-  if ARGV.empty?
-    puts "Usage: #{$0} <ast_json_file>"
-    puts "   or: echo '<ast_json>' | #{$0}"
-    exit 1
-  end
-
   begin
-    if ARGV[0] == '-'
-      # Read from stdin
+    if ARGV.empty? && !$stdin.tty?
+      # Read from stdin when no arguments and input is piped
       input = $stdin.read
+    elsif ARGV.length == 1
+      if ARGV[0] == '-'
+        # Explicit stdin
+        input = $stdin.read
+      else
+        # Read from file
+        input = File.read(ARGV[0])
+      end
     else
-      # Read from file
-      input = File.read(ARGV[0])
+      puts "Usage: #{$0} <ast_json_file>"
+      puts "   or: echo '<ast_json>' | #{$0}"
+      puts "   or: #{$0} -"
+      exit 1
     end
 
     result = ASTPrettyPrinter.ast_to_ruby(input)
