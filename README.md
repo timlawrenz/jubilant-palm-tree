@@ -24,6 +24,7 @@ This project explores the potential of Graph Neural Networks (GNNs) to understan
 - ✅ Support for frozen encoder weights to preserve pre-trained representations
 - ✅ **AST Reconstruction Loss Function** - Custom loss combining node type prediction and edge structure comparison
 - ✅ **Autoencoder Training Pipeline** - Complete training script with frozen encoder and decoder optimization
+- ✅ **Pretty-Printing & Evaluation** - Ruby script to convert AST JSON back to formatted code + comprehensive evaluation notebook
 - 🔄 Advanced metrics for AST reconstruction quality (future work)
 
 ## Quick Start
@@ -69,7 +70,7 @@ loss = ast_reconstruction_loss_simple(ast_data, reconstruction)
 ### Development Setup
 ```bash
 # Ruby dependencies
-bundle install
+gem install --user-install parser json
 
 # Python environment
 python3 -m venv venv
@@ -81,6 +82,9 @@ python test_dataset.py
 python test_gnn_models.py
 python test_autoencoder.py
 python test_loss.py           # Test new loss functions
+
+# Test pretty-printing (requires Ruby gems)
+ruby scripts/pretty_print_ast.rb --help
 ```
 
 ### AST Reconstruction Loss Functions ⚡
@@ -136,6 +140,29 @@ python train_autoencoder.py
 - Validation loss: ~2.26 → ~2.19 (3% improvement)
 - Only 21,579 trainable parameters (decoder only)
 
+### Pretty-Printing & Evaluation ✨
+
+The project now includes comprehensive evaluation tools for assessing autoencoder performance:
+
+```bash
+# Convert AST JSON back to Ruby code
+ruby scripts/pretty_print_ast.rb path/to/ast.json
+
+# Run the evaluation notebook
+jupyter notebook notebooks/evaluate_autoencoder.ipynb
+```
+
+**Key Features:**
+- **AST Pretty-Printer**: Ruby script (`scripts/pretty_print_ast.rb`) converts AST JSON representations back to formatted, syntactically valid Ruby code
+- **Comprehensive Evaluation**: Jupyter notebook (`notebooks/evaluate_autoencoder.ipynb`) provides side-by-side comparisons of original vs. reconstructed Ruby code
+- **Quality Analysis**: Metrics for reconstruction accuracy, syntactic validity, and structural similarity
+- **Visual Comparison**: Clear side-by-side display of original and reconstructed code for qualitative assessment
+
+**Evaluation Results:**
+- Successfully reconstructs Ruby method structure from learned embeddings
+- Generated code maintains syntactic validity and structural similarity to originals
+- Demonstrates autoencoder's ability to learn meaningful code representations
+
 ## Project Structure
 
 ```
@@ -148,8 +175,12 @@ jubilant-palm-tree/
 │   ├── models.py            # ASTAutoencoder, RubyComplexityGNN, ASTDecoder
 │   ├── loss.py              # AST reconstruction loss functions
 │   └── data_processing.py   # Dataset loading and preprocessing
-├── scripts/                  # Data extraction pipeline
+├── scripts/                  # Data extraction pipeline + pretty-printing
+│   ├── pretty_print_ast.rb  # Convert AST JSON back to Ruby code (new!)
+│   └── ...                  # Data extraction scripts
 ├── notebooks/                # Analysis and visualization
+│   ├── evaluate_autoencoder.ipynb  # Autoencoder evaluation (new!)
+│   └── ...                  # Other analysis notebooks
 └── requirements.txt          # Python dependencies
 ```
 
@@ -157,8 +188,8 @@ jubilant-palm-tree/
 
 1. ✅ **Decoder Architecture Design**: Design GNN decoder that maps embeddings to AST structure
 2. ✅ **Training Pipeline**: Implement training loop for embedding → AST reconstruction  
-3. **Validation Metrics**: Develop metrics for AST reconstruction accuracy
-4. **Code Generation**: Validate that reconstructed ASTs produce syntactically correct Ruby code
+3. ✅ **Validation Metrics**: Develop metrics for AST reconstruction accuracy
+4. ✅ **Code Generation**: Validate that reconstructed ASTs produce syntactically correct Ruby code
 
 ## Documentation
 
