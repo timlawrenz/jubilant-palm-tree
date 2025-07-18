@@ -1,0 +1,116 @@
+[
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/edge_cases.rb",
+    "start_line": 4,
+    "raw_source": "def empty_method\nend"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/edge_cases.rb",
+    "start_line": 8,
+    "raw_source": "def ℕ字(测试)\n  puts \"Unicode method name\"\nend"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/edge_cases.rb",
+    "start_line": 13,
+    "raw_source": "def single_line; \"hello\"; end"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/edge_cases.rb",
+    "start_line": 16,
+    "raw_source": "def complex_method(a, b = 1, *args, **kwargs, &block)\n  # Complex method with all parameter types\n  block.call if block\nend"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/edge_cases.rb",
+    "start_line": 23,
+    "raw_source": "def meta_method\n    \"meta\"\n  end"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/edge_cases.rb",
+    "start_line": 29,
+    "raw_source": "def heredoc_method\n  <<~EOF\n    This is a \n    heredoc string\n    with multiple lines\n  EOF\nend"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/sample.rb",
+    "start_line": 3,
+    "raw_source": "def initialize(value = 0)\n    @value = value\n  end"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/sample.rb",
+    "start_line": 7,
+    "raw_source": "def add(number)\n    @value += number\n    self\n  end"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/sample.rb",
+    "start_line": 12,
+    "raw_source": "def subtract(number)\n    @value -= number\n    self\n  end"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/sample.rb",
+    "start_line": 17,
+    "raw_source": "def self.create_zero\n    new(0)\n  end"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/sample.rb",
+    "start_line": 22,
+    "raw_source": "def calculate_fibonacci(n)\n    return n if n <= 1\n    \n    a, b = 0, 1\n    (2..n).each do |i|\n      a, b = b, a + b\n    end\n    b\n  end"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/sample.rb",
+    "start_line": 34,
+    "raw_source": "def validate_number(num)\n    raise ArgumentError, \"Must be a number\" unless num.is_a?(Numeric)\n  end"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/sample.rb",
+    "start_line": 41,
+    "raw_source": "def self.square(x)\n    x * x\n  end"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/sample.rb",
+    "start_line": 45,
+    "raw_source": "def cube(x)\n    x * x * x\n  end"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/sample.rb",
+    "start_line": 51,
+    "raw_source": "def hello_world\n  puts \"Hello, world!\"\nend"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/user.rb",
+    "start_line": 4,
+    "raw_source": "def initialize(name, email)\n    @name = name\n    @email = email\n  end"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/user.rb",
+    "start_line": 9,
+    "raw_source": "def full_info\n    \"#{@name} <#{@email}>\"\n  end"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/user.rb",
+    "start_line": 13,
+    "raw_source": "def self.admin_user\n    new(\"Admin\", \"admin@example.com\")\n  end"
+  },
+  {
+    "repo_name": "test_repo",
+    "file_path": "./repos/test_repo/user.rb",
+    "start_line": 18,
+    "raw_source": "def parse_csv(file_path)\n  # Method to parse CSV files\n  lines = File.readlines(file_path)\n  lines.map { |line| line.strip.split(',') }\nend"
+  }
+]
