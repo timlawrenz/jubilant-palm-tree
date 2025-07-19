@@ -134,8 +134,8 @@ def main():
     
     # Training configuration
     config = {
-        'epochs': 10,  # More than 2 epochs as required
-        'batch_size': 16,  # Smaller batch size for autoencoder training
+        'epochs': 100,  # More than 2 epochs as required
+        'batch_size': 32,  # Smaller batch size for autoencoder training
         'learning_rate': 0.001,
         'hidden_dim': 64,
         'num_layers': 3,
