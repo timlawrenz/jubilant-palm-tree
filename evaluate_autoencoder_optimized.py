@@ -205,30 +205,89 @@ def reconstruct_ast_from_features(node_features, reconstruction_info):
         else:
             node_types.append('unknown')
     
-    # Create simplified AST structure
-    return create_simple_ast(node_types)
+    # Build proper AST structure from decoded node types
+    return build_ast_from_node_types(node_types, reconstruction_info)
 
-def create_simple_ast(node_types):
-    """Create a simple AST structure to avoid pretty printer issues"""
+def build_ast_from_node_types(node_types, reconstruction_info):
+    """Build a proper AST structure from decoded node types"""
     if not node_types:
-        return {'type': 'str', 'children': ['reconstructed_empty']}
+        return {'type': 'nil', 'children': []}
     
-    root_type = node_types[0]
+    # Extract edge information if available
+    edge_index = reconstruction_info.get('edge_index', None)
+    edges = []
+    if edge_index is not None and hasattr(edge_index, 'cpu'):
+        edge_array = edge_index.cpu().numpy()
+        if edge_array.size > 0:
+            edges = [(int(edge_array[0, i]), int(edge_array[1, i])) for i in range(edge_array.shape[1])]
     
-    if root_type == 'def':
-        return {
-            'type': 'def',
-            'children': [
-                'reconstructed_method',
-                {'type': 'args', 'children': []},
-                {'type': 'str', 'children': ['reconstructed_content']}
-            ]
-        }
+    # Build adjacency list for parent-child relationships
+    children_map = {}
+    for parent, child in edges:
+        if parent < len(node_types) and child < len(node_types):
+            if parent not in children_map:
+                children_map[parent] = []
+            children_map[parent].append(child)
+    
+    # Recursively build AST nodes
+    def build_node(node_idx, visited=None):
+        if visited is None:
+            visited = set()
+        
+        if node_idx >= len(node_types) or node_idx in visited:
+            return None
+            
+        visited.add(node_idx)
+        node_type = node_types[node_idx]
+        
+        # Create node structure
+        node = {'type': node_type, 'children': []}
+        
+        # Add children recursively
+        if node_idx in children_map:
+            for child_idx in sorted(children_map[node_idx]):
+                child_node = build_node(child_idx, visited.copy())
+                if child_node is not None:
+                    node['children'].append(child_node)
+        
+        # Add type-specific content for leaf nodes or special handling
+        if not node['children'] and should_have_content(node_type):
+            node['children'] = [get_default_content_for_type(node_type)]
+        
+        return node
+    
+    # Find root node (node with no incoming edges or first node)
+    root_candidates = set(range(len(node_types)))
+    for parent, child in edges:
+        if child < len(node_types):
+            root_candidates.discard(child)
+    
+    if root_candidates:
+        root_idx = min(root_candidates)  # Use the first available root
     else:
-        return {
-            'type': root_type if root_type != 'unknown' else 'str',
-            'children': ['reconstructed_value']
-        }
+        root_idx = 0  # Fallback to first node
+    
+    return build_node(root_idx) or {'type': node_types[0] if node_types else 'nil', 'children': []}
+
+def should_have_content(node_type):
+    """Check if a node type should have textual content"""
+    content_types = ['str', 'int', 'float', 'sym', 'lvar', 'ivar', 'gvar', 'cvar', 'const']
+    return node_type in content_types
+
+def get_default_content_for_type(node_type):
+    """Get appropriate default content for different node types"""
+    defaults = {
+        'str': 'text',
+        'int': '42',
+        'float': '3.14',
+        'sym': 'symbol',
+        'lvar': 'variable',
+        'ivar': '@instance_var',
+        'gvar': '$global_var',
+        'cvar': '@@class_var',
+        'const': 'CONSTANT'
+    }
+    return defaults.get(node_type, 'value')
 
 def evaluate_sample_fast(dataset, autoencoder, sample_idx):
     """Evaluate a single sample through the autoencoder"""
