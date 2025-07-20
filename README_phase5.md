@@ -160,7 +160,60 @@ Each method entry includes a `descriptions` array with up to three types of desc
 
 ### Test Description Extraction
 
-The script implements a sophisticated approach to extract meaningful descriptions from RSpec test files:
+**✅ NEW: Improved RSpec Parsing with Custom Formatter** - The script now uses a custom RSpec formatter instead of manual AST parsing for more accurate test description extraction.
+
+The script implements a sophisticated approach to extract meaningful descriptions from RSpec test files using two complementary methods:
+
+#### Primary Method: Custom RSpec Formatter
+- **Implementation**: `CustomRSpecFormatter` class that hooks into RSpec's event system
+- **Events**: Listens for `example_group_started`, `example_group_finished`, `example_started`, and `dump_summary`
+- **Dry-run Mode**: Runs RSpec with `--dry-run` flag to collect metadata without executing test code
+- **Contextual Descriptions**: Builds full contextual sentences by combining describe/context blocks with it descriptions
+- **Example Output**: "User, with a valid profile, can log in successfully" instead of just "can log in successfully"
+
+#### Fallback Method: Manual AST Parsing
+- **Compatibility**: Falls back to original Ruby AST parsing if RSpec formatter fails
+- **Robustness**: Ensures the script continues working even with malformed spec files
+- **Legacy Support**: Maintains compatibility with non-standard RSpec files
+
+#### Implementation Details
+
+**Custom RSpec Formatter**:
+```ruby
+class CustomRSpecFormatter
+  # Hooks into RSpec's event system
+  RSpec::Core::Formatters.register self, 
+    :example_group_started, 
+    :example_group_finished,
+    :example_started,
+    :dump_summary
+
+  def example_group_started(notification)
+    # Builds context stack from describe/context blocks
+  end
+
+  def example_started(notification)
+    # Combines context with example description
+    # Creates: "#{context_parts.join(', ')}, #{example_description}"
+  end
+end
+```
+
+**Integration in Main Script**:
+```ruby
+def extract_test_descriptions_using_rspec_formatter(spec_file, target_method_name)
+  # Configure RSpec for dry-run mode
+  RSpec.configure { |config| config.dry_run = true }
+  
+  # Run RSpec with custom formatter
+  exit_code = RSpec::Core::Runner.run([spec_file, '--dry-run'])
+  
+  # Extract relevant descriptions using existing heuristics
+  formatter.collected_examples.select do |example|
+    test_likely_targets_method_from_rspec(example, target_method_name)
+  end
+end
+```
 
 #### RSpec File Discovery
 - Automatically scans for files ending in `_spec.rb`
@@ -168,17 +221,27 @@ The script implements a sophisticated approach to extract meaningful description
   - `app/models/user.rb` → `spec/models/user_spec.rb`
   - `lib/calculator.rb` → `spec/lib/calculator_spec.rb` or `spec/calculator_spec.rb`
 
-#### Test-to-Method Linking
-Uses multiple heuristics to identify which test descriptions apply to specific methods:
+#### Advanced Test-to-Method Linking
+The system uses multiple sophisticated heuristics to identify which test descriptions apply to specific methods:
 
+**RSpec Formatter Heuristics** (Primary):
+1. **Contextual Description Matching**: Analyzes full contextual descriptions from RSpec formatter
+2. **Described Class Integration**: Uses RSpec's `described_class` metadata when available
+3. **Method Name Pattern Recognition**: Enhanced fuzzy matching with context awareness
+4. **Context Stack Analysis**: Examines describe/context hierarchy for method relevance
+
+**AST Parsing Heuristics** (Fallback):
 1. **Description Pattern Matching**: Checks if the method name appears in the test description
 2. **Method Call Analysis**: Parses the test body to find method calls on test subjects
 3. **Subject Identification**: Recognizes common RSpec patterns like `subject.method_name` or `described_class.method_name`
+4. **Behavioral Pattern Matching**: Identifies tests based on behavioral descriptions and patterns
 
-#### RSpec DSL Parsing
-- Parses RSpec files using the Ruby AST parser
-- Extracts descriptions from `it "description"` blocks
-- Filters out common RSpec helper methods to focus on the actual method under test
+#### Benefits of the New Approach
+- **Higher Accuracy**: RSpec formatter provides better context than manual AST parsing
+- **Richer Descriptions**: Full contextual sentences instead of isolated test descriptions
+- **Better Maintainability**: Uses RSpec's official event system instead of custom AST traversal
+- **Robust Fallback**: Maintains compatibility with edge cases through dual approach
+- **Performance**: RSpec dry-run mode is more efficient than manual parsing for complex specs
 
 ### Example Entry Structure
 ```json
@@ -200,11 +263,15 @@ Uses multiple heuristics to identify which test descriptions apply to specific m
     },
     {
       "source": "test_description",
-      "text": "calculates the total correctly"
+      "text": "User, #calculate_total_price, calculates the total correctly"
+    },
+    {
+      "source": "test_description", 
+      "text": "User, #calculate_total_price, includes tax in the calculation"
     },
     {
       "source": "test_description",
-      "text": "includes tax in the calculation"
+      "text": "User, with premium account, calculates total price with discount"
     }
   ]
 }
@@ -212,10 +279,12 @@ Uses multiple heuristics to identify which test descriptions apply to specific m
 
 ### Implementation Notes
 
-- **Graceful Degradation**: The script works even when RSpec files are not available, ensuring all methods still receive method name and docstring descriptions
+- **Dual Approach**: Primary RSpec formatter with AST parsing fallback ensures robustness
+- **Graceful Degradation**: The script works even when RSpec files are not available, ensuring all methods still receive method name and docstring descriptions  
 - **Performance Optimization**: Uses caching to avoid re-parsing the same spec files multiple times
 - **Error Handling**: Continues processing even if individual spec files cannot be parsed
 - **Flexible File Mapping**: Supports various project structures and file organization patterns
+- **Enhanced Context**: RSpec formatter provides richer contextual information than manual parsing
 
 ## Target Architecture
 
