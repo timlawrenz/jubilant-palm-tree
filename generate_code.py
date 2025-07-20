@@ -60,14 +60,11 @@ class CodeGenerator:
         
     def _load_alignment_model(self, model_path, code_encoder_path):
         """Load the AlignmentModel with proper configuration."""
-        # Disable sentence transformers to use SimpleTextEncoder (as saved)
-        import models
-        models.SENTENCE_TRANSFORMERS_AVAILABLE = False
-        
-        # Create model
+        # Create model with same configuration as training
         alignment_model = AlignmentModel(
             input_dim=74,  # Based on dataset
             hidden_dim=64,
+            text_model_name='all-MiniLM-L6-v2',  # Use same model as training
             code_encoder_weights_path=code_encoder_path
         )
         
