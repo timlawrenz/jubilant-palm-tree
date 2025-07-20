@@ -303,7 +303,130 @@ All tests pass successfully, confirming the data loader meets the specified requ
 
 The data loader implementation is complete and ready for Phase 5 training pipeline integration.
 
+## Contrastive Loss Functions ✅
+
+**Status: ✅ COMPLETE** - Contrastive loss functions for code-text alignment have been successfully implemented.
+
+### Implementation
+
+The contrastive loss functions are implemented in `src/loss.py` and provide multiple approaches for training aligned embeddings between code and text representations.
+
+### Available Loss Functions
+
+#### 1. InfoNCE Loss
+```python
+from src.loss import info_nce_loss
+
+loss = info_nce_loss(code_embeddings, text_embeddings, temperature=0.07)
+```
+
+**Purpose**: Information Noise Contrastive Estimation (InfoNCE) loss for contrastive learning
+**Method**: Uses cross-entropy between similarity scores and correct indices
+**Features**:
+- Temperature-scaled cosine similarities 
+- Symmetric loss (code-to-text and text-to-code)
+- Standard choice for contrastive multimodal learning
+
+#### 2. Cosine Embedding Loss
+```python
+from src.loss import cosine_embedding_loss
+
+loss = cosine_embedding_loss(code_embeddings, text_embeddings, margin=0.2)
+```
+
+**Purpose**: Simple cosine similarity-based contrastive loss
+**Method**: Encourages high similarity for positive pairs, low similarity for negative pairs
+**Features**:
+- MSE loss for positive pairs (target similarity = 1.0)
+- Margin-based loss for negative pairs
+- Handles single-sample batches gracefully
+
+#### 3. Simple Contrastive Loss
+```python
+from src.loss import simple_contrastive_loss
+
+loss = simple_contrastive_loss(code_embeddings, text_embeddings, temperature=0.1)
+```
+
+**Purpose**: Straightforward contrastive loss maximizing cosine similarity
+**Method**: Negative mean cosine similarity between positive pairs
+**Features**:
+- Simplest implementation
+- Direct optimization of similarity
+- Temperature scaling for gradient control
+
+### Usage Example
+
+```python
+import torch
+from src.models import AlignmentModel
+from src.loss import info_nce_loss
+from torch_geometric.data import Data
+
+# Initialize alignment model
+model = AlignmentModel(input_dim=74, hidden_dim=64)
+
+# Forward pass
+graph_data = Data(x=node_features, edge_index=edges, batch=batch_indices)
+texts = ["calculate total price", "process user data"]
+
+outputs = model(graph_data, texts)
+code_embeddings = outputs['code_embeddings']  # Shape: (batch_size, 64)
+text_embeddings = outputs['text_embeddings']  # Shape: (batch_size, 64)
+
+# Compute contrastive loss
+loss = info_nce_loss(code_embeddings, text_embeddings)
+
+# Backpropagation
+loss.backward()
+```
+
+### Key Features
+
+1. **Multiple Loss Options**: InfoNCE, cosine embedding, and simple contrastive losses
+2. **Robust Implementation**: Handles various batch sizes and embedding dimensions
+3. **Gradient Flow**: All functions support gradient computation for training
+4. **Temperature Scaling**: Configurable temperature parameters for fine-tuning
+5. **Batch Processing**: Efficient computation for batched embeddings
+6. **Device Compatibility**: Works on both CPU and GPU
+
+### Testing and Validation
+
+Comprehensive testing has been implemented in `test_contrastive_loss.py` covering:
+
+1. **Identical Embeddings**: Verifies low loss for perfect alignment
+2. **Random Embeddings**: Confirms higher loss for poor alignment  
+3. **Opposite Embeddings**: Tests maximum loss for anti-aligned embeddings
+4. **Gradient Flow**: Validates gradient computation through loss functions
+5. **Batch Size Robustness**: Tests with various batch sizes (1, 2, 8, 16)
+6. **Embedding Dimensions**: Validates across different dimensions (16, 32, 64, 128, 256)
+7. **Temperature Scaling**: Confirms proper temperature parameter behavior
+
+All tests pass successfully, confirming the loss functions meet the specified requirements.
+
+### Definition of Done ✅
+
+The contrastive loss implementation satisfies all requirements from issue #76:
+
+- ✅ **Contrastive loss function**: InfoNCE loss implemented as primary option
+- ✅ **Alternative approaches**: Cosine embedding loss and simple contrastive loss provided
+- ✅ **Code/text embeddings input**: Functions take two tensors of embeddings
+- ✅ **Scalar loss output**: All functions return single scalar loss values
+- ✅ **Similarity-based logic**: Low loss for close pairs, high loss for distant pairs
+- ✅ **Comprehensive testing**: All functionality validated with test suite
+
+The implementation is ready for integration into the Phase 5 training pipeline.
+
 ## Next Steps
+
+Phase 5 implementation will continue with:
+
+- Integration of contrastive loss functions into training pipeline
+- Evaluation methodology establishment using the paired dataset
+- Fine-tuning of hyperparameters (temperature, margin, learning rates)
+- Performance benchmarking and optimization
+
+This README will be continuously updated as work progresses on Phase 5.
 
 Phase 5 implementation will begin with creating detailed tickets for:
 
