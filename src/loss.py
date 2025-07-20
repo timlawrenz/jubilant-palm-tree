@@ -1,8 +1,9 @@
 """
-Loss functions for AST reconstruction tasks.
+Loss functions for AST reconstruction tasks and contrastive learning.
 
-This module provides loss functions for measuring the difference between 
-original and reconstructed Abstract Syntax Trees in torch_geometric format.
+This module provides loss functions for:
+1. Measuring the difference between original and reconstructed Abstract Syntax Trees
+2. Contrastive learning between code and text embeddings for alignment
 """
 
 import torch
@@ -194,3 +195,128 @@ def ast_reconstruction_loss_simple(original: Data, reconstructed: Dict[str, Any]
         Scalar tensor representing the node type reconstruction loss
     """
     return compute_node_type_loss(original.x, reconstructed['node_features'], original.batch)
+
+
+# ============================================================================
+# Contrastive Loss Functions for Code-Text Alignment (Phase 5)
+# ============================================================================
+
+def info_nce_loss(code_embeddings: torch.Tensor, text_embeddings: torch.Tensor, 
+                  temperature: float = 0.07) -> torch.Tensor:
+    """
+    InfoNCE (Information Noise Contrastive Estimation) loss for contrastive learning.
+    
+    This loss encourages correct (code, text) pairs to have high similarity while
+    pushing incorrect pairs to have low similarity. It's commonly used in 
+    contrastive learning and multimodal alignment.
+    
+    Args:
+        code_embeddings: Code embeddings tensor of shape [batch_size, embedding_dim]
+        text_embeddings: Text embeddings tensor of shape [batch_size, embedding_dim]
+        temperature: Temperature parameter for scaling similarities (higher = softer)
+        
+    Returns:
+        Scalar tensor representing the InfoNCE loss
+        
+    Note:
+        Assumes that code_embeddings[i] and text_embeddings[i] form a positive pair,
+        while all other combinations are negative pairs.
+    """
+    batch_size = code_embeddings.size(0)
+    
+    # Normalize embeddings to unit vectors for stable cosine similarity
+    code_embeddings = F.normalize(code_embeddings, p=2, dim=1)
+    text_embeddings = F.normalize(text_embeddings, p=2, dim=1)
+    
+    # Compute similarity matrix: [batch_size, batch_size]
+    # similarity[i, j] = similarity between code[i] and text[j]
+    similarity_matrix = torch.matmul(code_embeddings, text_embeddings.t()) / temperature
+    
+    # Create labels: positive pairs are on the diagonal
+    labels = torch.arange(batch_size, device=code_embeddings.device)
+    
+    # InfoNCE loss is cross-entropy between similarity scores and correct indices
+    # For each code embedding, we want the corresponding text embedding to have highest similarity
+    loss_code_to_text = F.cross_entropy(similarity_matrix, labels)
+    
+    # Symmetric loss: for each text embedding, we want the corresponding code embedding to have highest similarity
+    loss_text_to_code = F.cross_entropy(similarity_matrix.t(), labels)
+    
+    # Return average of both directions
+    return (loss_code_to_text + loss_text_to_code) / 2.0
+
+
+def cosine_embedding_loss(code_embeddings: torch.Tensor, text_embeddings: torch.Tensor,
+                         margin: float = 0.2) -> torch.Tensor:
+    """
+    Simple cosine embedding loss for contrastive learning.
+    
+    This loss encourages positive pairs to have high cosine similarity (close to 1)
+    and negative pairs to have low cosine similarity (below margin).
+    
+    Args:
+        code_embeddings: Code embeddings tensor of shape [batch_size, embedding_dim]
+        text_embeddings: Text embeddings tensor of shape [batch_size, embedding_dim]
+        margin: Margin for negative pairs (similarity should be below this)
+        
+    Returns:
+        Scalar tensor representing the cosine embedding loss
+    """
+    batch_size = code_embeddings.size(0)
+    
+    # Normalize embeddings for stable cosine similarity
+    code_embeddings = F.normalize(code_embeddings, p=2, dim=1)
+    text_embeddings = F.normalize(text_embeddings, p=2, dim=1)
+    
+    # Compute cosine similarities for all pairs
+    similarity_matrix = torch.matmul(code_embeddings, text_embeddings.t())
+    
+    # Positive pairs: diagonal elements (code[i] with text[i])
+    positive_similarities = torch.diag(similarity_matrix)
+    
+    # Loss for positive pairs: encourage high similarity (target = 1)
+    positive_loss = F.mse_loss(positive_similarities, torch.ones_like(positive_similarities))
+    
+    # For negative pairs, only apply if we have more than one sample
+    if batch_size > 1:
+        # Negative pairs: off-diagonal elements
+        mask = torch.eye(batch_size, device=code_embeddings.device).bool()
+        negative_similarities = similarity_matrix[~mask]
+        
+        # Loss for negative pairs: encourage low similarity (below margin)
+        # Only penalize if similarity is above margin
+        negative_loss = F.relu(negative_similarities - margin).mean()
+    else:
+        # No negative pairs when batch size is 1
+        negative_loss = torch.tensor(0.0, device=code_embeddings.device)
+    
+    # Combine losses
+    return positive_loss + negative_loss
+
+
+def simple_contrastive_loss(code_embeddings: torch.Tensor, text_embeddings: torch.Tensor,
+                           temperature: float = 0.1) -> torch.Tensor:
+    """
+    Simplified contrastive loss using cosine similarity.
+    
+    This is a straightforward implementation that maximizes cosine similarity
+    between correct pairs and minimizes it for incorrect pairs.
+    
+    Args:
+        code_embeddings: Code embeddings tensor of shape [batch_size, embedding_dim]
+        text_embeddings: Text embeddings tensor of shape [batch_size, embedding_dim]
+        temperature: Temperature for scaling similarities
+        
+    Returns:
+        Scalar tensor representing the contrastive loss
+    """
+    # Normalize embeddings
+    code_embeddings = F.normalize(code_embeddings, p=2, dim=1)
+    text_embeddings = F.normalize(text_embeddings, p=2, dim=1)
+    
+    # Compute cosine similarities
+    similarities = F.cosine_similarity(code_embeddings, text_embeddings, dim=1)
+    
+    # Loss is simply negative mean similarity (we want to maximize similarity)
+    # Scale by temperature for better gradient flow
+    return -similarities.mean() / temperature
