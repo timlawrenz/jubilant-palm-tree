@@ -49,6 +49,9 @@ venv.bak/
 *.swp
 *.swo
 
-# Environment files
+# Environment files (excluding Ruby environment helper)
 .env
 .env.local
+
+# Bundler local configuration (user-specific)
+.bundle/
