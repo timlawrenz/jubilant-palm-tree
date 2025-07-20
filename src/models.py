@@ -396,8 +396,9 @@ class SimpleTextEncoder(torch.nn.Module):
             chars.extend([0] * (self.max_length - len(chars)))
             char_sequences.append(chars[:self.max_length])
         
-        # Convert to tensor
+        # Convert to tensor and move to same device as model
         char_tensor = torch.tensor(char_sequences, dtype=torch.long)
+        char_tensor = char_tensor.to(next(self.parameters()).device)
         
         # Embed characters
         embedded = self.char_embedding(char_tensor)  # (batch, seq_len, embed_dim)
