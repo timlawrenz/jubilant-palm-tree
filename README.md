@@ -14,10 +14,12 @@ This project explores the potential of Graph Neural Networks (GNNs) to understan
 - **Meaningful Embeddings**: 64-dimensional representations cluster methods by complexity and enable full code reconstruction
 - **Comprehensive Dataset**: 1,896 Ruby methods from 8 high-quality open-source projects
 - **Complete Pipeline**: End-to-end system from Ruby source code to embeddings to reconstructed code
+- **Text-Code Alignment**: Contrastive learning aligns natural language descriptions with code embeddings
+- **Multimodal Learning**: Successful dual-encoder architecture with 43.5% loss improvement over training
 
 ## Project Phases
 
-This project was completed in 4 phases, with a 5th phase planned for future work:
+This project was completed in 5 phases:
 
 ### [Phase 1 - Data Generation & Preprocessing](README_phase1.md) ✅ **COMPLETED**
 **Goal**: To produce a clean, structured dataset from raw source code, ready for model training.
@@ -48,8 +50,9 @@ This project was completed in 4 phases, with a 5th phase planned for future work
 - [Evaluation with Pretty-Printing](https://github.com/timlawrenz/jubilant-palm-tree/issues/37)
 - [And 8 additional issues for robust implementation and evaluation](README_phase4.md)
 
-### [Phase 5 - Aligning Text and Code Embeddings](README_phase5.md) 📋 **PLANNED**
+### [Phase 5 - Aligning Text and Code Embeddings](README_phase5.md) ✅ **COMPLETED**
 **Goal**: Train a text-encoder so that the embedding it produces for a method's description is located at the same point in the 64-dimensional space as the embedding our GNN produces for the method's AST.
+- [Alignment Training Loop](https://github.com/timlawrenz/jubilant-palm-tree/issues/77)
 
 ## Quick Start
 
@@ -69,6 +72,7 @@ best_decoder.pt          # Trained AST reconstruction decoder
 # Training and evaluation
 train.py                 # GNN complexity prediction training
 train_autoencoder.py     # AST autoencoder training
+train_alignment.py       # Text-code alignment training
 evaluate_autoencoder_optimized.py  # Large-scale evaluation
 
 # Code generation tools
@@ -108,6 +112,12 @@ reconstruction = result['reconstruction'] # Reconstructed AST
 - **Scalable Evaluation**: Tested from 25 to 1,000+ samples consistently
 - **Code Generation**: Complete Ruby source → AST → embedding → AST → Ruby pipeline
 - **Model Architecture**: 47,692 parameters (21,579 trainable decoder + 26,113 frozen encoder)
+
+### Text-Code Alignment (Phase 5)
+- **Dual-encoder Architecture**: Frozen GNN code encoder + trainable text projection head
+- **Contrastive Learning**: InfoNCE loss aligns text descriptions with code embeddings  
+- **Successful Training**: 43.5% loss improvement demonstrating effective alignment learning
+- **Shared Embedding Space**: 64-dimensional space enables text-to-code and code-to-text tasks
 
 ## Development Setup
 
@@ -175,4 +185,4 @@ jubilant-palm-tree/
 
 ---
 
-*This project successfully demonstrates that Graph Neural Networks can learn meaningful structural representations of Ruby code, enabling both complexity prediction and complete AST reconstruction. For detailed information about each phase, see the individual phase README files.*
+*This project successfully demonstrates that Graph Neural Networks can learn meaningful structural representations of Ruby code, enabling complexity prediction, complete AST reconstruction, and text-code alignment through contrastive learning. For detailed information about each phase, see the individual phase README files.*
