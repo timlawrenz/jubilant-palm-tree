@@ -111,18 +111,48 @@ reconstruction = result['reconstruction'] # Reconstructed AST
 
 ## Development Setup
 
-```bash
-# Ruby dependencies for AST processing
-gem install --user-install parser json
+### Ruby Dependencies (Required for AST processing)
 
-# Python environment
+**Quick Setup for Copilot Agents:**
+```bash
+# Automated setup - recommended for Copilot coding agents
+./setup-ruby.sh
+
+# Activate Ruby environment in current session
+source .env-ruby
+```
+
+**Manual Setup (if needed):**
+```bash
+# Install Ruby gems to user directory (avoids permission errors)
+gem install --user-install bundler parser json
+
+# Configure environment for user gems
+export PATH="$HOME/.local/share/gem/ruby/$(ruby -e "puts RUBY_VERSION.match(/\d+\.\d+/)[0]").0/bin:$PATH"
+export GEM_PATH="$HOME/.local/share/gem/ruby/$(ruby -e "puts RUBY_VERSION.match(/\d+\.\d+/)[0]").0:$GEM_PATH"
+```
+
+### Python Environment
+```bash
+# Python dependencies for GNN models
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+```
 
-# Verify installation
+### Verify Installation
+```bash
+# Test Ruby AST processing
+ruby test-ruby-setup.rb
+
+# Test specific scripts
+ruby scripts/check_syntax.rb < scripts/check_syntax.rb
+
+# Test Python ML pipeline
 python test_dataset.py
 python test_autoencoder.py
+
+# Test AST pretty printing
 ruby scripts/pretty_print_ast.rb --help
 ```
 
