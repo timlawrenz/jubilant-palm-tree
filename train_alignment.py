@@ -194,7 +194,7 @@ def main():
     # Training hyperparameters
     batch_size = 8  # Smaller batch size for alignment training
     learning_rate = 1e-3
-    num_epochs = 20  # Reduced for demonstration
+    num_epochs = 200  # Reduced for demonstration
     patience = 5  # Early stopping patience
     
     # Data paths
