@@ -3,6 +3,7 @@ torch
 torch_geometric
 pandas
 tqdm
+sentence-transformers
 
 # Data science and visualization (commonly needed)
 numpy
