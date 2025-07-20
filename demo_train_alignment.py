@@ -34,7 +34,7 @@ def demo_alignment_training():
     max_batches_per_epoch = 100  # Limit batches for demo
     
     # Data paths
-    paired_data_path = "dataset/paired_data.jsonl"
+    train_data_path = "dataset/train_paired_data.jsonl"
     code_encoder_weights_path = "best_model.pt"
     
     # Device configuration
@@ -42,9 +42,9 @@ def demo_alignment_training():
     print(f"Using device: {device}")
     
     # Load data
-    print(f"\n📊 Loading paired dataset")
+    print(f"\n📊 Loading training dataset")
     train_loader = create_paired_data_loaders(
-        paired_data_path=paired_data_path,
+        paired_data_path=train_data_path,
         batch_size=batch_size,
         shuffle=True,
         seed=42

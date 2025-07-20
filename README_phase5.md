@@ -322,6 +322,21 @@ A new `PairedDataset` class has been implemented in `src/data_processing.py` wit
 - **Memory efficient**: Loads data once and samples descriptions on-demand
 - **Compatible interface**: Integrates seamlessly with existing graph processing infrastructure
 
+### Dataset Organization
+
+The paired dataset is split into separate training and validation sets for proper model evaluation:
+
+- **Training set**: `dataset/train_paired_data.jsonl` (140,354 samples, 90%)
+- **Validation set**: `dataset/validation_paired_data.jsonl` (15,595 samples, 10%)
+- **Original dataset**: `dataset/paired_data.jsonl` (155,949 total samples)
+
+This ensures validation metrics are reliable and not overly optimistic from data leakage.
+
+To recreate the split or use a different ratio, run:
+```bash
+python scripts/split_paired_dataset.py
+```
+
 ### Usage Example
 
 ```python
@@ -329,7 +344,7 @@ from src.data_processing import PairedDataset, create_paired_data_loaders
 
 # Create dataset and loader
 loader = create_paired_data_loaders(
-    paired_data_path="dataset/paired_data.jsonl",
+    paired_data_path="dataset/train_paired_data.jsonl",
     batch_size=32,
     shuffle=True,
     seed=42  # Optional for reproducible sampling
@@ -506,7 +521,7 @@ python demo_train_alignment.py
 ```
 
 #### 2. Key Components
-- **Data Loading**: Uses `PairedDataset` to load graph-text pairs from `dataset/paired_data.jsonl`
+- **Data Loading**: Uses `PairedDataset` to load graph-text pairs from separate train/validation splits
 - **Model Initialization**: Creates `AlignmentModel` with frozen code encoder and trainable text projection head
 - **Contrastive Learning**: Uses InfoNCE loss to align code and text embeddings
 - **Training Loop**: Implements proper training/validation with progress monitoring

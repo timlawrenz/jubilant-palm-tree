@@ -198,7 +198,8 @@ def main():
     patience = 5  # Early stopping patience
     
     # Data paths
-    paired_data_path = "dataset/paired_data.jsonl"
+    train_data_path = "dataset/train_paired_data.jsonl"
+    val_data_path = "dataset/validation_paired_data.jsonl"
     code_encoder_weights_path = "best_model.pt"  # Pre-trained code encoder
     output_path = "best_alignment_model.pt"
     
@@ -207,19 +208,20 @@ def main():
     print(f"Using device: {device}")
     
     # Load paired dataset
-    print(f"\n📊 Loading paired dataset from {paired_data_path}")
+    print(f"\n📊 Loading training dataset from {train_data_path}")
     try:
         train_loader = create_paired_data_loaders(
-            paired_data_path=paired_data_path,
+            paired_data_path=train_data_path,
             batch_size=batch_size,
             shuffle=True,
             seed=42  # For reproducible training
         )
         print(f"✅ Loaded training data: {len(train_loader)} batches")
         
-        # Create smaller validation loader from same data (for monitoring)
+        # Load separate validation dataset
+        print(f"📊 Loading validation dataset from {val_data_path}")
         val_loader = create_paired_data_loaders(
-            paired_data_path=paired_data_path,
+            paired_data_path=val_data_path,
             batch_size=batch_size,
             shuffle=False,
             seed=123  # Different seed for validation
