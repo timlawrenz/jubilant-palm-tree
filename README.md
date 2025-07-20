@@ -143,6 +143,9 @@ pip install -r requirements.txt
 ### Verify Installation
 ```bash
 # Test Ruby AST processing
+ruby test-ruby-setup.rb
+
+# Test specific scripts
 ruby scripts/check_syntax.rb < scripts/check_syntax.rb
 
 # Test Python ML pipeline
