@@ -9,6 +9,11 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, SAGEConv, global_mean_pool
 from torch_geometric.data import Data, Batch
+try:
+    from sentence_transformers import SentenceTransformer
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
 
 
 class RubyComplexityGNN(torch.nn.Module):
@@ -336,4 +341,249 @@ class ASTAutoencoder(torch.nn.Module):
         return (f"ASTAutoencoder(\n"
                 f"  encoder: {encoder_info}{freeze_status}\n"
                 f"  decoder: {decoder_info}\n"
+                f")")
+
+
+class SimpleTextEncoder(torch.nn.Module):
+    """
+    Simple text encoder as fallback when sentence-transformers is not available.
+    
+    This provides a basic text encoding mechanism using character-level features
+    and a simple neural network. Used as fallback for testing when internet
+    access is not available.
+    """
+    
+    def __init__(self, output_dim: int = 384, max_length: int = 100):
+        """
+        Initialize the simple text encoder.
+        
+        Args:
+            output_dim: Output embedding dimension
+            max_length: Maximum text length to consider
+        """
+        super().__init__()
+        self.output_dim = output_dim
+        self.max_length = max_length
+        
+        # Character embedding (256 ASCII characters)
+        self.char_embedding = torch.nn.Embedding(256, 64)
+        
+        # Simple RNN for text processing
+        self.rnn = torch.nn.LSTM(64, 128, batch_first=True, bidirectional=True)
+        
+        # Output projection
+        self.output_proj = torch.nn.Linear(256, output_dim)
+        
+    def encode(self, texts: list, convert_to_tensor: bool = True) -> torch.Tensor:
+        """
+        Encode texts to embeddings.
+        
+        Args:
+            texts: List of text strings
+            convert_to_tensor: Whether to return tensor (for compatibility)
+            
+        Returns:
+            Text embeddings tensor
+        """
+        batch_size = len(texts)
+        
+        # Convert texts to character indices
+        char_sequences = []
+        for text in texts:
+            # Convert to lowercase and get character codes
+            chars = [min(ord(c), 255) for c in text.lower()[:self.max_length]]
+            # Pad to max_length
+            chars.extend([0] * (self.max_length - len(chars)))
+            char_sequences.append(chars[:self.max_length])
+        
+        # Convert to tensor
+        char_tensor = torch.tensor(char_sequences, dtype=torch.long)
+        
+        # Embed characters
+        embedded = self.char_embedding(char_tensor)  # (batch, seq_len, embed_dim)
+        
+        # Process with RNN
+        rnn_output, (hidden, _) = self.rnn(embedded)
+        
+        # Use last hidden state (concatenated forward and backward)
+        final_hidden = torch.cat([hidden[0], hidden[1]], dim=1)  # (batch, 256)
+        
+        # Project to output dimension
+        embeddings = self.output_proj(final_hidden)
+        
+        return embeddings
+    
+    def get_sentence_embedding_dimension(self) -> int:
+        """Get embedding dimension for compatibility."""
+        return self.output_dim
+
+
+class AlignmentModel(torch.nn.Module):
+    """
+    Dual-encoder model for aligning text descriptions with code embeddings.
+    
+    This model combines a frozen RubyComplexityGNN (code encoder) with a 
+    sentence-transformers text encoder to create aligned embeddings in the
+    same 64-dimensional space.
+    """
+    
+    def __init__(self, input_dim: int, hidden_dim: int = 64, num_layers: int = 3,
+                 conv_type: str = 'GCN', dropout: float = 0.1,
+                 text_model_name: str = 'all-MiniLM-L6-v2',
+                 code_encoder_weights_path: str = None):
+        """
+        Initialize the alignment model.
+        
+        Args:
+            input_dim: Input dimension for code encoder (node feature dimension)
+            hidden_dim: Hidden dimension for both encoders (default: 64)
+            num_layers: Number of layers in code encoder
+            conv_type: Type of convolution for code encoder ('GCN' or 'SAGE')
+            dropout: Dropout rate for code encoder
+            text_model_name: Name of the sentence-transformers model to use
+            code_encoder_weights_path: Path to pre-trained code encoder weights
+        """
+        super().__init__()
+        
+        self.hidden_dim = hidden_dim
+        
+        # Initialize frozen code encoder (RubyComplexityGNN without prediction head)
+        self.code_encoder = RubyComplexityGNN(
+            input_dim=input_dim,
+            hidden_dim=hidden_dim,
+            num_layers=num_layers,
+            conv_type=conv_type,
+            dropout=dropout
+        )
+        
+        # Load pre-trained weights if provided
+        if code_encoder_weights_path is not None:
+            try:
+                checkpoint = torch.load(code_encoder_weights_path, map_location='cpu')
+                # Handle both direct state dict and checkpoint format
+                if 'model_state_dict' in checkpoint:
+                    state_dict = checkpoint['model_state_dict']
+                else:
+                    state_dict = checkpoint
+                
+                # Load state dict, ignoring predictor weights if present
+                model_state = {}
+                for key, value in state_dict.items():
+                    if not key.startswith('predictor'):
+                        model_state[key] = value
+                
+                self.code_encoder.load_state_dict(model_state, strict=False)
+                print(f"Loaded code encoder weights from {code_encoder_weights_path}")
+            except FileNotFoundError:
+                print(f"Warning: Could not find code encoder weights at {code_encoder_weights_path}")
+            except Exception as e:
+                print(f"Warning: Could not load code encoder weights: {e}")
+        
+        # Freeze code encoder parameters
+        for param in self.code_encoder.parameters():
+            param.requires_grad = False
+        print("Code encoder weights frozen")
+        
+        # Initialize text encoder
+        if SENTENCE_TRANSFORMERS_AVAILABLE:
+            try:
+                self.text_encoder = SentenceTransformer(text_model_name)
+                self.text_encoder_type = "sentence_transformers"
+                print(f"Using SentenceTransformer: {text_model_name}")
+            except Exception as e:
+                print(f"Warning: Could not load SentenceTransformer ({e}), using fallback")
+                self.text_encoder = SimpleTextEncoder(output_dim=384)
+                self.text_encoder_type = "simple"
+        else:
+            print("SentenceTransformers not available, using simple text encoder")
+            self.text_encoder = SimpleTextEncoder(output_dim=384)
+            self.text_encoder_type = "simple"
+        
+        # Get text encoder output dimension
+        text_dim = self.text_encoder.get_sentence_embedding_dimension()
+        
+        # Projection head to align text embeddings to code embedding space
+        self.text_projection = torch.nn.Linear(text_dim, hidden_dim)
+        
+        print(f"Text encoder output dim: {text_dim}, projecting to: {hidden_dim}")
+        
+    def encode_code(self, data: Data) -> torch.Tensor:
+        """
+        Encode graph data to embeddings using the frozen code encoder.
+        
+        Args:
+            data: PyTorch Geometric Data object containing graph
+            
+        Returns:
+            Code embeddings tensor of shape (batch_size, hidden_dim)
+        """
+        with torch.no_grad():  # Code encoder is frozen
+            return self.code_encoder(data, return_embedding=True)
+    
+    def encode_text(self, texts: list) -> torch.Tensor:
+        """
+        Encode text descriptions to embeddings using the text encoder.
+        
+        Args:
+            texts: List of text descriptions
+            
+        Returns:
+            Text embeddings tensor of shape (batch_size, hidden_dim)
+        """
+        # Get text embeddings from sentence transformer
+        text_embeddings = self.text_encoder.encode(texts, convert_to_tensor=True)
+        
+        # Project to code embedding space
+        projected_embeddings = self.text_projection(text_embeddings)
+        
+        return projected_embeddings
+    
+    def forward(self, data: Data, texts: list) -> dict:
+        """
+        Forward pass through both encoders.
+        
+        Args:
+            data: PyTorch Geometric Data object containing graphs
+            texts: List of text descriptions (same length as batch size)
+            
+        Returns:
+            Dictionary containing:
+                - 'code_embeddings': Code embeddings (batch_size, hidden_dim)
+                - 'text_embeddings': Text embeddings (batch_size, hidden_dim)
+        """
+        # Encode code
+        code_embeddings = self.encode_code(data)
+        
+        # Encode text
+        text_embeddings = self.encode_text(texts)
+        
+        # Ensure embeddings are on the same device
+        if code_embeddings.device != text_embeddings.device:
+            text_embeddings = text_embeddings.to(code_embeddings.device)
+        
+        return {
+            'code_embeddings': code_embeddings,
+            'text_embeddings': text_embeddings
+        }
+    
+    def get_model_info(self) -> str:
+        """
+        Get information about the alignment model configuration.
+        
+        Returns:
+            String describing the model architecture
+        """
+        code_info = self.code_encoder.get_model_info()
+        
+        if self.text_encoder_type == "sentence_transformers":
+            text_info = f"SentenceTransformer({self.text_encoder._model_config['_name_or_path']})"
+        else:
+            text_info = f"SimpleTextEncoder(dim={self.text_encoder.output_dim})"
+            
+        projection_info = f"Linear({self.text_projection.in_features} -> {self.text_projection.out_features})"
+        
+        return (f"AlignmentModel(\n"
+                f"  code_encoder: {code_info} [FROZEN]\n"
+                f"  text_encoder: {text_info}\n"
+                f"  projection: {projection_info}\n"
                 f")")
