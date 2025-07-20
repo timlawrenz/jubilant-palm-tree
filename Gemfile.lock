@@ -2,11 +2,25 @@ GEM
   remote: https://rubygems.org/
   specs:
     ast (2.4.3)
+    diff-lcs (1.6.2)
     json (2.13.0)
     parser (3.3.8.0)
       ast (~> 2.4.1)
       racc
     racc (1.8.1)
+    rspec (3.13.1)
+      rspec-core (~> 3.13.0)
+      rspec-expectations (~> 3.13.0)
+      rspec-mocks (~> 3.13.0)
+    rspec-core (3.13.5)
+      rspec-support (~> 3.13.0)
+    rspec-expectations (3.13.5)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.13.0)
+    rspec-mocks (3.13.5)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.13.0)
+    rspec-support (3.13.4)
 
 PLATFORMS
   ruby
@@ -15,6 +29,7 @@ PLATFORMS
 DEPENDENCIES
   json (~> 2.0)
   parser (~> 3.0)
+  rspec (~> 3.0)
 
 RUBY VERSION
    ruby 3.1.3p185
