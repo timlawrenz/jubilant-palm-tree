@@ -100,6 +100,18 @@ class PairedDatasetCreator
       
       begin
         descriptions = extract_test_descriptions_using_rspec_formatter(spec_file, method_name)
+        
+        # If RSpec formatter returns empty results but manual parsing finds results,
+        # prefer the manual parsing results
+        if descriptions.empty?
+          puts "RSpec formatter returned no results for #{spec_file}, trying manual parsing as backup" if ENV['DEBUG']
+          manual_descriptions = extract_test_descriptions_from_spec_file(spec_file, method_name)
+          if manual_descriptions.length > 0
+            puts "Manual parsing found #{manual_descriptions.length} descriptions, using those instead" if ENV['DEBUG']
+            descriptions = manual_descriptions
+          end
+        end
+        
         test_descriptions.concat(descriptions)
       rescue => e
         # Fall back to manual parsing if RSpec formatter fails
@@ -166,12 +178,61 @@ class PairedDatasetCreator
     potential_specs.uniq
   end
 
+  def determine_repo_context(spec_file)
+    # Extract repository root and relative spec file path from the full spec file path
+    # Examples:
+    # ./repos/rspec-core/spec/rspec/core/runner_spec.rb -> ["./repos/rspec-core", "spec/rspec/core/runner_spec.rb"]
+    # ./spec/models/user_spec.rb -> [".", "spec/models/user_spec.rb"]
+    
+    # Normalize the path
+    normalized_path = File.expand_path(spec_file)
+    current_path = File.expand_path('.')
+    
+    # Check if this is in a repos subdirectory
+    if spec_file.include?('/repos/') && spec_file.start_with?('./')
+      # Extract the repository name and construct the repository root
+      parts = spec_file.split('/repos/')
+      if parts.length == 2
+        repos_base = parts[0] + '/repos'
+        remaining_path = parts[1]
+        
+        # Find the repository name (first directory after repos/)
+        path_segments = remaining_path.split('/')
+        if path_segments.length >= 2
+          repo_name = path_segments[0]
+          repo_root = File.join(repos_base, repo_name)
+          
+          # The relative path is everything after the repo name
+          relative_path = path_segments[1..-1].join('/')
+          
+          return [repo_root, relative_path]
+        end
+      end
+    end
+    
+    # Fallback: try to find spec/ directory and use its parent as repo root
+    spec_index = spec_file.rindex('/spec/')
+    if spec_index
+      repo_root = spec_file[0...spec_index]
+      relative_path = spec_file[(spec_index + 1)..-1]  # Remove leading slash
+      
+      # Ensure the repo root exists and has a spec directory
+      if Dir.exist?(repo_root) && Dir.exist?(File.join(repo_root, 'spec'))
+        return [repo_root, relative_path]
+      end
+    end
+    
+    # Final fallback: use current directory
+    return ['.', spec_file.gsub(/^\.\//, '')]
+  end
+
   def extract_test_descriptions_using_rspec_formatter(spec_file, target_method_name)
     return [] unless File.exist?(spec_file)
     
     begin
       # Clear any previous RSpec configuration to avoid interference
       RSpec.clear_examples
+      RSpec.reset
       
       # Create our custom formatter
       formatter_output = StringIO.new
@@ -183,10 +244,35 @@ class PairedDatasetCreator
         config.dry_run = true
         config.color = false
         config.profile_examples = false
+        # Disable automatic spec_helper loading by clearing the spec_helper option
+        config.spec_helper_file = nil if config.respond_to?(:spec_helper_file=)
       end
       
-      # Run RSpec on the spec file in dry-run mode
-      exit_code = RSpec::Core::Runner.run([spec_file, '--dry-run'])
+      # Determine the repository root directory and relative spec file path
+      # to ensure RSpec runs from the correct context
+      repo_root, relative_spec_file = determine_repo_context(spec_file)
+      
+      # Run RSpec on the spec file in dry-run mode from the repository root
+      current_dir = Dir.pwd
+      begin
+        Dir.chdir(repo_root) if repo_root && Dir.exist?(repo_root)
+        
+        # Add additional safety by temporarily suppressing some RSpec configuration
+        # that might require external dependencies
+        exit_code = RSpec::Core::Runner.run([
+          relative_spec_file, 
+          '--dry-run',
+          '--no-color',
+          '--no-profile'
+        ])
+      rescue LoadError => load_error
+        # If we get a LoadError, it means the spec file has dependencies we can't resolve
+        # This is expected for many external repositories
+        puts "Warning: Could not load dependencies for #{spec_file}: #{load_error.message}" if ENV['DEBUG']
+        return []
+      ensure
+        Dir.chdir(current_dir)
+      end
       
       # Extract relevant test descriptions from the collected examples
       relevant_descriptions = []
