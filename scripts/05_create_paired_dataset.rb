@@ -17,6 +17,8 @@ class PairedDatasetCreator
     @processed_count = 0
     @methods_successfully_paired = 0
     @methods_failed_to_process = 0
+    @test_descriptions_cache = {}
+    @spec_files_cache = nil
   end
 
   def create_paired_dataset
@@ -61,6 +63,192 @@ class PairedDatasetCreator
 
   private
 
+  def find_all_spec_files
+    return @spec_files_cache if @spec_files_cache
+    
+    @spec_files_cache = []
+    
+    # Look for spec files in common locations relative to the repos
+    base_dirs = ['./repos', '.']
+    
+    base_dirs.each do |base_dir|
+      next unless Dir.exist?(base_dir)
+      
+      # Find all _spec.rb files
+      Dir.glob("#{base_dir}/**/*_spec.rb").each do |spec_file|
+        @spec_files_cache << spec_file if File.exist?(spec_file)
+      end
+    end
+    
+    @spec_files_cache
+  end
+
+  def find_test_descriptions_for_method(repo_name, file_path, method_name)
+    cache_key = "#{repo_name}-#{file_path}-#{method_name}"
+    return @test_descriptions_cache[cache_key] if @test_descriptions_cache.key?(cache_key)
+    
+    test_descriptions = []
+    
+    # Map implementation file to potential spec file paths
+    potential_spec_files = map_implementation_to_spec_files(repo_name, file_path)
+    
+    potential_spec_files.each do |spec_file|
+      next unless File.exist?(spec_file)
+      
+      begin
+        descriptions = extract_test_descriptions_from_spec_file(spec_file, method_name)
+        test_descriptions.concat(descriptions)
+      rescue => e
+        # Silently continue if spec file can't be parsed
+        puts "Warning: Could not parse spec file #{spec_file}: #{e.message}" if ENV['DEBUG']
+      end
+    end
+    
+    @test_descriptions_cache[cache_key] = test_descriptions
+    test_descriptions
+  end
+
+  def map_implementation_to_spec_files(repo_name, file_path)
+    potential_specs = []
+    
+    # Handle different file path formats
+    if file_path.include?('/repos/')
+      # Remove ./repos/ prefix and repo name to get relative path
+      relative_path = file_path.gsub(/^\.\/repos\/#{Regexp.escape(repo_name)}\//, '')
+      base_repo_path = "./repos/#{repo_name}"
+    else
+      # For test cases where the path includes the full path structure
+      if file_path.include?(repo_name)
+        parts = file_path.split(repo_name)
+        relative_path = parts.last.gsub(/^\//, '')
+        # Find the base path up to the repo name
+        base_repo_path = parts.first + repo_name
+      else
+        # Fallback: treat entire path as relative
+        relative_path = file_path.gsub(/^\.\//, '')
+        base_repo_path = '.'
+      end
+    end
+    
+    # Common mappings from implementation to spec files
+    mappings = [
+      # app/models/user.rb -> spec/models/user_spec.rb
+      { from: /^app\//, to: 'spec/' },
+      # lib/foo.rb -> spec/lib/foo_spec.rb or spec/foo_spec.rb
+      { from: /^lib\//, to: 'spec/lib/' },
+      { from: /^lib\//, to: 'spec/' },
+      # Direct mapping: foo.rb -> foo_spec.rb
+      { from: /^/, to: '' }
+    ]
+    
+    mappings.each do |mapping|
+      if relative_path =~ mapping[:from]
+        spec_relative_path = relative_path.gsub(mapping[:from], mapping[:to])
+        spec_relative_path = spec_relative_path.gsub(/\.rb$/, '_spec.rb')
+        
+        # Try with the base repo path and current directory
+        [base_repo_path, '.'].each do |base_path|
+          spec_full_path = File.join(base_path, spec_relative_path)
+          potential_specs << spec_full_path
+        end
+      end
+    end
+    
+    potential_specs.uniq
+  end
+
+  def extract_test_descriptions_from_spec_file(spec_file, target_method_name)
+    return [] unless File.exist?(spec_file)
+    
+    source = File.read(spec_file)
+    
+    begin
+      parser = Parser::CurrentRuby.new
+      buffer = Parser::Source::Buffer.new(spec_file)
+      buffer.source = source
+      ast = parser.parse(buffer)
+      
+      test_descriptions = []
+      extract_it_blocks_from_ast(ast, test_descriptions, target_method_name)
+      test_descriptions
+    rescue => e
+      puts "Error parsing spec file #{spec_file}: #{e.message}" if ENV['DEBUG']
+      []
+    end
+  end
+
+  def extract_it_blocks_from_ast(node, test_descriptions, target_method_name)
+    return unless node.is_a?(Parser::AST::Node)
+    
+    # Look for 'it' blocks: (block (send nil :it (str "description")) ...)
+    if node.type == :block && 
+       node.children[0].is_a?(Parser::AST::Node) &&
+       node.children[0].type == :send &&
+       node.children[0].children[1] == :it &&
+       node.children[0].children[2] &&
+       node.children[0].children[2].type == :str
+      
+      description = node.children[0].children[2].children[0]
+      
+      # Check if this test might be testing our target method
+      if test_likely_targets_method?(node, target_method_name, description)
+        test_descriptions << description
+      end
+    end
+    
+    # Recursively search child nodes
+    node.children.each do |child|
+      extract_it_blocks_from_ast(child, test_descriptions, target_method_name)
+    end
+  end
+
+  def test_likely_targets_method?(test_node, target_method_name, description)
+    # Heuristic 1: Method name appears in the test description
+    return true if description.downcase.include?(target_method_name.downcase)
+    
+    # Heuristic 2: Look for method calls in the test body
+    method_calls = find_method_calls_in_node(test_node)
+    
+    # Filter out common RSpec methods
+    rspec_methods = %w[expect to not_to eq be be_a be_an be_nil be_empty be_truthy be_falsy 
+                      have have_key have_attributes include match raise_error change 
+                      receive allow allow_any_instance_of and_return and_raise
+                      before after let let! subject described_class instance_double double
+                      stub_const assign it describe context specify shared_examples
+                      shared_context within]
+    
+    relevant_calls = method_calls.reject { |call| rspec_methods.include?(call.to_s) }
+    
+    # Check if target method is called in the test
+    return true if relevant_calls.include?(target_method_name.to_sym)
+    
+    # Heuristic 3: Look for calls on common test subjects
+    subject_patterns = %w[subject described_class]
+    relevant_calls.each do |call|
+      # Look for patterns like subject.target_method or described_class.target_method
+      return true if call.to_s == target_method_name
+    end
+    
+    false
+  end
+
+  def find_method_calls_in_node(node)
+    calls = []
+    return calls unless node.is_a?(Parser::AST::Node)
+    
+    # Look for send nodes (method calls)
+    if node.type == :send && node.children[1]
+      calls << node.children[1]
+    end
+    
+    # Recursively search child nodes
+    node.children.each do |child|
+      calls.concat(find_method_calls_in_node(child))
+    end
+    
+    calls
+  end
+
   def process_single_method(method_data)
     begin
       raw_source = method_data['raw_source']
@@ -78,8 +266,15 @@ class PairedDatasetCreator
       # Extract docstring from comments or inline comments (optional)
       docstring = extract_docstring_from_source(raw_source, comments)
       
-      # Create the paired data entry (always create, docstring is optional)
-      create_paired_entry(method_data, method_info, docstring)
+      # Find test descriptions for this method
+      test_descriptions = find_test_descriptions_for_method(
+        method_data['repo_name'], 
+        method_data['file_path'], 
+        method_info[:name]
+      )
+      
+      # Create the paired data entry (always create, docstring and test descriptions are optional)
+      create_paired_entry(method_data, method_info, docstring, test_descriptions)
       
     rescue => e
       puts "Error processing method from #{method_data['file_path']}:#{method_data['start_line']}: #{e.message}"
@@ -195,7 +390,7 @@ class PairedDatasetCreator
     result_words.join(' ')
   end
 
-  def create_paired_entry(original_data, method_info, docstring)
+  def create_paired_entry(original_data, method_info, docstring, test_descriptions = [])
     # Generate a unique ID
     id = generate_unique_id(original_data, method_info)
     
@@ -220,6 +415,16 @@ class PairedDatasetCreator
         "source" => "docstring", 
         "text" => docstring
       }
+    end
+    
+    # Add test descriptions if available
+    test_descriptions.each do |test_desc|
+      if test_desc && !test_desc.strip.empty?
+        descriptions << {
+          "source" => "test_description",
+          "text" => test_desc
+        }
+      end
     end
     
     {

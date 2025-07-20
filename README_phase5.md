@@ -22,16 +22,17 @@ The successful completion of Phases 1-4 has established all necessary technical 
 
 ## Paired Dataset Details
 
-The `scripts/05_create_paired_dataset.rb` script now generates comprehensive paired data:
+The `scripts/05_create_paired_dataset.rb` script now generates comprehensive paired data with support for three types of descriptions:
 
 ### Dataset Statistics
 - **Total methods**: 155,949 (100% of processed methods)
-- **Methods with both descriptions**: 10,028 (method name + docstring)
-- **Methods with method name only**: 145,921 (method name description)
+- **Methods with method name descriptions**: 155,949 (100%)
+- **Methods with docstring descriptions**: 10,028 (when available)
+- **Methods with test descriptions**: Variable (depends on availability of RSpec files)
 - **Output file**: `./dataset/paired_data.jsonl`
 
 ### Description Sources
-Each method entry includes a `descriptions` array with:
+Each method entry includes a `descriptions` array with up to three types of descriptions:
 
 1. **Method Name Description** (all methods): 
    - Source: `"method_name"`
@@ -42,6 +43,34 @@ Each method entry includes a `descriptions` array with:
    - Source: `"docstring"`
    - Extracted from RDoc/YARD comments in the source code
    - Example: `"Calculates the total price including tax and discounts"`
+
+3. **Test Description** (when available):
+   - Source: `"test_description"`
+   - Extracted from RSpec `it` block descriptions that test the method
+   - Example: `"calculates the total correctly"`, `"returns the proper value"`
+   - Uses heuristics to link test descriptions to specific methods being tested
+
+### Test Description Extraction
+
+The script implements a sophisticated approach to extract meaningful descriptions from RSpec test files:
+
+#### RSpec File Discovery
+- Automatically scans for files ending in `_spec.rb`
+- Maps implementation files to corresponding spec files using common Rails conventions:
+  - `app/models/user.rb` → `spec/models/user_spec.rb`
+  - `lib/calculator.rb` → `spec/lib/calculator_spec.rb` or `spec/calculator_spec.rb`
+
+#### Test-to-Method Linking
+Uses multiple heuristics to identify which test descriptions apply to specific methods:
+
+1. **Description Pattern Matching**: Checks if the method name appears in the test description
+2. **Method Call Analysis**: Parses the test body to find method calls on test subjects
+3. **Subject Identification**: Recognizes common RSpec patterns like `subject.method_name` or `described_class.method_name`
+
+#### RSpec DSL Parsing
+- Parses RSpec files using the Ruby AST parser
+- Extracts descriptions from `it "description"` blocks
+- Filters out common RSpec helper methods to focus on the actual method under test
 
 ### Example Entry Structure
 ```json
@@ -60,10 +89,25 @@ Each method entry includes a `descriptions` array with:
     {
       "source": "docstring",
       "text": "Calculates the total price including tax and discounts"
+    },
+    {
+      "source": "test_description",
+      "text": "calculates the total correctly"
+    },
+    {
+      "source": "test_description",
+      "text": "includes tax in the calculation"
     }
   ]
 }
 ```
+
+### Implementation Notes
+
+- **Graceful Degradation**: The script works even when RSpec files are not available, ensuring all methods still receive method name and docstring descriptions
+- **Performance Optimization**: Uses caching to avoid re-parsing the same spec files multiple times
+- **Error Handling**: Continues processing even if individual spec files cannot be parsed
+- **Flexible File Mapping**: Supports various project structures and file organization patterns
 
 ## Target Architecture
 
