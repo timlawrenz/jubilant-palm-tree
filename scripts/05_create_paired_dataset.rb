@@ -6,6 +6,7 @@ require 'fileutils'
 require 'digest'
 require 'rspec/core'
 require 'stringio'
+require 'ostruct'
 require_relative 'custom_rspec_formatter'
 
 # Paired Dataset Creation Script
@@ -100,6 +101,18 @@ class PairedDatasetCreator
       
       begin
         descriptions = extract_test_descriptions_using_rspec_formatter(spec_file, method_name)
+        
+        # If RSpec formatter returns empty results but manual parsing finds results,
+        # prefer the manual parsing results
+        if descriptions.empty?
+          puts "RSpec formatter returned no results for #{spec_file}, trying manual parsing as backup" if ENV['DEBUG']
+          manual_descriptions = extract_test_descriptions_from_spec_file(spec_file, method_name)
+          if manual_descriptions.length > 0
+            puts "Manual parsing found #{manual_descriptions.length} descriptions, using those instead" if ENV['DEBUG']
+            descriptions = manual_descriptions
+          end
+        end
+        
         test_descriptions.concat(descriptions)
       rescue => e
         # Fall back to manual parsing if RSpec formatter fails
@@ -166,27 +179,154 @@ class PairedDatasetCreator
     potential_specs.uniq
   end
 
+  def determine_repo_context(spec_file)
+    # Extract repository root and relative spec file path from the full spec file path
+    # Examples:
+    # ./repos/rspec-core/spec/rspec/core/runner_spec.rb -> ["./repos/rspec-core", "spec/rspec/core/runner_spec.rb"]
+    # ./spec/models/user_spec.rb -> [".", "spec/models/user_spec.rb"]
+    
+    # Normalize the path
+    normalized_path = File.expand_path(spec_file)
+    current_path = File.expand_path('.')
+    
+    # Check if this is in a repos subdirectory
+    if spec_file.include?('/repos/') && spec_file.start_with?('./')
+      # Extract the repository name and construct the repository root
+      parts = spec_file.split('/repos/')
+      if parts.length == 2
+        repos_base = parts[0] + '/repos'
+        remaining_path = parts[1]
+        
+        # Find the repository name (first directory after repos/)
+        path_segments = remaining_path.split('/')
+        if path_segments.length >= 2
+          repo_name = path_segments[0]
+          repo_root = File.join(repos_base, repo_name)
+          
+          # The relative path is everything after the repo name
+          relative_path = path_segments[1..-1].join('/')
+          
+          return [repo_root, relative_path]
+        end
+      end
+    end
+    
+    # Fallback: try to find spec/ directory and use its parent as repo root
+    spec_index = spec_file.rindex('/spec/')
+    if spec_index
+      repo_root = spec_file[0...spec_index]
+      relative_path = spec_file[(spec_index + 1)..-1]  # Remove leading slash
+      
+      # Ensure the repo root exists and has a spec directory
+      if Dir.exist?(repo_root) && Dir.exist?(File.join(repo_root, 'spec'))
+        return [repo_root, relative_path]
+      end
+    end
+    
+    # Final fallback: use current directory
+    return ['.', spec_file.gsub(/^\.\//, '')]
+  end
+
+  def process_example_group_for_formatter(group, formatter, context_stack = [])
+    # Build notification-like object for example_group_started
+    group_notification = OpenStruct.new(group: group)
+    formatter.example_group_started(group_notification)
+    
+    # Process all examples in this group
+    group.examples.each do |example|
+      example_notification = OpenStruct.new(example: example)
+      formatter.example_started(example_notification)
+    end
+    
+    # Recursively process child groups
+    group.children.each do |child_group|
+      process_example_group_for_formatter(child_group, formatter, context_stack + [group])
+    end
+    
+    # Signal group finished
+    formatter.example_group_finished(group_notification)
+  end
+
   def extract_test_descriptions_using_rspec_formatter(spec_file, target_method_name)
     return [] unless File.exist?(spec_file)
     
     begin
+      # Implement "thin rspec-shell" approach using RSpec's core components programmatically
+      # This avoids loading spec_helper.rb or rails_helper.rb and the entire application environment
+      # 
+      # Key advantages of this approach:
+      # 1. Uses RSpec programmatically without triggering full application boot
+      # 2. Avoids dependency issues by not running RSpec::Core::Runner
+      # 3. Captures full contextual test descriptions with nested describe/context blocks
+      # 4. Faster and more reliable than command-line RSpec execution
+      # 5. Falls back gracefully when dependencies are missing
+      
       # Clear any previous RSpec configuration to avoid interference
       RSpec.clear_examples
+      RSpec.reset
       
       # Create our custom formatter
       formatter_output = StringIO.new
       formatter = CustomRSpecFormatter.new(formatter_output)
       
-      # Configure RSpec to use our formatter in dry-run mode
+      # Create a minimal RSpec configuration and world
+      # This sets up a blank slate without loading any helper files
       RSpec.configure do |config|
         config.add_formatter(formatter)
-        config.dry_run = true
         config.color = false
         config.profile_examples = false
+        # Explicitly disable automatic loading of spec helpers
+        config.disable_monkey_patching! if config.respond_to?(:disable_monkey_patching!)
+        # Clear any default helper file configurations
+        config.spec_helper_file = nil if config.respond_to?(:spec_helper_file=)
+        # Disable automatic require of spec_helper
+        config.requires.clear if config.respond_to?(:requires)
       end
       
-      # Run RSpec on the spec file in dry-run mode
-      exit_code = RSpec::Core::Runner.run([spec_file, '--dry-run'])
+      # Determine the repository root directory and work from there
+      repo_root, relative_spec_file = determine_repo_context(spec_file)
+      
+      # Change to the repository root to ensure proper relative path resolution
+      current_dir = Dir.pwd
+      begin
+        Dir.chdir(repo_root) if repo_root && Dir.exist?(repo_root)
+        
+        # Use RSpec's correct approach for loading spec files programmatically
+        # Simple approach: directly load the Ruby file in RSpec context
+        # This will define the example groups and trigger our formatter events
+        
+        # Clear any existing example groups
+        RSpec.world.example_groups.clear
+        
+        # Load the spec file directly - this will execute the RSpec DSL
+        # and trigger our formatter events as examples are defined
+        load(File.expand_path(relative_spec_file))
+        
+        # Now we need to extract the example groups and manually trigger formatter events
+        # since we're not running the examples, just loading their definitions
+        RSpec.world.example_groups.each do |group|
+          process_example_group_for_formatter(group, formatter)
+        end
+        
+        # Debug output to understand what happened
+        puts "DEBUG: Loaded spec file #{relative_spec_file}" if ENV['DEBUG']
+        puts "DEBUG: World has #{RSpec.world.example_groups.length} example groups" if ENV['DEBUG']
+        puts "DEBUG: Formatter collected #{formatter.collected_examples.length} examples" if ENV['DEBUG']
+        
+      rescue LoadError => load_error
+        # If we get a LoadError, it means the spec file has dependencies we can't resolve
+        # This is expected for many external repositories
+        puts "Warning: Could not load dependencies for #{spec_file}: #{load_error.message}" if ENV['DEBUG']
+        return []
+      rescue StandardError => e
+        # Handle any other errors that might occur during spec file loading
+        puts "Warning: Error loading spec file #{spec_file}: #{e.message}" if ENV['DEBUG']
+        puts "Error class: #{e.class}" if ENV['DEBUG']
+        puts "Backtrace: #{e.backtrace.first(5).join("\n")}" if ENV['DEBUG']
+        return []
+      ensure
+        Dir.chdir(current_dir)
+      end
       
       # Extract relevant test descriptions from the collected examples
       relevant_descriptions = []
@@ -202,6 +342,7 @@ class PairedDatasetCreator
       
     rescue => e
       puts "Error running RSpec formatter on #{spec_file}: #{e.message}" if ENV['DEBUG']
+      puts "Error class: #{e.class}" if ENV['DEBUG']
       []
     end
   end
