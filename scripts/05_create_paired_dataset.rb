@@ -4,6 +4,9 @@ require 'parser/current'
 require 'json'
 require 'fileutils'
 require 'digest'
+require 'rspec/core'
+require 'stringio'
+require_relative 'custom_rspec_formatter'
 
 # Paired Dataset Creation Script
 # Reads processed_methods.jsonl and enriches it with natural language descriptions
@@ -96,11 +99,17 @@ class PairedDatasetCreator
       next unless File.exist?(spec_file)
       
       begin
-        descriptions = extract_test_descriptions_from_spec_file(spec_file, method_name)
+        descriptions = extract_test_descriptions_using_rspec_formatter(spec_file, method_name)
         test_descriptions.concat(descriptions)
       rescue => e
-        # Silently continue if spec file can't be parsed
-        puts "Warning: Could not parse spec file #{spec_file}: #{e.message}" if ENV['DEBUG']
+        # Fall back to manual parsing if RSpec formatter fails
+        puts "Warning: RSpec formatter failed for #{spec_file}, falling back to manual parsing: #{e.message}" if ENV['DEBUG']
+        begin
+          descriptions = extract_test_descriptions_from_spec_file(spec_file, method_name)
+          test_descriptions.concat(descriptions)
+        rescue => fallback_error
+          puts "Warning: Could not parse spec file #{spec_file}: #{fallback_error.message}" if ENV['DEBUG']
+        end
       end
     end
     
@@ -157,8 +166,72 @@ class PairedDatasetCreator
     potential_specs.uniq
   end
 
-  def extract_test_descriptions_from_spec_file(spec_file, target_method_name)
+  def extract_test_descriptions_using_rspec_formatter(spec_file, target_method_name)
     return [] unless File.exist?(spec_file)
+    
+    begin
+      # Clear any previous RSpec configuration to avoid interference
+      RSpec.clear_examples
+      
+      # Create our custom formatter
+      formatter_output = StringIO.new
+      formatter = CustomRSpecFormatter.new(formatter_output)
+      
+      # Configure RSpec to use our formatter in dry-run mode
+      RSpec.configure do |config|
+        config.add_formatter(formatter)
+        config.dry_run = true
+        config.color = false
+        config.profile_examples = false
+      end
+      
+      # Run RSpec on the spec file in dry-run mode
+      exit_code = RSpec::Core::Runner.run([spec_file, '--dry-run'])
+      
+      # Extract relevant test descriptions from the collected examples
+      relevant_descriptions = []
+      
+      formatter.collected_examples.each do |example_info|
+        if test_likely_targets_method_from_rspec(example_info, target_method_name)
+          # Use the full contextual description
+          relevant_descriptions << example_info[:full_description]
+        end
+      end
+      
+      relevant_descriptions
+      
+    rescue => e
+      puts "Error running RSpec formatter on #{spec_file}: #{e.message}" if ENV['DEBUG']
+      []
+    end
+  end
+
+  def test_likely_targets_method_from_rspec(example_info, target_method_name)
+    description = example_info[:full_description]
+    
+    # Heuristic 1: Method name appears in the test description (improved fuzzy matching)
+    return true if method_name_in_description?(target_method_name, description)
+    
+    # Heuristic 2: Check if described_class information provides context
+    if example_info[:described_class] && example_info[:described_class].length > 0
+      # If we have described_class info, this is likely a unit test
+      # Check if the method name appears in any part of the description
+      return true if method_name_in_description?(target_method_name, description)
+    end
+    
+    # Heuristic 3: Pattern-based matching for behavioral descriptions
+    return true if behavioral_pattern_matches?(target_method_name, description)
+    
+    # Heuristic 4: Context-aware matching
+    # Check if any context descriptions relate to the method
+    example_info[:context_descriptions].each do |context|
+      return true if method_name_in_description?(target_method_name, context)
+    end
+    
+    false
+  end
+
+  def extract_test_descriptions_from_spec_file(spec_file, target_method_name)
     
     source = File.read(spec_file)
     
