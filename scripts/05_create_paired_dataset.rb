@@ -203,19 +203,26 @@ class PairedDatasetCreator
   end
 
   def test_likely_targets_method?(test_node, target_method_name, description)
-    # Heuristic 1: Method name appears in the test description
-    return true if description.downcase.include?(target_method_name.downcase)
+    # Heuristic 1: Method name appears in the test description (improved fuzzy matching)
+    return true if method_name_in_description?(target_method_name, description)
     
     # Heuristic 2: Look for method calls in the test body
     method_calls = find_method_calls_in_node(test_node)
     
-    # Filter out common RSpec methods
+    # Filter out common RSpec methods (expanded list based on analysis)
     rspec_methods = %w[expect to not_to eq be be_a be_an be_nil be_empty be_truthy be_falsy 
                       have have_key have_attributes include match raise_error change 
                       receive allow allow_any_instance_of and_return and_raise
                       before after let let! subject described_class instance_double double
                       stub_const assign it describe context specify shared_examples
-                      shared_context within]
+                      shared_context within output contain_exactly avoid_changing
+                      have_received respond_to kind_of instance_of strip chomp
+                      gsub split join size length first last push pop shift unshift
+                      map select reject find detect collect each times call new
+                      class send respond_to? is_a? nil? empty? any? all? none?
+                      start_with end_with cover an_instance_of a_kind_of be_instance_of
+                      be_kind_of be_a_kind_of satisfy and_call_original
+                      exactly once twice thrice at_least at_most ordered]
     
     relevant_calls = method_calls.reject { |call| rspec_methods.include?(call.to_s) }
     
@@ -227,6 +234,95 @@ class PairedDatasetCreator
     relevant_calls.each do |call|
       # Look for patterns like subject.target_method or described_class.target_method
       return true if call.to_s == target_method_name
+    end
+    
+    # Heuristic 4: Pattern-based matching for behavioral descriptions
+    return true if behavioral_pattern_matches?(target_method_name, description)
+    
+    false
+  end
+
+  def method_name_in_description?(method_name, description)
+    desc_lower = description.downcase
+    method_lower = method_name.to_s.downcase
+    
+    # Direct match
+    return true if desc_lower.include?(method_lower)
+    
+    # Handle underscore to space conversion
+    method_spaced = method_lower.gsub('_', ' ')
+    return true if desc_lower.include?(method_spaced)
+    
+    # Handle verb forms and common variations
+    if method_lower.end_with?('e') && method_lower.length > 3
+      # "create" -> "creates", "calculate" -> "calculates"
+      verb_form = method_lower + 's'
+      return true if desc_lower.include?(verb_form)
+      
+      # "create" -> "creating", "calculate" -> "calculating"
+      ing_form = method_lower.chomp('e') + 'ing'
+      return true if desc_lower.include?(ing_form)
+    elsif method_lower.end_with?('y') && method_lower.length > 2
+      # "apply" -> "applies"
+      verb_form = method_lower.chomp('y') + 'ies'
+      return true if desc_lower.include?(verb_form)
+    elsif !method_lower.end_with?('s')
+      # Most other cases: "get" -> "gets", "run" -> "runs"
+      verb_form = method_lower + 's'
+      return true if desc_lower.include?(verb_form)
+      
+      # Progressive form: "get" -> "getting", "run" -> "running"
+      if method_lower.end_with?('t', 'n', 'p', 'm')
+        ing_form = method_lower + method_lower[-1] + 'ing'
+        return true if desc_lower.include?(ing_form)
+      else
+        ing_form = method_lower + 'ing'
+        return true if desc_lower.include?(ing_form)
+      end
+    end
+    
+    # Handle common method name patterns
+    # "user_name" -> "username" or "user name"
+    if method_lower.include?('_')
+      compact_form = method_lower.gsub('_', '')
+      return true if desc_lower.include?(compact_form)
+    end
+    
+    false
+  end
+
+  def behavioral_pattern_matches?(method_name, description)
+    desc_lower = description.downcase
+    method_lower = method_name.to_s.downcase
+    
+    # Pattern: "returns X" might be testing a method that provides X
+    if desc_lower.match?(/\b(returns?|gives?|provides?)\b/)
+      # Look for method name parts in the description
+      method_parts = method_lower.split('_')
+      return true if method_parts.any? { |part| part.length > 2 && desc_lower.include?(part) }
+    end
+    
+    # Pattern: "when X" might be testing method behavior under condition X
+    if desc_lower.match?(/\b(when|if|given)\b/)
+      # Check if method name suggests the condition or action being tested
+      method_parts = method_lower.split('_')
+      return true if method_parts.any? { |part| part.length > 2 && desc_lower.include?(part) }
+      
+      # Handle authorization patterns specifically
+      if method_lower.include?('authoriz') && desc_lower.match?(/\b(admin|user|permiss)\b/)
+        return true
+      end
+    end
+    
+    # Pattern: "validates X" for validation methods
+    if desc_lower.include?('validat') && method_lower.include?('valid')
+      return true
+    end
+    
+    # Pattern: authorization/permission tests
+    if desc_lower.match?(/\b(authoriz|permit|allow|forbid|deny)\b/) && 
+       method_lower.match?(/\b(authoriz|permit|allow|forbid|deny)\b/)
+      return true
     end
     
     false
