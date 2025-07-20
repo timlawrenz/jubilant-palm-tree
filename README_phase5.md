@@ -10,6 +10,114 @@ Phase 5 is focused on creating multimodal embeddings that align natural language
 
 **Phase 5 data preparation is complete.** The paired dataset now includes method name descriptions for all 155,949 Ruby methods, with additional docstring descriptions where available.
 
+**✅ NEW: AlignmentModel Implementation Complete** - The dual-encoder model for aligning text and code embeddings is now implemented and tested.
+
+## AlignmentModel Architecture
+
+The `AlignmentModel` class implements a dual-encoder architecture that aligns text descriptions with code embeddings in a shared 64-dimensional space.
+
+### Architecture Components
+
+```
+Text Description → Text Encoder → Projection Head → 64D Embedding
+                                      ↓ (Alignment)
+Ruby AST → Code Encoder (frozen) → 64D Embedding
+```
+
+#### 1. Code Encoder (Frozen)
+- **Model**: Pre-trained, frozen `RubyComplexityGNN` without the prediction head
+- **Input**: PyTorch Geometric Data object containing Ruby AST
+- **Output**: 64-dimensional code embeddings
+- **Status**: Frozen to preserve learned representations from previous phases
+
+#### 2. Text Encoder  
+- **Primary**: `SentenceTransformer` (all-MiniLM-L6-v2) for high-quality text embeddings
+- **Fallback**: Custom `SimpleTextEncoder` using character-level features and LSTM for offline environments
+- **Input**: List of text descriptions (method names, docstrings, test descriptions)
+- **Output**: Text embeddings (384D for SentenceTransformer, configurable for SimpleTextEncoder)
+
+#### 3. Projection Head
+- **Model**: Linear layer (`torch.nn.Linear`)
+- **Purpose**: Projects text embeddings to the same 64-dimensional space as code embeddings
+- **Input**: Text encoder output (384D)
+- **Output**: 64-dimensional aligned text embeddings
+
+### Model Implementation
+
+The `AlignmentModel` is implemented in `src/models.py` with the following key features:
+
+```python
+class AlignmentModel(torch.nn.Module):
+    def __init__(self, input_dim: int, hidden_dim: int = 64, 
+                 text_model_name: str = 'all-MiniLM-L6-v2',
+                 code_encoder_weights_path: str = None):
+        # Initialize frozen code encoder
+        # Initialize text encoder (with fallback support)
+        # Create projection head for alignment
+        
+    def forward(self, data: Data, texts: list) -> dict:
+        # Returns: {'code_embeddings': ..., 'text_embeddings': ...}
+```
+
+### Key Features
+
+1. **Flexible Text Encoding**: Automatically falls back to SimpleTextEncoder if SentenceTransformers is unavailable
+2. **Frozen Code Encoder**: Preserves learned AST representations from previous training phases
+3. **Batch Processing**: Efficiently handles batches of graphs and texts
+4. **Device Compatibility**: Works on both CPU and GPU
+5. **Pre-trained Weights**: Supports loading pre-trained code encoder weights
+
+### Usage Example
+
+```python
+from src.models import AlignmentModel
+from torch_geometric.data import Data
+
+# Initialize model
+model = AlignmentModel(
+    input_dim=74,  # Node feature dimension from dataset
+    hidden_dim=64,
+    code_encoder_weights_path="best_model.pt"  # Optional pre-trained weights
+)
+
+# Forward pass
+graph_data = Data(x=node_features, edge_index=edges, batch=batch_indices)
+texts = ["calculate total price", "process user data"]
+
+outputs = model(graph_data, texts)
+code_embeddings = outputs['code_embeddings']  # Shape: (batch_size, 64)
+text_embeddings = outputs['text_embeddings']  # Shape: (batch_size, 64)
+
+# Compute alignment loss (e.g., cosine similarity)
+similarity = F.cosine_similarity(code_embeddings, text_embeddings, dim=1)
+```
+
+### Testing and Validation
+
+Comprehensive testing has been implemented in `test_alignment_model.py` covering:
+
+1. **Model Initialization**: Verifies proper setup of dual-encoder architecture
+2. **Individual Encoders**: Tests code and text encoding separately
+3. **Forward Pass**: Validates complete model forward pass
+4. **Batch Processing**: Confirms handling of multiple graphs and texts
+5. **Embedding Similarity**: Tests cosine similarity computation for alignment
+6. **Device Compatibility**: Ensures CPU/GPU compatibility
+7. **Real Data Processing**: Validates performance on actual dataset
+
+All tests pass successfully, confirming the model meets the specified requirements.
+
+### Definition of Done ✅
+
+The AlignmentModel implementation satisfies all requirements from the issue:
+
+- ✅ **Dual-encoder architecture**: Code encoder + Text encoder + Projection head
+- ✅ **Frozen code encoder**: Uses existing RubyComplexityGNN without prediction head
+- ✅ **Text encoder**: Sentence-transformers model (all-MiniLM-L6-v2) with fallback
+- ✅ **Projection head**: Linear layer mapping text embeddings to 64D space
+- ✅ **Forward pass capability**: Takes batch of graphs and texts, returns aligned embeddings
+- ✅ **Same dimensionality**: Both encoders output 64-dimensional embeddings
+- ✅ **Comprehensive testing**: All functionality validated with test suite
+
 ## Foundation Available
 
 The successful completion of Phases 1-4 has established all necessary technical foundations:
