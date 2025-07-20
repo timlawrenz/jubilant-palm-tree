@@ -7,15 +7,16 @@ require 'digest'
 
 # Paired Dataset Creation Script
 # Reads processed_methods.jsonl and enriches it with natural language descriptions
-# sourced from RDoc/YARD comments. Outputs methods with docstrings to paired_data.jsonl
+# sourced from method names (transformed to sentences) and RDoc/YARD comments.
+# Outputs ALL methods with method name descriptions, plus docstrings where available.
 
 class PairedDatasetCreator
   def initialize(input_file, output_file)
     @input_file = input_file
     @output_file = output_file
     @processed_count = 0
-    @methods_with_descriptions = 0
-    @methods_without_descriptions = 0
+    @methods_successfully_paired = 0
+    @methods_failed_to_process = 0
   end
 
   def create_paired_dataset
@@ -44,17 +45,17 @@ class PairedDatasetCreator
         paired_method = process_single_method(method_data)
         if paired_method
           output.puts(JSON.generate(paired_method))
-          @methods_with_descriptions += 1
+          @methods_successfully_paired += 1
         else
-          @methods_without_descriptions += 1
+          @methods_failed_to_process += 1
         end
       end
     end
     
     puts "Paired dataset creation complete."
     puts "Total methods processed: #{@processed_count}"
-    puts "Methods with descriptions: #{@methods_with_descriptions}"
-    puts "Methods without descriptions: #{@methods_without_descriptions}"
+    puts "Methods successfully paired: #{@methods_successfully_paired}"
+    puts "Methods failed to process: #{@methods_failed_to_process}"
     puts "Output written to: #{@output_file}"
   end
 
@@ -74,11 +75,10 @@ class PairedDatasetCreator
       method_info = extract_method_info_from_ast(ast)
       return nil unless method_info
       
-      # Extract docstring from comments or inline comments
+      # Extract docstring from comments or inline comments (optional)
       docstring = extract_docstring_from_source(raw_source, comments)
-      return nil unless docstring && !docstring.strip.empty?
       
-      # Create the paired data entry
+      # Create the paired data entry (always create, docstring is optional)
       create_paired_entry(method_data, method_info, docstring)
       
     rescue => e
@@ -153,6 +153,48 @@ class PairedDatasetCreator
     cleaned
   end
 
+  def transform_method_name_to_description(method_name)
+    # Convert snake_case method name to a sentence description
+    return '' if method_name.nil? || method_name.strip.empty?
+    
+    # Split on underscores and convert to lowercase
+    words = method_name.to_s.split('_').map(&:downcase)
+    
+    # Skip if no words or empty after processing
+    return '' if words.empty? || words.all?(&:empty?)
+    
+    # For most methods, treat the first word as a verb and make it present tense
+    # This handles common patterns like "calculate", "get", "set", "create", etc.
+    first_word = words.first
+    
+    # Special cases for words that shouldn't be conjugated (past participles, adjectives, etc.)
+    if %w[included inherited excluded loaded cached shared locked opened closed].include?(first_word)
+      # For past participles used as method names, keep them as-is 
+      result_words = words
+    elsif first_word.end_with?('e') && !first_word.end_with?('ee') && !%w[are were].include?(first_word)
+      # "create" → "creates", "calculate" → "calculates", but "see" → "sees"
+      first_word = first_word + 's'
+      result_words = [first_word] + words[1..-1]
+    elsif first_word.end_with?('y') && first_word.length > 1 && !%w[by my].include?(first_word)
+      # "apply" → "applies", but not "by" → "bys"
+      first_word = first_word[0..-2] + 'ies'
+      result_words = [first_word] + words[1..-1]
+    elsif first_word.end_with?('s', 'x', 'z', 'ch', 'sh')
+      # "process" → "processes", "fix" → "fixes"
+      first_word = first_word + 'es'
+      result_words = [first_word] + words[1..-1]
+    elsif !first_word.end_with?('s')
+      # Most other cases: "get" → "gets", "run" → "runs"
+      first_word = first_word + 's'
+      result_words = [first_word] + words[1..-1]
+    else
+      # Already ends with 's', keep as-is
+      result_words = words
+    end
+    
+    result_words.join(' ')
+  end
+
   def create_paired_entry(original_data, method_info, docstring)
     # Generate a unique ID
     id = generate_unique_id(original_data, method_info)
@@ -160,13 +202,25 @@ class PairedDatasetCreator
     # Extract method source (same as raw_source)
     method_source = original_data['raw_source']
     
-    # Create descriptions array
-    descriptions = [
-      {
-        "source" => "docstring",
+    # Create descriptions array - always include method_name description
+    descriptions = []
+    
+    # Add method name description for all methods
+    method_name_description = transform_method_name_to_description(method_info[:name])
+    if !method_name_description.empty?
+      descriptions << {
+        "source" => "method_name",
+        "text" => method_name_description
+      }
+    end
+    
+    # Add docstring description if available
+    if docstring && !docstring.strip.empty?
+      descriptions << {
+        "source" => "docstring", 
         "text" => docstring
       }
-    ]
+    end
     
     {
       "id" => id,
