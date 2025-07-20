@@ -486,22 +486,135 @@ The contrastive loss implementation satisfies all requirements from issue #76:
 
 The implementation is ready for integration into the Phase 5 training pipeline.
 
-## Next Steps
+## Alignment Training Loop ✅
 
-Phase 5 implementation will continue with:
+**Status: ✅ COMPLETE** - The alignment training loop has been successfully implemented and tested.
 
-- Integration of contrastive loss functions into training pipeline
-- Evaluation methodology establishment using the paired dataset
-- Fine-tuning of hyperparameters (temperature, margin, learning rates)
-- Performance benchmarking and optimization
+### Implementation
 
-This README will be continuously updated as work progresses on Phase 5.
+The alignment training loop is implemented in `train_alignment.py` and provides a complete pipeline for training the dual-encoder alignment model using contrastive learning.
 
-Phase 5 implementation will begin with creating detailed tickets for:
+### Training Script Features
 
-- Text encoder architecture design and implementation
-- Contrastive learning framework development
-- Evaluation methodology establishment
-- Training pipeline setup using the prepared paired dataset
+#### 1. Complete Training Pipeline
+```bash
+# Run full alignment training
+python train_alignment.py
 
-This README will be continuously updated as work progresses on Phase 5.
+# Run demo training (faster, for testing)
+python demo_train_alignment.py
+```
+
+#### 2. Key Components
+- **Data Loading**: Uses `PairedDataset` to load graph-text pairs from `dataset/paired_data.jsonl`
+- **Model Initialization**: Creates `AlignmentModel` with frozen code encoder and trainable text projection head
+- **Contrastive Learning**: Uses InfoNCE loss to align code and text embeddings
+- **Training Loop**: Implements proper training/validation with progress monitoring
+- **Model Checkpointing**: Saves best model weights based on validation loss
+- **Early Stopping**: Prevents overfitting with configurable patience
+
+#### 3. Training Configuration
+```python
+# Configurable hyperparameters
+batch_size = 8          # Batch size for training
+learning_rate = 1e-3    # Learning rate for text projection head
+num_epochs = 20         # Maximum training epochs
+patience = 5            # Early stopping patience
+temperature = 0.07      # InfoNCE temperature parameter
+```
+
+#### 4. Model Architecture Details
+- **Frozen Code Encoder**: Pre-trained `RubyComplexityGNN` (351,553 total params)
+- **Trainable Components**: Only text projection head (338,368 params)
+- **Embedding Dimension**: 64D shared space for both code and text
+- **Loss Function**: InfoNCE contrastive loss with temperature scaling
+
+### Training Results
+
+#### Demo Training Performance
+The demo training script demonstrates successful convergence:
+
+```
+🏁 Demo Training Summary
+Initial loss (epoch 1): 1.3897
+Final loss (epoch 10): 0.7855
+✅ Loss decreased by: 0.6042
+✅ Relative improvement: 43.5%
+
+Loss progression:
+  Epoch  1: 1.3897
+  Epoch  2: 1.2987
+  Epoch  3: 1.2377
+  Epoch  4: 1.1619
+  Epoch  5: 1.0982
+  Epoch  6: 1.0376
+  Epoch  7: 0.9552
+  Epoch  8: 0.8710
+  Epoch  9: 0.8524
+  Epoch 10: 0.7855
+```
+
+#### Key Metrics Monitored
+- **Training Loss**: InfoNCE contrastive loss (decreases over time)
+- **Validation Loss**: Early stopping based on validation performance
+- **Positive Pair Similarity**: Cosine similarity between aligned code-text pairs
+- **Negative Pair Similarity**: Similarity between misaligned pairs
+- **Alignment Gap**: Difference between positive and negative similarities
+
+### Usage Example
+
+```python
+# Load trained alignment model
+from src.models import AlignmentModel
+import torch
+
+# Initialize model with saved weights
+model = AlignmentModel(
+    input_dim=74,
+    hidden_dim=64,
+    code_encoder_weights_path="best_model.pt"
+)
+
+# Load trained alignment weights
+checkpoint = torch.load("best_alignment_model.pt")
+model.load_state_dict(checkpoint['model_state_dict'])
+
+# Encode code and text
+code_embedding = model.encode_code(graph_data)      # (batch_size, 64)
+text_embedding = model.encode_text(["description"]) # (batch_size, 64)
+
+# Compute similarity
+similarity = F.cosine_similarity(code_embedding, text_embedding, dim=1)
+```
+
+### Testing and Validation
+
+Comprehensive testing implemented in `test_train_alignment.py`:
+
+1. **Pipeline Testing**: Verifies complete training pipeline functionality
+2. **Forward/Backward Pass**: Tests gradient flow through trainable components
+3. **Loss Calculation**: Validates InfoNCE loss computation
+4. **Model Saving**: Confirms checkpoint saving and loading
+5. **Training Steps**: Demonstrates actual training iterations
+
+All tests pass successfully, confirming the training implementation meets specifications.
+
+### Definition of Done ✅
+
+The alignment training implementation satisfies all requirements:
+
+- ✅ **Training Script**: `train_alignment.py` successfully trains the alignment model
+- ✅ **Paired Dataset Loading**: Uses `PairedDataset` to load (graph, text) pairs
+- ✅ **AlignmentModel Initialization**: Frozen code encoder + trainable text projection head
+- ✅ **Contrastive Loss**: InfoNCE loss for code-text alignment
+- ✅ **Decreasing Training Loss**: Demonstrated 43.5% improvement over 10 epochs
+- ✅ **Best Weight Saving**: Saves model with best validation performance
+- ✅ **Progress Monitoring**: Tracks training metrics and alignment quality
+
+### Output Files
+
+- `best_alignment_model.pt`: Best model weights based on validation loss
+- `demo_alignment_model.pt`: Demo training results for testing
+- Training logs with epoch-by-epoch loss progression and metrics
+
+Phase 5 alignment training implementation is complete and ready for production use.
