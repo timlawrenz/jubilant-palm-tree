@@ -577,7 +577,15 @@ class AlignmentModel(torch.nn.Module):
         code_info = self.code_encoder.get_model_info()
         
         if self.text_encoder_type == "sentence_transformers":
-            text_info = f"SentenceTransformer({self.text_encoder._model_config['_name_or_path']})"
+            # Try to get model name from _model_config, fallback to transformer config, or use generic name
+            model_name = self.text_encoder._model_config.get('_name_or_path')
+            if model_name is None:
+                # Try to get from transformer module config
+                try:
+                    model_name = self.text_encoder[0].auto_model.config._name_or_path
+                except (AttributeError, IndexError):
+                    model_name = "SentenceTransformer"
+            text_info = f"SentenceTransformer({model_name})"
         else:
             text_info = f"SimpleTextEncoder(dim={self.text_encoder.output_dim})"
             
