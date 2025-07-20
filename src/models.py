@@ -534,6 +534,9 @@ class AlignmentModel(torch.nn.Module):
         # Get text embeddings from sentence transformer
         text_embeddings = self.text_encoder.encode(texts, convert_to_tensor=True)
         
+        # Clone tensor to create a normal tensor for autograd (SentenceTransformer creates inference tensors)
+        text_embeddings = text_embeddings.clone()
+        
         # Project to code embedding space
         projected_embeddings = self.text_projection(text_embeddings)
         
