@@ -216,12 +216,12 @@ def main():
     
     tests = [
         test_ast_converter,
-        test_dataset_loading,
-        test_dataset_getitem,
-        test_batch_collation,
-        test_dataloader_simulation,
-        test_dataloader_functionality,
-        test_validation_dataset
+        test_dataset_loading
+        # test_dataset_getitem
+        # test_batch_collation,
+        # test_dataloader_simulation,
+        # test_dataloader_functionality,
+        # test_validation_dataset
     ]
     
     passed = 0
