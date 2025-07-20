@@ -6,6 +6,7 @@ require 'fileutils'
 require 'digest'
 require 'rspec/core'
 require 'stringio'
+require 'ostruct'
 require_relative 'custom_rspec_formatter'
 
 # Paired Dataset Creation Script
@@ -226,10 +227,40 @@ class PairedDatasetCreator
     return ['.', spec_file.gsub(/^\.\//, '')]
   end
 
+  def process_example_group_for_formatter(group, formatter, context_stack = [])
+    # Build notification-like object for example_group_started
+    group_notification = OpenStruct.new(group: group)
+    formatter.example_group_started(group_notification)
+    
+    # Process all examples in this group
+    group.examples.each do |example|
+      example_notification = OpenStruct.new(example: example)
+      formatter.example_started(example_notification)
+    end
+    
+    # Recursively process child groups
+    group.children.each do |child_group|
+      process_example_group_for_formatter(child_group, formatter, context_stack + [group])
+    end
+    
+    # Signal group finished
+    formatter.example_group_finished(group_notification)
+  end
+
   def extract_test_descriptions_using_rspec_formatter(spec_file, target_method_name)
     return [] unless File.exist?(spec_file)
     
     begin
+      # Implement "thin rspec-shell" approach using RSpec's core components programmatically
+      # This avoids loading spec_helper.rb or rails_helper.rb and the entire application environment
+      # 
+      # Key advantages of this approach:
+      # 1. Uses RSpec programmatically without triggering full application boot
+      # 2. Avoids dependency issues by not running RSpec::Core::Runner
+      # 3. Captures full contextual test descriptions with nested describe/context blocks
+      # 4. Faster and more reliable than command-line RSpec execution
+      # 5. Falls back gracefully when dependencies are missing
+      
       # Clear any previous RSpec configuration to avoid interference
       RSpec.clear_examples
       RSpec.reset
@@ -238,37 +269,60 @@ class PairedDatasetCreator
       formatter_output = StringIO.new
       formatter = CustomRSpecFormatter.new(formatter_output)
       
-      # Configure RSpec to use our formatter in dry-run mode
+      # Create a minimal RSpec configuration and world
+      # This sets up a blank slate without loading any helper files
       RSpec.configure do |config|
         config.add_formatter(formatter)
-        config.dry_run = true
         config.color = false
         config.profile_examples = false
-        # Disable automatic spec_helper loading by clearing the spec_helper option
+        # Explicitly disable automatic loading of spec helpers
+        config.disable_monkey_patching! if config.respond_to?(:disable_monkey_patching!)
+        # Clear any default helper file configurations
         config.spec_helper_file = nil if config.respond_to?(:spec_helper_file=)
+        # Disable automatic require of spec_helper
+        config.requires.clear if config.respond_to?(:requires)
       end
       
-      # Determine the repository root directory and relative spec file path
-      # to ensure RSpec runs from the correct context
+      # Determine the repository root directory and work from there
       repo_root, relative_spec_file = determine_repo_context(spec_file)
       
-      # Run RSpec on the spec file in dry-run mode from the repository root
+      # Change to the repository root to ensure proper relative path resolution
       current_dir = Dir.pwd
       begin
         Dir.chdir(repo_root) if repo_root && Dir.exist?(repo_root)
         
-        # Add additional safety by temporarily suppressing some RSpec configuration
-        # that might require external dependencies
-        exit_code = RSpec::Core::Runner.run([
-          relative_spec_file, 
-          '--dry-run',
-          '--no-color',
-          '--no-profile'
-        ])
+        # Use RSpec's correct approach for loading spec files programmatically
+        # Simple approach: directly load the Ruby file in RSpec context
+        # This will define the example groups and trigger our formatter events
+        
+        # Clear any existing example groups
+        RSpec.world.example_groups.clear
+        
+        # Load the spec file directly - this will execute the RSpec DSL
+        # and trigger our formatter events as examples are defined
+        load(File.expand_path(relative_spec_file))
+        
+        # Now we need to extract the example groups and manually trigger formatter events
+        # since we're not running the examples, just loading their definitions
+        RSpec.world.example_groups.each do |group|
+          process_example_group_for_formatter(group, formatter)
+        end
+        
+        # Debug output to understand what happened
+        puts "DEBUG: Loaded spec file #{relative_spec_file}" if ENV['DEBUG']
+        puts "DEBUG: World has #{RSpec.world.example_groups.length} example groups" if ENV['DEBUG']
+        puts "DEBUG: Formatter collected #{formatter.collected_examples.length} examples" if ENV['DEBUG']
+        
       rescue LoadError => load_error
         # If we get a LoadError, it means the spec file has dependencies we can't resolve
         # This is expected for many external repositories
         puts "Warning: Could not load dependencies for #{spec_file}: #{load_error.message}" if ENV['DEBUG']
+        return []
+      rescue StandardError => e
+        # Handle any other errors that might occur during spec file loading
+        puts "Warning: Error loading spec file #{spec_file}: #{e.message}" if ENV['DEBUG']
+        puts "Error class: #{e.class}" if ENV['DEBUG']
+        puts "Backtrace: #{e.backtrace.first(5).join("\n")}" if ENV['DEBUG']
         return []
       ensure
         Dir.chdir(current_dir)
@@ -288,6 +342,7 @@ class PairedDatasetCreator
       
     rescue => e
       puts "Error running RSpec formatter on #{spec_file}: #{e.message}" if ENV['DEBUG']
+      puts "Error class: #{e.class}" if ENV['DEBUG']
       []
     end
   end
