@@ -6,6 +6,7 @@ data for GNN training. Includes custom Dataset class for AST to graph conversion
 """
 
 import json
+import random
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Union
 
@@ -443,6 +444,186 @@ class SimpleDataLoader:
             yield self.collate_fn(batch)
 
 
+class PairedDataset:
+    """
+    Dataset class for loading paired Ruby AST and text description data.
+    
+    This class loads the paired_data.jsonl file containing Ruby method data 
+    and converts AST representations to graph objects paired with text descriptions.
+    For each method, it randomly samples one description from the available descriptions.
+    """
+    
+    def __init__(self, jsonl_path: str, transform=None, seed: Optional[int] = None):
+        """
+        Initialize the paired dataset.
+        
+        Args:
+            jsonl_path: Path to the paired_data.jsonl file
+            transform: Optional transform to apply to each sample
+            seed: Random seed for consistent description sampling
+        """
+        self.jsonl_path = jsonl_path
+        self.transform = transform
+        self.converter = ASTGraphConverter()
+        
+        if seed is not None:
+            random.seed(seed)
+        
+        # Load the data
+        self.data = load_jsonl_file(jsonl_path)
+        
+        print(f"Loaded {len(self.data)} samples from {jsonl_path}")
+    
+    def __len__(self) -> int:
+        """Return the number of samples in the dataset."""
+        return len(self.data)
+    
+    def __getitem__(self, idx: int) -> Tuple[Dict[str, Any], str]:
+        """
+        Get a sample from the dataset.
+        
+        Args:
+            idx: Index of the sample
+            
+        Returns:
+            Tuple of (graph_data, text_description)
+        """
+        if idx < 0 or idx >= len(self.data):
+            raise IndexError(f"Index {idx} out of range for dataset of size {len(self.data)}")
+        
+        sample = self.data[idx]
+        
+        # Convert AST to graph
+        graph_data = self.converter.parse_ast_json(sample['ast_json'])
+        
+        # Randomly sample one description
+        descriptions = sample.get('descriptions', [])
+        if descriptions:
+            description = random.choice(descriptions)
+            text_description = description['text']
+        else:
+            # Fallback to method name if no descriptions available
+            text_description = sample.get('method_name', 'unknown_method')
+        
+        # Create the graph data object
+        graph_result = {
+            'x': graph_data['x'],
+            'edge_index': graph_data['edge_index'],
+            'num_nodes': graph_data['num_nodes'],
+            'id': sample.get('id', f'sample_{idx}'),
+            'repo_name': sample.get('repo_name', ''),
+            'file_path': sample.get('file_path', '')
+        }
+        
+        # Apply transform if provided
+        if self.transform:
+            graph_result = self.transform(graph_result)
+        
+        return graph_result, text_description
+    
+    def get_feature_dim(self) -> int:
+        """Return the dimension of node features."""
+        return self.converter.node_encoder.vocab_size
+
+
+def collate_paired_data(batch: List[Tuple[Dict[str, Any], str]]) -> Tuple[Dict[str, Any], List[str]]:
+    """
+    Collate function for batching paired graph and text data.
+    
+    Args:
+        batch: List of (graph_data, text_description) tuples
+        
+    Returns:
+        Tuple of (batched_graph_data, list_of_text_descriptions)
+    """
+    if not batch:
+        raise ValueError("Cannot collate empty batch")
+    
+    # Separate graph data and text descriptions
+    graph_batch = [item[0] for item in batch]
+    text_batch = [item[1] for item in batch]
+    
+    # Collate graph data manually (similar to collate_graphs but without 'y' field)
+    all_x = []
+    all_edge_index = [[], []]  # [source_nodes, target_nodes]
+    batch_idx = []
+    node_offset = 0
+    
+    metadata = {
+        'ids': [],
+        'repo_names': [],
+        'file_paths': []
+    }
+    
+    for i, sample in enumerate(graph_batch):
+        # Node features
+        all_x.extend(sample['x'])
+        
+        # Edge indices (offset by current node count)
+        edges = sample['edge_index']
+        if len(edges[0]) > 0:  # Only offset if there are edges
+            for j in range(len(edges[0])):
+                all_edge_index[0].append(edges[0][j] + node_offset)
+                all_edge_index[1].append(edges[1][j] + node_offset)
+        
+        # Batch indices for each node
+        num_nodes = sample['num_nodes']
+        batch_idx.extend([i] * num_nodes)
+        node_offset += num_nodes
+        
+        # Metadata
+        metadata['ids'].append(sample['id'])
+        metadata['repo_names'].append(sample['repo_name'])
+        metadata['file_paths'].append(sample['file_path'])
+    
+    batched_graphs = {
+        'x': all_x,
+        'edge_index': all_edge_index,
+        'batch': batch_idx,
+        'num_graphs': len(batch),
+        'metadata': metadata
+    }
+    
+    return batched_graphs, text_batch
+
+
+class PairedDataLoader:
+    """
+    DataLoader for paired graph and text data.
+    
+    Extends SimpleDataLoader to handle paired (graph, text) data.
+    """
+    
+    def __init__(self, dataset, batch_size: int = 1, shuffle: bool = False):
+        """
+        Initialize the PairedDataLoader.
+        
+        Args:
+            dataset: PairedDataset to load from
+            batch_size: Number of samples per batch
+            shuffle: Whether to shuffle the data
+        """
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        
+        # Create indices
+        self.indices = list(range(len(dataset)))
+        if shuffle:
+            random.shuffle(self.indices)
+    
+    def __len__(self) -> int:
+        """Return number of batches."""
+        return (len(self.dataset) + self.batch_size - 1) // self.batch_size
+    
+    def __iter__(self):
+        """Iterate over batches."""
+        for i in range(0, len(self.dataset), self.batch_size):
+            batch_indices = self.indices[i:i + self.batch_size]
+            batch = [self.dataset[idx] for idx in batch_indices]
+            yield collate_paired_data(batch)
+
+
 def create_data_loaders(train_path: str, val_path: str, batch_size: int = 32, shuffle: bool = True):
     """
     Create train and validation data loaders.
@@ -463,3 +644,22 @@ def create_data_loaders(train_path: str, val_path: str, batch_size: int = 32, sh
     val_loader = SimpleDataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     
     return train_loader, val_loader
+
+
+def create_paired_data_loaders(paired_data_path: str, batch_size: int = 32, shuffle: bool = True, seed: Optional[int] = None):
+    """
+    Create data loader for paired graph and text data.
+    
+    Args:
+        paired_data_path: Path to paired_data.jsonl file
+        batch_size: Batch size for the loader
+        shuffle: Whether to shuffle the data
+        seed: Random seed for consistent description sampling
+        
+    Returns:
+        PairedDataLoader instance
+    """
+    dataset = PairedDataset(paired_data_path, seed=seed)
+    loader = PairedDataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+    
+    return loader
