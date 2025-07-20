@@ -125,14 +125,75 @@ Ruby AST → GNN Encoder (frozen) → 64D Embedding
 - **Shared Embedding Space**: 64-dimensional space from Phase 4 as target
 - **Frozen GNN**: Preserve learned AST representations from previous phases
 
-## Implementation Approach
+## Updated Data Loader Implementation
 
-As we progress through Phase 5, this section will be updated with:
+**Status: ✅ COMPLETE** - The data loader has been successfully updated to handle the paired data format.
 
-1. **Specific GitHub issues** created for each implementation milestone
-2. **Detailed technical specifications** for each component
-3. **Progress updates** and results achieved
-4. **Lessons learned** and technical challenges encountered
+### New PairedDataset Class
+
+A new `PairedDataset` class has been implemented in `src/data_processing.py` with the following capabilities:
+
+- **Reads paired_data.jsonl**: Loads the complete paired dataset with 155,949 method entries
+- **Random description sampling**: For each method access, randomly selects one description from the available descriptions array
+- **Graph-text pairs**: Returns tuples of `(graph_data, text_description)` instead of the previous format
+- **Reproducible sampling**: Supports optional seed parameter for consistent results during testing
+
+### Key Features
+
+- **Multiple description sources**: Handles method name descriptions, docstring descriptions, and test descriptions
+- **Graceful fallback**: Uses method name as fallback if no descriptions are available
+- **Memory efficient**: Loads data once and samples descriptions on-demand
+- **Compatible interface**: Integrates seamlessly with existing graph processing infrastructure
+
+### Usage Example
+
+```python
+from src.data_processing import PairedDataset, create_paired_data_loaders
+
+# Create dataset and loader
+loader = create_paired_data_loaders(
+    paired_data_path="dataset/paired_data.jsonl",
+    batch_size=32,
+    shuffle=True,
+    seed=42  # Optional for reproducible sampling
+)
+
+# Iterate through batches
+for batched_graphs, text_descriptions in loader:
+    # batched_graphs: Dictionary with graph data (x, edge_index, batch, etc.)
+    # text_descriptions: List of strings, one per graph in the batch
+    print(f"Batch size: {len(text_descriptions)}")
+    print(f"Sample description: {text_descriptions[0]}")
+```
+
+### Data Format
+
+Each iteration yields:
+- **Batched graph data**: Standard graph batch format with node features, edge indices, and batch assignments
+- **Text descriptions**: List of strings corresponding to each graph in the batch
+
+The loader successfully handles the complete dataset and yields batches of (graph, text) pairs as required.
+
+### Testing and Validation
+
+Comprehensive testing has been implemented in `test_paired_dataset.py` with the following test cases:
+
+1. **Dataset Loading**: Verifies successful loading of paired_data.jsonl (155,949 samples)
+2. **Item Access**: Validates (graph_data, text_description) tuple returns
+3. **Batch Collation**: Tests proper batching of multiple graph-text pairs
+4. **DataLoader Functionality**: Confirms end-to-end batch iteration
+5. **Description Variety**: Verifies random sampling from multiple descriptions
+
+All tests pass successfully, confirming the data loader meets the specified requirements.
+
+### Definition of Done ✅
+
+- ✅ **Dataset reads paired_data.jsonl**: PairedDataset successfully loads the new format
+- ✅ **Random description sampling**: Each access randomly selects from available descriptions
+- ✅ **Returns (graph, text) tuples**: __getitem__ method returns correct format
+- ✅ **Successful batch yielding**: DataLoader yields batches of (graph, text) pairs
+
+The data loader implementation is complete and ready for Phase 5 training pipeline integration.
 
 ## Next Steps
 
