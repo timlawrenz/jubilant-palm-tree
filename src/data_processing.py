@@ -9,6 +9,11 @@ import json
 import random
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Union
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 
 def load_methods_json(filepath: str) -> List[Dict[str, Any]]:
@@ -661,5 +666,345 @@ def create_paired_data_loaders(paired_data_path: str, batch_size: int = 32, shuf
     """
     dataset = PairedDataset(paired_data_path, seed=seed)
     loader = PairedDataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+    
+    return loader
+
+
+class AutoregressiveASTDataset:
+    """
+    Dataset class for autoregressive AST generation training.
+    
+    This class loads paired Ruby AST and text description data and converts
+    each AST into a sequence of (partial_graph, target_node) pairs for 
+    autoregressive training. Each method generates multiple training examples.
+    """
+    
+    def __init__(self, paired_data_path: str, max_sequence_length: int = 50, seed: Optional[int] = None):
+        """
+        Initialize the autoregressive dataset.
+        
+        Args:
+            paired_data_path: Path to the paired_data.jsonl file
+            max_sequence_length: Maximum number of nodes per sequence
+            seed: Random seed for consistent description sampling
+        """
+        self.paired_data_path = paired_data_path
+        self.max_sequence_length = max_sequence_length
+        self.converter = ASTGraphConverter()
+        
+        if seed is not None:
+            random.seed(seed)
+        
+        # Load the paired data
+        self.paired_data = load_jsonl_file(paired_data_path)
+        
+        # Generate sequential training pairs from all methods
+        self.sequential_pairs = []
+        self._generate_all_sequential_pairs()
+        
+        print(f"Loaded {len(self.paired_data)} methods from {paired_data_path}")
+        print(f"Generated {len(self.sequential_pairs)} sequential training pairs")
+    
+    def _generate_all_sequential_pairs(self):
+        """Generate sequential training pairs from all ASTs in the dataset."""
+        for sample in self.paired_data:
+            try:
+                # Get text description
+                descriptions = sample.get('descriptions', [])
+                if descriptions:
+                    description = random.choice(descriptions)
+                    text_description = description['text']
+                else:
+                    # Fallback to method name if no descriptions available
+                    text_description = sample.get('method_name', 'unknown_method')
+                
+                # Create sequential pairs for this AST
+                sequential_pairs = self._create_sequential_pairs(
+                    sample['ast_json'], 
+                    text_description
+                )
+                
+                # Add to global list
+                self.sequential_pairs.extend(sequential_pairs)
+                
+            except Exception as e:
+                # Skip malformed samples gracefully
+                print(f"Warning: Skipping sample {sample.get('id', 'unknown')} due to error: {e}")
+                continue
+    
+    def _create_sequential_pairs(self, ast_json: str, text_description: str) -> List[Dict[str, Any]]:
+        """
+        Convert single AST into sequence of (partial_graph, target_node) pairs.
+        
+        Args:
+            ast_json: JSON string representing the AST
+            text_description: Text description for this method
+            
+        Returns:
+            List of sequential training pairs
+        """
+        pairs = []
+        
+        try:
+            # Extract nodes in proper order
+            nodes = self._extract_nodes_in_order(ast_json)
+            
+            # Limit sequence length if needed
+            if len(nodes) > self.max_sequence_length:
+                nodes = nodes[:self.max_sequence_length]
+            
+            # Create sequential pairs
+            for i in range(len(nodes)):
+                # Build partial graph with nodes 0 to i-1
+                partial_graph = self._build_partial_graph(nodes[:i])
+                
+                # Target is the i-th node
+                target_node = nodes[i]
+                
+                pair = {
+                    'text_description': text_description,
+                    'partial_graph': partial_graph,
+                    'target_node': target_node,
+                    'step': i,
+                    'total_steps': len(nodes)
+                }
+                
+                pairs.append(pair)
+                
+        except Exception as e:
+            # Return empty list for malformed ASTs
+            print(f"Warning: Failed to create sequential pairs: {e}")
+            
+        return pairs
+    
+    def _extract_nodes_in_order(self, ast_json: str) -> List[Dict[str, Any]]:
+        """
+        Extract nodes from AST in proper depth-first order.
+        
+        Args:
+            ast_json: JSON string representing the AST
+            
+        Returns:
+            List of nodes in traversal order
+        """
+        try:
+            ast_data = json.loads(ast_json)
+            nodes = []
+            self._traverse_ast_nodes(ast_data, nodes)
+            return nodes
+        except (json.JSONDecodeError, Exception):
+            # Return empty list for malformed JSON
+            return []
+    
+    def _traverse_ast_nodes(self, node: Union[Dict, List, str, int, float, None], nodes: List[Dict[str, Any]]):
+        """
+        Recursively traverse AST and collect nodes in depth-first order.
+        
+        Args:
+            node: Current AST node
+            nodes: List to collect nodes
+        """
+        if isinstance(node, dict) and 'type' in node:
+            # This is an AST node with a type
+            node_info = {
+                'node_type': node['type'],
+                'features': self.converter.node_encoder.create_node_features(node['type']),
+                'raw_node': node  # Keep reference for debugging
+            }
+            nodes.append(node_info)
+            
+            # Traverse children
+            if 'children' in node:
+                for child in node['children']:
+                    self._traverse_ast_nodes(child, nodes)
+                    
+        elif isinstance(node, list):
+            # Process list of nodes
+            for child in node:
+                self._traverse_ast_nodes(child, nodes)
+    
+    def _build_partial_graph(self, nodes: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Build partial graph from first i nodes.
+        
+        Args:
+            nodes: List of nodes to include in partial graph
+            
+        Returns:
+            Partial graph representation
+        """
+        if not nodes:
+            # Empty graph case
+            return {
+                'x': [],
+                'edge_index': [[], []],
+                'num_nodes': 0
+            }
+        
+        # Extract node features
+        node_features = [node['features'] for node in nodes]
+        
+        # Create simple sequential connections (each node connects to next)
+        # This is a simplified approach - in practice you'd want to preserve 
+        # the actual AST structure relationships
+        edge_list = []
+        for i in range(len(nodes) - 1):
+            edge_list.append([i, i + 1])  # Forward edge
+            edge_list.append([i + 1, i])  # Backward edge for undirected
+        
+        if edge_list:
+            edge_index = [[], []]
+            for source, target in edge_list:
+                edge_index[0].append(source)
+                edge_index[1].append(target)
+        else:
+            edge_index = [[], []]
+        
+        return {
+            'x': node_features,
+            'edge_index': edge_index,
+            'num_nodes': len(nodes)
+        }
+    
+    def __len__(self) -> int:
+        """Return the number of sequential training pairs."""
+        return len(self.sequential_pairs)
+    
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
+        """
+        Get a sequential training pair.
+        
+        Args:
+            idx: Index of the training pair
+            
+        Returns:
+            Dictionary containing partial graph and target node data
+        """
+        if idx < 0 or idx >= len(self.sequential_pairs):
+            raise IndexError(f"Index {idx} out of range for dataset of size {len(self.sequential_pairs)}")
+        
+        return self.sequential_pairs[idx]
+    
+    def get_feature_dim(self) -> int:
+        """Return the dimension of node features."""
+        return self.converter.node_encoder.vocab_size
+
+
+def collate_autoregressive_data(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Collate function for batching autoregressive training data.
+    
+    Args:
+        batch: List of sequential training pairs
+        
+    Returns:
+        Batched autoregressive training data
+    """
+    if not batch:
+        raise ValueError("Cannot collate empty batch")
+    
+    # Separate different components
+    text_descriptions = [item['text_description'] for item in batch]
+    steps = [item['step'] for item in batch]
+    total_steps = [item['total_steps'] for item in batch]
+    
+    # Collate partial graphs
+    partial_graphs = [item['partial_graph'] for item in batch]
+    
+    # Collate node features from partial graphs
+    all_x = []
+    all_edge_index = [[], []]
+    batch_idx = []
+    node_offset = 0
+    
+    for i, graph in enumerate(partial_graphs):
+        # Node features
+        if graph['x']:
+            all_x.extend(graph['x'])
+            
+            # Edge indices (offset by current node count)
+            edges = graph['edge_index']
+            if len(edges[0]) > 0:
+                for j in range(len(edges[0])):
+                    all_edge_index[0].append(edges[0][j] + node_offset)
+                    all_edge_index[1].append(edges[1][j] + node_offset)
+            
+            # Batch indices for each node
+            num_nodes = graph['num_nodes']
+            batch_idx.extend([i] * num_nodes)
+            node_offset += num_nodes
+    
+    # Target nodes
+    target_nodes = [item['target_node'] for item in batch]
+    target_node_types = [node['node_type'] for node in target_nodes]
+    target_node_features = [node['features'] for node in target_nodes]
+    
+    return {
+        'text_descriptions': text_descriptions,
+        'partial_graphs': {
+            'x': all_x,
+            'edge_index': all_edge_index,
+            'batch': batch_idx,
+            'num_graphs': len(batch)
+        },
+        'target_node_types': target_node_types,
+        'target_node_features': target_node_features,
+        'steps': steps,
+        'total_steps': total_steps
+    }
+
+
+class AutoregressiveDataLoader:
+    """
+    DataLoader for autoregressive AST training data.
+    """
+    
+    def __init__(self, dataset: AutoregressiveASTDataset, batch_size: int = 8, shuffle: bool = True):
+        """
+        Initialize the AutoregressiveDataLoader.
+        
+        Args:
+            dataset: AutoregressiveASTDataset to load from
+            batch_size: Number of sequential pairs per batch
+            shuffle: Whether to shuffle the data
+        """
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        
+        # Create indices
+        self.indices = list(range(len(dataset)))
+        if shuffle:
+            random.shuffle(self.indices)
+    
+    def __len__(self) -> int:
+        """Return number of batches."""
+        return (len(self.dataset) + self.batch_size - 1) // self.batch_size
+    
+    def __iter__(self):
+        """Iterate over batches."""
+        for i in range(0, len(self.dataset), self.batch_size):
+            batch_indices = self.indices[i:i + self.batch_size]
+            batch = [self.dataset[idx] for idx in batch_indices]
+            yield collate_autoregressive_data(batch)
+
+
+def create_autoregressive_data_loader(paired_data_path: str, batch_size: int = 8, shuffle: bool = True, 
+                                    max_sequence_length: int = 50, seed: Optional[int] = None):
+    """
+    Create data loader for autoregressive AST training.
+    
+    Args:
+        paired_data_path: Path to paired_data.jsonl file
+        batch_size: Number of sequential pairs per batch
+        shuffle: Whether to shuffle the data
+        max_sequence_length: Maximum sequence length per method
+        seed: Random seed for consistent description sampling
+        
+    Returns:
+        AutoregressiveDataLoader instance
+    """
+    dataset = AutoregressiveASTDataset(paired_data_path, max_sequence_length=max_sequence_length, seed=seed)
+    loader = AutoregressiveDataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
     
     return loader
