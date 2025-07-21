@@ -591,28 +591,28 @@ Phase 1 Data → Phase 2 GNN → Phase 3 Validation → Phase 4 Decoder (REPLACE
 
 ## Technical Implementation Timeline
 
-### Phase 7.1: Data Pipeline Enhancement (Ticket 27)
+### Phase 7.1: Data Pipeline Enhancement
 **Duration**: 1-2 weeks
 - Implement AutoregressiveASTDataset
 - Create sequential training pairs from existing AST data
 - Validate data loader compatibility with existing pipeline
 - Test with small dataset subset
 
-### Phase 7.2: Autoregressive Model Development (Ticket 28)  
+### Phase 7.2: Autoregressive Model Development  
 **Duration**: 2-3 weeks
 - Implement AutoregressiveASTDecoder with multiple backend options
 - Create dual prediction heads for node type and connections
 - Build compatible interface with existing Phase 5 text embeddings
 - Unit test all model components
 
-### Phase 7.3: Training Infrastructure (Ticket 29)
+### Phase 7.3: Training Infrastructure
 **Duration**: 1-2 weeks  
 - Implement teacher forcing training loop
 - Create training script with early stopping and checkpointing
 - Validate loss computation and gradient flow
 - Conduct training experiments to find optimal hyperparameters
 
-### Phase 7.4: Generation Enhancement (Ticket 30)
+### Phase 7.4: Generation Enhancement
 **Duration**: 1-2 weeks
 - Update generate_code.py with autoregressive inference
 - Implement sampling strategies (temperature, top-k)
