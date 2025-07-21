@@ -21,7 +21,7 @@ This project explores the potential of Graph Neural Networks (GNNs) to understan
 
 ## Project Phases
 
-This project was completed in 6 phases:
+This project has been developed through 7 phases, with Phase 7 representing the next major advancement:
 
 ### [Phase 1 - Data Generation & Preprocessing](README_phase1.md) ✅ **COMPLETED**
 **Goal**: To produce a clean, structured dataset from raw source code, ready for model training.
@@ -61,6 +61,13 @@ This project was completed in 6 phases:
 - Complete integration of all phases into working text-to-code system
 - Demonstrated successful generation for arithmetic and array operations
 - Identified decoder limitations for complex control flow structures
+
+### [Phase 7 - Advanced Decoder Architectures](README_phase7.md) 🚧 **PLANNED**
+**Goal**: To overcome the limitations of the simple, one-shot decoder by implementing a more powerful, autoregressive model that can generate complex, nested code structures.
+- [Update Data Loader for Autoregressive Training](https://github.com/timlawrenz/jubilant-palm-tree/issues/27)
+- [Implement Autoregressive AST Decoder Model](https://github.com/timlawrenz/jubilant-palm-tree/issues/28)
+- [Implement Autoregressive Training Loop](https://github.com/timlawrenz/jubilant-palm-tree/issues/29)
+- [Implement Autoregressive Inference](https://github.com/timlawrenz/jubilant-palm-tree/issues/30)
 
 ## Quick Start
 
@@ -154,7 +161,13 @@ print(ruby_code)
 - **Stable Architecture**: Consistent 64D embeddings and 15-node AST generation
 - **Successful Examples**: Perfect generation for "adds two numbers" and "finds largest in array"
 - **Current Limitations**: Decoder bottleneck identified for complex control flow (conditionals, loops)
-- **Future Direction**: Clear pathway for enhancement through improved AST decoder training
+- **Future Direction**: Phase 7 autoregressive architecture planned to address complex code generation
+
+### Advanced Decoder Architectures (Phase 7) - Planned
+- **Autoregressive Generation**: Sequential AST building to handle complex control structures
+- **Enhanced Training**: Teacher forcing with step-by-step sequence generation
+- **Improved Inference**: Iterative sampling with temperature and top-k controls
+- **Target Capability**: Generate conditional statements, loops, and nested logic structures
 
 ## Development Setup
 
@@ -213,6 +226,7 @@ jubilant-palm-tree/
 ├── README_phase4.md          # Phase 4: AST Autoencoder for Code Generation
 ├── README_phase5.md          # Phase 5: Text and Code Embeddings
 ├── README_phase6.md          # Phase 6: Text-to-Code Generation
+├── README_phase7.md          # Phase 7: Advanced Decoder Architectures
 ├── dataset/                  # ML-ready Ruby method dataset
 ├── src/                      # GNN models and training code
 ├── scripts/                  # Data processing and AST conversion tools
@@ -220,9 +234,10 @@ jubilant-palm-tree/
 ├── generate_code.py          # Text-to-code generation pipeline
 ├── train.py                  # GNN complexity prediction training
 ├── train_autoencoder.py      # AST autoencoder training
-└── train_alignment.py        # Text-code alignment training
+├── train_alignment.py        # Text-code alignment training
+└── train_autoregressive.py   # Autoregressive decoder training (Phase 7)
 ```
 
 ---
 
-*This project successfully demonstrates that Graph Neural Networks can learn meaningful structural representations of Ruby code, enabling complexity prediction, complete AST reconstruction, text-code alignment through contrastive learning, and end-to-end text-to-code generation. The 6-phase implementation proves the viability of neural approaches to code understanding and generation. For detailed information about each phase, see the individual phase README files.*
+*This project successfully demonstrates that Graph Neural Networks can learn meaningful structural representations of Ruby code, enabling complexity prediction, complete AST reconstruction, text-code alignment through contrastive learning, and end-to-end text-to-code generation. The 6-phase implementation proves the viability of neural approaches to code understanding and generation, with Phase 7 planned to address the remaining limitations in complex control flow generation through autoregressive decoder architectures. For detailed information about each phase, see the individual phase README files.*
