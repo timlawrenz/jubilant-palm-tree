@@ -324,7 +324,7 @@ class RubyASTDataset:
         result = {
             'x': graph_data['x'],
             'edge_index': graph_data['edge_index'],
-            'y': [sample['complexity_score']],
+            'y': [sample.get('complexity_score', 5.0)],  # Default complexity score if missing
             'num_nodes': graph_data['num_nodes'],
             'id': sample.get('id', f'sample_{idx}'),
             'repo_name': sample.get('repo_name', ''),

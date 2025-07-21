@@ -14,3 +14,6 @@ seaborn
 # Jupyter notebook support
 jupyter
 ipykernel
+
+# System monitoring for memory optimization
+psutil
