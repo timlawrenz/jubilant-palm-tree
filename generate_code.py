@@ -18,11 +18,215 @@ import json
 import subprocess
 import tempfile
 import torch
+import torch.nn.functional as F
 
 # Add src directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from models import AlignmentModel, ASTDecoder
+from models import AlignmentModel, ASTDecoder, AutoregressiveASTDecoder
+
+
+def create_empty_graph():
+    """Create an empty graph for starting autoregressive generation."""
+    return {
+        'x': [],  # Node features
+        'edge_index': [[], []],  # Edge connections
+        'batch': [],  # Batch indices
+        'num_nodes': 0
+    }
+
+
+def add_node_to_graph(partial_graph, new_node):
+    """
+    Add a new node to the partial graph.
+    
+    Args:
+        partial_graph: Current partial graph state
+        new_node: Dictionary with 'node_type', 'connections', 'features'
+        
+    Returns:
+        Updated partial graph with new node added
+    """
+    # Create a copy of the current graph
+    updated_graph = {
+        'x': partial_graph['x'].copy() if isinstance(partial_graph['x'], list) else partial_graph['x'],
+        'edge_index': [partial_graph['edge_index'][0].copy(), partial_graph['edge_index'][1].copy()],
+        'batch': partial_graph['batch'].copy() if isinstance(partial_graph['batch'], list) else partial_graph['batch'],
+        'num_nodes': partial_graph['num_nodes']
+    }
+    
+    # Add new node features
+    if isinstance(updated_graph['x'], list):
+        updated_graph['x'].append(new_node['features'])
+    else:
+        # Convert to list if it's a tensor
+        updated_graph['x'] = updated_graph['x'].tolist()
+        updated_graph['x'].append(new_node['features'])
+    
+    # Add connections from new node to existing nodes
+    new_node_idx = updated_graph['num_nodes']
+    for connection_idx in new_node.get('connections', []):
+        if connection_idx < new_node_idx:  # Only connect to existing nodes
+            # Add bidirectional edges
+            updated_graph['edge_index'][0].extend([new_node_idx, connection_idx])
+            updated_graph['edge_index'][1].extend([connection_idx, new_node_idx])
+    
+    # Update batch index for new node (assume single batch for generation)
+    if isinstance(updated_graph['batch'], list):
+        updated_graph['batch'].append(0)
+    else:
+        updated_graph['batch'] = updated_graph['batch'].tolist()
+        updated_graph['batch'].append(0)
+    
+    # Update node count
+    updated_graph['num_nodes'] += 1
+    
+    return updated_graph
+
+
+def get_node_features(node_type_idx, feature_dim=74):
+    """
+    Get one-hot encoded features for a node type.
+    
+    Args:
+        node_type_idx: Index of the node type
+        feature_dim: Total feature dimension
+        
+    Returns:
+        List of feature values (one-hot encoded)
+    """
+    features = [0.0] * feature_dim
+    if 0 <= node_type_idx < feature_dim:
+        features[node_type_idx] = 1.0
+    return features
+
+
+def is_end_token(node_type_idx, end_token_idx=0):
+    """
+    Check if the node type represents end of generation.
+    
+    Args:
+        node_type_idx: Index of the predicted node type
+        end_token_idx: Index that represents end of sequence
+        
+    Returns:
+        True if generation should stop
+    """
+    # For simplicity, we'll use index 0 as end token
+    # In practice, this might be a specific "END" token or when we reach certain node types
+    return node_type_idx == end_token_idx
+
+
+def build_complete_ast(generated_nodes):
+    """
+    Build complete AST structure from generated nodes.
+    
+    Args:
+        generated_nodes: List of generated node dictionaries
+        
+    Returns:
+        Dictionary representing the complete AST for further processing
+    """
+    if not generated_nodes:
+        # Return minimal AST structure
+        return {
+            'node_features': torch.zeros(1, 1, 74),  # Batch of 1, 1 node, 74 features
+            'edge_index': torch.zeros(2, 0, dtype=torch.long),  # No edges
+            'num_nodes': 1
+        }
+    
+    # Convert nodes to tensor format expected by existing pipeline
+    node_features = []
+    edge_index = [[], []]
+    
+    for i, node in enumerate(generated_nodes):
+        node_features.append(node['features'])
+        
+        # Add connections
+        for connection_idx in node.get('connections', []):
+            if connection_idx < i:  # Only connect to previous nodes
+                edge_index[0].extend([i, connection_idx])
+                edge_index[1].extend([connection_idx, i])
+    
+    # Convert to tensors
+    node_features_tensor = torch.tensor(node_features, dtype=torch.float32).unsqueeze(0)  # Add batch dimension
+    edge_index_tensor = torch.tensor(edge_index, dtype=torch.long) if edge_index[0] else torch.zeros(2, 0, dtype=torch.long)
+    
+    return {
+        'node_features': node_features_tensor,
+        'edge_index': edge_index_tensor,
+        'num_nodes': len(generated_nodes)
+    }
+
+
+def generate_ast_autoregressive(model, text_embedding, max_length=50, 
+                              temperature=1.0, top_k=5):
+    """
+    Generate AST using autoregressive decoder with sampling
+    
+    Args:
+        model: Trained AutoregressiveASTDecoder
+        text_embedding: (1, 64) - Text description embedding
+        max_length: Maximum number of nodes to generate
+        temperature: Sampling temperature for diversity
+        top_k: Top-k sampling for node type selection
+    """
+    
+    model.eval()
+    device = next(model.parameters()).device
+    text_embedding = text_embedding.to(device)
+    
+    # Initialize generation
+    partial_graph = create_empty_graph()
+    hidden_state = None
+    generated_nodes = []
+    
+    with torch.no_grad():
+        for step in range(max_length):
+            # Forward pass
+            outputs = model(text_embedding, partial_graph, hidden_state)
+            
+            # Sample next node type with temperature and top-k
+            node_type_logits = outputs['node_type_logits'] / temperature
+            
+            # Top-k sampling for diversity
+            if top_k > 0 and top_k < node_type_logits.size(-1):
+                top_k_indices = torch.topk(node_type_logits, top_k).indices
+                top_k_probs = F.softmax(
+                    torch.gather(node_type_logits, 1, top_k_indices), 
+                    dim=1
+                )
+                
+                sampled_idx = torch.multinomial(top_k_probs, 1)
+                next_node_type = top_k_indices.gather(1, sampled_idx).item()
+            else:
+                # Regular sampling from full distribution
+                node_type_probs = F.softmax(node_type_logits, dim=1)
+                next_node_type = torch.multinomial(node_type_probs, 1).item()
+            
+            # Sample connections to existing nodes
+            connection_probs = outputs['connection_probs']
+            connections = (connection_probs > 0.5).nonzero(as_tuple=True)[1]
+            
+            # Create new node
+            new_node = {
+                'node_type': next_node_type,
+                'connections': connections.tolist()[:partial_graph['num_nodes']],  # Only connect to existing nodes
+                'features': get_node_features(next_node_type)
+            }
+            
+            # Check for end-of-generation
+            if is_end_token(next_node_type) or len(generated_nodes) >= max_length - 1:
+                break
+                
+            # Update partial graph
+            partial_graph = add_node_to_graph(partial_graph, new_node)
+            generated_nodes.append(new_node)
+            
+            # Update hidden state
+            hidden_state = outputs['hidden_state']
+    
+    return build_complete_ast(generated_nodes)
 
 
 class CodeGenerator:
@@ -259,6 +463,262 @@ class CodeGenerator:
             return None
 
 
+class AutoregressiveCodeGenerator:
+    """Enhanced code generator using autoregressive AST decoder."""
+    
+    def __init__(self, alignment_model_path="best_alignment_model.pt", 
+                 autoregressive_decoder_path="best_autoregressive_decoder.pt",
+                 code_encoder_path="best_model.pt"):
+        """
+        Initialize the autoregressive code generator.
+        
+        Args:
+            alignment_model_path: Path to trained AlignmentModel
+            autoregressive_decoder_path: Path to trained AutoregressiveASTDecoder  
+            code_encoder_path: Path to trained code encoder weights
+        """
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        print("🚀 Loading Autoregressive Code Generation Models...")
+        print("=" * 50)
+        
+        # Load AlignmentModel
+        print("📦 Loading AlignmentModel...")
+        self.alignment_model = self._load_alignment_model(
+            alignment_model_path, code_encoder_path
+        )
+        print("✅ AlignmentModel loaded successfully")
+        
+        # Load AutoregressiveASTDecoder
+        print("📦 Loading AutoregressiveASTDecoder...")
+        self.autoregressive_decoder = self._load_autoregressive_decoder(autoregressive_decoder_path)
+        print("✅ AutoregressiveASTDecoder loaded successfully")
+        
+        print("\n🎯 Autoregressive Code Generator ready!")
+        
+    def _load_alignment_model(self, model_path, code_encoder_path):
+        """Load the AlignmentModel with proper configuration."""
+        # Create model with same configuration as training
+        alignment_model = AlignmentModel(
+            input_dim=74,  # Based on dataset
+            hidden_dim=64,
+            text_model_name='all-MiniLM-L6-v2',  # Use same model as training
+            code_encoder_weights_path=code_encoder_path
+        )
+        
+        # Load trained weights
+        checkpoint = torch.load(model_path, map_location=self.device)
+        alignment_model.load_state_dict(checkpoint['model_state_dict'])
+        alignment_model.eval()
+        
+        return alignment_model.to(self.device)
+    
+    def _load_autoregressive_decoder(self, model_path):
+        """Load the AutoregressiveASTDecoder with proper configuration."""
+        decoder = AutoregressiveASTDecoder(
+            text_embedding_dim=64,
+            graph_hidden_dim=64,
+            state_hidden_dim=128,
+            node_types=74,
+            sequence_model='GRU'
+        )
+        
+        # Load trained weights
+        checkpoint = torch.load(model_path, map_location=self.device)
+        decoder.load_state_dict(checkpoint['model_state_dict'])
+        decoder.eval()
+        
+        return decoder.to(self.device)
+    
+    def text_to_embedding(self, text):
+        """Convert natural language text to 64-dimensional embedding."""
+        with torch.no_grad():
+            embedding = self.alignment_model.encode_text([text])
+        return embedding
+    
+    def embedding_to_ast(self, embedding, max_length=50, temperature=1.0, top_k=5):
+        """Convert embedding to AST structure using autoregressive generation."""
+        return generate_ast_autoregressive(
+            self.autoregressive_decoder,
+            embedding,
+            max_length=max_length,
+            temperature=temperature,
+            top_k=top_k
+        )
+    
+    def ast_to_json(self, reconstruction, method_name="generated_method"):
+        """
+        Convert decoder output to AST JSON format expected by Ruby pretty printer.
+        
+        This is a simplified implementation that creates basic Ruby method structures.
+        In a full implementation, this would need to properly interpret the node features
+        to generate meaningful AST structures.
+        """
+        node_features = reconstruction['node_features'][0]  # First batch item
+        edge_index = reconstruction['edge_index']
+        num_nodes = node_features.shape[0]
+        
+        # For simplicity, create a basic method structure
+        # In practice, you'd analyze node_features to determine types and content
+        
+        # Generate simple method arguments based on number of nodes
+        args = []
+        if num_nodes > 5:
+            args = ["arg1", "arg2"]
+        elif num_nodes > 3:
+            args = ["arg"]
+        
+        # Create basic method body - this is very simplified
+        body_statements = []
+        
+        # Add some basic statements based on method name hints
+        if any(word in method_name.lower() for word in ['calculate', 'compute', 'total']):
+            if args:
+                body_statements.append({
+                    "type": "send",
+                    "children": [
+                        {"type": "lvar", "children": [args[0]]},
+                        "+",
+                        {"type": "lvar", "children": [args[1]]} if len(args) > 1 else {"type": "int", "children": [1]}
+                    ]
+                })
+            else:
+                body_statements.append({
+                    "type": "int",
+                    "children": [42]
+                })
+        elif any(word in method_name.lower() for word in ['get', 'fetch', 'find']):
+            body_statements.append({
+                "type": "send",
+                "children": [
+                    {"type": "const", "children": [None, "SomeClass"]},
+                    "find",
+                    {"type": "lvar", "children": [args[0]]} if args else {"type": "int", "children": [1]}
+                ]
+            })
+        else:
+            # Default simple return
+            body_statements.append({
+                "type": "str",
+                "children": ["result"]
+            })
+        
+        # Construct method AST
+        method_ast = {
+            "type": "def",
+            "children": [
+                method_name,
+                {
+                    "type": "args",
+                    "children": [{"type": "arg", "children": [arg]} for arg in args]
+                } if args else {"type": "args", "children": []},
+                {
+                    "type": "begin",
+                    "children": body_statements
+                } if len(body_statements) > 1 else body_statements[0]
+            ]
+        }
+        
+        return json.dumps(method_ast)
+    
+    def ruby_prettify(self, ast_json):
+        """Call Ruby pretty printer to convert AST JSON to Ruby code."""
+        try:
+            # Create temporary file for AST JSON
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                f.write(ast_json)
+                temp_file = f.name
+            
+            # Set up Ruby environment
+            ruby_env = dict(os.environ)
+            if os.path.exists('.env-ruby'):
+                # Source Ruby environment if available
+                ruby_env.update({
+                    'PATH': '/home/runner/.local/share/gem/ruby/3.2.0/bin:' + os.environ.get('PATH', ''),
+                    'GEM_PATH': '/home/runner/.local/share/gem/ruby/3.2.0:' + os.environ.get('GEM_PATH', '')
+                })
+            
+            # Call Ruby pretty printer
+            result = subprocess.run([
+                'bundle', 'exec', 'ruby', 'scripts/pretty_print_ast.rb', temp_file
+            ], capture_output=True, text=True, env=ruby_env, cwd=os.path.dirname(__file__))
+            
+            # Clean up temp file
+            os.unlink(temp_file)
+            
+            if result.returncode == 0:
+                return result.stdout.strip()
+            else:
+                raise Exception(f"Ruby pretty printer failed: {result.stderr}")
+                
+        except Exception as e:
+            print(f"❌ Error in Ruby pretty printing: {e}")
+            return None
+    
+    def generate_code(self, text_prompt, method_name=None, **kwargs):
+        """
+        Complete pipeline: text -> embedding -> AST -> Ruby code.
+        
+        Args:
+            text_prompt: Natural language description
+            method_name: Optional method name (auto-generated if None)
+            **kwargs: Generation control parameters
+                - max_length: Maximum number of nodes to generate (default: 50)
+                - temperature: Sampling temperature for diversity (default: 1.0)
+                - top_k: Top-k sampling for node type selection (default: 5)
+            
+        Returns:
+            Generated Ruby code as string
+        """
+        print(f"🔍 Generating code for: '{text_prompt}'")
+        print("-" * 50)
+        
+        # Extract generation parameters
+        max_length = kwargs.get('max_length', 50)
+        temperature = kwargs.get('temperature', 1.0)
+        top_k = kwargs.get('top_k', 5)
+        
+        print(f"   🎛️  Generation settings: max_length={max_length}, temperature={temperature}, top_k={top_k}")
+        
+        # Step 1: Text to embedding
+        print("1. Converting text to embedding...")
+        embedding = self.text_to_embedding(text_prompt)
+        print(f"   ✅ Generated embedding shape: {embedding.shape}")
+        
+        # Step 2: Embedding to AST (NEW: autoregressive generation)
+        print("2. Converting embedding to AST (autoregressive)...")
+        reconstruction = self.embedding_to_ast(
+            embedding,
+            max_length=max_length,
+            temperature=temperature,
+            top_k=top_k
+        )
+        print(f"   ✅ Generated AST with {reconstruction['num_nodes']} nodes")
+        
+        # Step 3: AST to JSON
+        print("3. Converting AST to JSON...")
+        if method_name is None:
+            # Generate method name from text prompt
+            words = text_prompt.lower().replace(' ', '_').replace('-', '_')
+            method_name = ''.join(c for c in words if c.isalnum() or c == '_')[:20]
+            if not method_name or not method_name[0].isalpha():
+                method_name = "generated_method"
+        
+        ast_json = self.ast_to_json(reconstruction, method_name)
+        print("   ✅ Generated AST JSON")
+        
+        # Step 4: JSON to Ruby code
+        print("4. Converting JSON to Ruby code...")
+        ruby_code = self.ruby_prettify(ast_json)
+        
+        if ruby_code:
+            print("   ✅ Generated Ruby code")
+            return ruby_code
+        else:
+            print("   ❌ Failed to generate Ruby code")
+            return None
+
+
 def main():
     """Main CLI interface."""
     parser = argparse.ArgumentParser(
@@ -266,9 +726,19 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Standard generation
   python generate_code.py "calculate total price with tax"
   python generate_code.py "find user by email address" --method-name find_user
+  
+  # Enhanced autoregressive generation
+  python generate_code.py "calculate total price with tax" --use-autoregressive
+  python generate_code.py "validate user input" --use-autoregressive --temperature 0.5 --top-k 3
+  python generate_code.py "process data creatively" --use-autoregressive --temperature 1.2 --top-k 10
+  python generate_code.py "complex validation method" --use-autoregressive --max-length 100
+  
+  # Interactive mode
   python generate_code.py --interactive
+  python generate_code.py --interactive --use-autoregressive
         """
     )
     
@@ -302,9 +772,42 @@ Examples:
     )
     
     parser.add_argument(
+        '--autoregressive-decoder',
+        default='best_autoregressive_decoder.pt',
+        help='Path to trained AutoregressiveASTDecoder (default: best_autoregressive_decoder.pt)'
+    )
+    
+    parser.add_argument(
         '--code-encoder',
         default='best_model.pt',
         help='Path to trained code encoder (default: best_model.pt)'
+    )
+    
+    parser.add_argument(
+        '--use-autoregressive',
+        action='store_true',
+        help='Use autoregressive decoder for enhanced generation'
+    )
+    
+    parser.add_argument(
+        '--max-length',
+        type=int,
+        default=50,
+        help='Maximum number of nodes to generate (default: 50)'
+    )
+    
+    parser.add_argument(
+        '--temperature',
+        type=float,
+        default=1.0,
+        help='Sampling temperature for diversity (default: 1.0)'
+    )
+    
+    parser.add_argument(
+        '--top-k',
+        type=int,
+        default=5,
+        help='Top-k sampling for node type selection (default: 5)'
     )
     
     args = parser.parse_args()
@@ -314,16 +817,37 @@ Examples:
         parser.error("Either provide a prompt or use --interactive mode")
     
     try:
-        # Initialize code generator
-        generator = CodeGenerator(
-            alignment_model_path=args.alignment_model,
-            decoder_model_path=args.decoder_model,
-            code_encoder_path=args.code_encoder
-        )
+        # Initialize code generator based on user preference
+        if args.use_autoregressive:
+            print("🚀 Using Enhanced Autoregressive Code Generator")
+            generator = AutoregressiveCodeGenerator(
+                alignment_model_path=args.alignment_model,
+                autoregressive_decoder_path=args.autoregressive_decoder,
+                code_encoder_path=args.code_encoder
+            )
+        else:
+            print("🚀 Using Standard Code Generator")
+            generator = CodeGenerator(
+                alignment_model_path=args.alignment_model,
+                decoder_model_path=args.decoder_model,
+                code_encoder_path=args.code_encoder
+            )
+        
+        # Prepare generation kwargs for autoregressive generator
+        generation_kwargs = {}
+        if args.use_autoregressive:
+            generation_kwargs.update({
+                'max_length': args.max_length,
+                'temperature': args.temperature,
+                'top_k': args.top_k
+            })
         
         if args.interactive:
             # Interactive mode
-            print("\n🎨 Interactive Code Generation")
+            print(f"\n🎨 Interactive Code Generation")
+            if args.use_autoregressive:
+                print("🔥 Enhanced with autoregressive generation controls!")
+                print(f"   Settings: max_length={args.max_length}, temperature={args.temperature}, top_k={args.top_k}")
             print("Type 'quit' or 'exit' to stop")
             print("=" * 50)
             
@@ -339,7 +863,7 @@ Examples:
                         continue
                     
                     # Generate code
-                    ruby_code = generator.generate_code(prompt, args.method_name)
+                    ruby_code = generator.generate_code(prompt, args.method_name, **generation_kwargs)
                     
                     if ruby_code:
                         print(f"\n🎉 Generated Ruby Code:")
@@ -356,7 +880,7 @@ Examples:
                     print(f"❌ Error: {e}")
         else:
             # Single prompt mode
-            ruby_code = generator.generate_code(args.prompt, args.method_name)
+            ruby_code = generator.generate_code(args.prompt, args.method_name, **generation_kwargs)
             
             if ruby_code:
                 print(f"\n🎉 Generated Ruby Code:")
