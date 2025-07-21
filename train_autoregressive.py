@@ -422,10 +422,6 @@ def train_autoregressive_decoder():
                     if batch_idx % 10 == 0:
                         print(f"  Batch {batch_idx}: loss = {loss:.4f}")
                         
-                    # Limit training for testing purposes
-                    if batch_idx >= 5:  # Process only first few batches for demo
-                        break
-                    
         except Exception as e:
             print(f"⚠️  Training error: {e}")
             train_losses = [0.5]  # Fallback loss
