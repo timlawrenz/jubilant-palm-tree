@@ -431,7 +431,7 @@ class AlignmentModel(torch.nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int = 64, num_layers: int = 3,
                  conv_type: str = 'GCN', dropout: float = 0.1,
                  text_model_name: str = 'all-MiniLM-L6-v2',
-                 code_encoder_weights_path: str = None):
+                 code_encoder_weights_path: str = 'best_encoder_model.pt'):
         """
         Initialize the alignment model.
         
@@ -442,7 +442,7 @@ class AlignmentModel(torch.nn.Module):
             conv_type: Type of convolution for code encoder ('GCN' or 'SAGE')
             dropout: Dropout rate for code encoder
             text_model_name: Name of the sentence-transformers model to use
-            code_encoder_weights_path: Path to pre-trained code encoder weights
+            code_encoder_weights_path: Path to pre-trained code encoder weights (default: 'best_encoder_model.pt')
         """
         super().__init__()
         
@@ -504,7 +504,12 @@ class AlignmentModel(torch.nn.Module):
         text_dim = self.text_encoder.get_sentence_embedding_dimension()
         
         # Projection head to align text embeddings to code embedding space
-        self.text_projection = torch.nn.Linear(text_dim, hidden_dim)
+        # Small MLP for better capacity: Linear(384 -> 256) -> ReLU() -> Linear(256 -> 64)
+        self.text_projection = torch.nn.Sequential(
+            torch.nn.Linear(text_dim, 256),
+            torch.nn.ReLU(),
+            torch.nn.Linear(256, hidden_dim)
+        )
         
         print(f"Text encoder output dim: {text_dim}, projecting to: {hidden_dim}")
         
@@ -592,7 +597,13 @@ class AlignmentModel(torch.nn.Module):
         else:
             text_info = f"SimpleTextEncoder(dim={self.text_encoder.output_dim})"
             
-        projection_info = f"Linear({self.text_projection.in_features} -> {self.text_projection.out_features})"
+        # Handle Sequential projection (MLP) vs single Linear layer
+        if isinstance(self.text_projection, torch.nn.Sequential):
+            first_layer = self.text_projection[0]
+            last_layer = self.text_projection[2]
+            projection_info = f"MLP({first_layer.in_features} -> 256 -> {last_layer.out_features})"
+        else:
+            projection_info = f"Linear({self.text_projection.in_features} -> {self.text_projection.out_features})"
         
         return (f"AlignmentModel(\n"
                 f"  code_encoder: {code_info} [FROZEN]\n"
