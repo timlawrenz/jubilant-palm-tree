@@ -212,6 +212,209 @@ class ASTDecoder(torch.nn.Module):
         }
 
 
+class AutoregressiveASTDecoder(torch.nn.Module):
+    """
+    Autoregressive decoder for generating Abstract Syntax Trees sequentially.
+    
+    This decoder generates AST nodes one by one, maintaining state across generation
+    steps and considering both text description and current partial graph context.
+    """
+    
+    def __init__(self, 
+                 text_embedding_dim: int = 64,
+                 graph_hidden_dim: int = 64,
+                 state_hidden_dim: int = 128,
+                 node_types: int = 74,
+                 max_nodes: int = 100,
+                 sequence_model: str = 'GRU'):  # Options: 'GRU', 'LSTM', 'Transformer'
+        """
+        Initialize the AutoregressiveASTDecoder.
+        
+        Args:
+            text_embedding_dim: Dimension of text embeddings (from alignment model)
+            graph_hidden_dim: Hidden dimension for graph encoding
+            state_hidden_dim: Hidden dimension for sequential state
+            node_types: Number of possible node types (also node feature dimension)
+            max_nodes: Maximum number of nodes for connection prediction
+            sequence_model: Type of sequence model ('GRU', 'LSTM', 'Transformer')
+        """
+        super().__init__()
+        
+        self.text_embedding_dim = text_embedding_dim
+        self.graph_hidden_dim = graph_hidden_dim
+        self.state_hidden_dim = state_hidden_dim
+        self.node_types = node_types
+        self.max_nodes = max_nodes
+        self.sequence_model = sequence_model
+        
+        # Graph Context Encoder - encodes current partial graph state
+        # Note: Node features are node_types dimensional (one-hot encoded)
+        self.graph_encoder = torch.nn.Sequential(
+            torch.nn.Linear(node_types, graph_hidden_dim),  # Project from node feature space
+            torch.nn.ReLU(),
+            torch.nn.LayerNorm(graph_hidden_dim)
+        )
+        
+        # Sequential State Encoder - maintains state across generation steps
+        input_size = text_embedding_dim + graph_hidden_dim
+        
+        if sequence_model == 'GRU':
+            self.state_encoder = torch.nn.GRU(
+                input_size=input_size,
+                hidden_size=state_hidden_dim,
+                num_layers=2,
+                batch_first=True,
+                dropout=0.1
+            )
+        elif sequence_model == 'LSTM':
+            self.state_encoder = torch.nn.LSTM(
+                input_size=input_size,
+                hidden_size=state_hidden_dim,
+                num_layers=2,
+                batch_first=True,
+                dropout=0.1
+            )
+        elif sequence_model == 'Transformer':
+            # For transformer, we'll use a transformer encoder layer
+            encoder_layer = torch.nn.TransformerEncoderLayer(
+                d_model=state_hidden_dim,
+                nhead=8,
+                dim_feedforward=256,
+                dropout=0.1,
+                batch_first=True
+            )
+            self.state_encoder = torch.nn.TransformerEncoder(
+                encoder_layer=encoder_layer,
+                num_layers=4
+            )
+            # For transformer, we need to project input to state_hidden_dim
+            self.input_projection = torch.nn.Linear(input_size, state_hidden_dim)
+        else:
+            raise ValueError(f"Unknown sequence model: {sequence_model}. Choose from 'GRU', 'LSTM', 'Transformer'")
+        
+        # Dual Prediction Heads
+        
+        # Predict next node type
+        self.node_type_predictor = torch.nn.Linear(state_hidden_dim, node_types)
+        
+        # Predict connection to existing nodes
+        self.connection_predictor = torch.nn.Sequential(
+            torch.nn.Linear(state_hidden_dim, max_nodes),
+            torch.nn.Sigmoid()  # Probability of connection to each existing node
+        )
+        
+    def forward(self, text_embedding, partial_graph=None, hidden_state=None):
+        """
+        Forward pass for autoregressive AST generation.
+        
+        Args:
+            text_embedding: (batch_size, text_embedding_dim) - Text description embedding
+            partial_graph: Dict with keys 'x', 'edge_index', 'batch' - Current partial AST (optional)
+            hidden_state: Previous hidden state for sequence model (optional)
+            
+        Returns:
+            Dictionary containing:
+                - node_type_logits: (batch_size, node_types) - Probabilities for next node type
+                - connection_probs: (batch_size, max_nodes) - Connection probabilities
+                - hidden_state: Updated hidden state
+        """
+        batch_size = text_embedding.size(0)
+        device = text_embedding.device
+        
+        # 1. Encode current graph state
+        if partial_graph is not None and 'x' in partial_graph and len(partial_graph['x']) > 0:
+            # We have a non-empty partial graph
+            # For simplicity, we'll use global mean pooling of the partial graph
+            # In practice, you might want a more sophisticated graph encoding
+            
+            # Convert partial graph to tensor if needed
+            graph_features = partial_graph['x']
+            if isinstance(graph_features, list):
+                # Convert list of features to tensor
+                if graph_features and isinstance(graph_features[0], list):
+                    graph_features = torch.tensor(graph_features, dtype=torch.float32, device=device)
+                else:
+                    # Empty or malformed graph
+                    graph_representation = torch.zeros(batch_size, self.node_types, device=device)
+            else:
+                graph_features = graph_features.to(device)
+            
+            if len(graph_features.shape) == 2:
+                # Pool graph features to get graph representation
+                # Simple approach: use mean pooling
+                if 'batch' in partial_graph and partial_graph['batch']:
+                    # Use batch indices for proper pooling
+                    batch_indices = partial_graph['batch']
+                    if isinstance(batch_indices, list):
+                        batch_indices = torch.tensor(batch_indices, dtype=torch.long, device=device)
+                    else:
+                        batch_indices = batch_indices.to(device)
+                    
+                    # Compute mean features per batch
+                    graph_representation = []
+                    for b in range(batch_size):
+                        mask = batch_indices == b
+                        if mask.sum() > 0:
+                            batch_features = graph_features[mask].mean(dim=0)
+                        else:
+                            batch_features = torch.zeros(graph_features.size(1), device=device)
+                        graph_representation.append(batch_features)
+                    graph_representation = torch.stack(graph_representation)
+                else:
+                    # Single graph case - just take mean
+                    graph_representation = graph_features.mean(dim=0).unsqueeze(0).expand(batch_size, -1)
+            else:
+                # Unexpected shape, use zeros
+                graph_representation = torch.zeros(batch_size, graph_features.size(-1), device=device)
+        else:
+            # Empty graph - start with zero representation
+            graph_representation = torch.zeros(batch_size, self.node_types, device=device)
+        
+        # Encode graph representation to proper dimension
+        graph_encoded = self.graph_encoder(graph_representation)
+        
+        # 2. Combine text and graph context
+        combined_input = torch.cat([text_embedding, graph_encoded], dim=-1)
+        
+        # 3. Update sequential state
+        if self.sequence_model == 'Transformer':
+            # For transformer, project input and treat as sequence
+            sequence_input = self.input_projection(combined_input.unsqueeze(1))  # (batch_size, 1, state_hidden_dim)
+            sequence_output = self.state_encoder(sequence_input)  # (batch_size, 1, state_hidden_dim)
+            sequence_output = sequence_output.squeeze(1)  # (batch_size, state_hidden_dim)
+            new_hidden_state = None  # Transformers don't maintain hidden state in the same way
+        else:
+            # For RNN/GRU/LSTM
+            sequence_input = combined_input.unsqueeze(1)  # (batch_size, 1, input_size)
+            sequence_output, new_hidden_state = self.state_encoder(sequence_input, hidden_state)
+            sequence_output = sequence_output.squeeze(1)  # (batch_size, state_hidden_dim)
+        
+        # 4. Predict next step
+        node_type_logits = self.node_type_predictor(sequence_output)
+        connection_probs = self.connection_predictor(sequence_output)
+        
+        return {
+            'node_type_logits': node_type_logits,
+            'connection_probs': connection_probs,
+            'hidden_state': new_hidden_state
+        }
+    
+    def get_model_info(self) -> str:
+        """
+        Get information about the autoregressive decoder configuration.
+        
+        Returns:
+            String describing the model architecture
+        """
+        return (f"AutoregressiveASTDecoder(\n"
+                f"  text_dim={self.text_embedding_dim}, "
+                f"  graph_dim={self.graph_hidden_dim}, "
+                f"  state_dim={self.state_hidden_dim}\n"
+                f"  node_types={self.node_types}, "
+                f"  sequence_model={self.sequence_model}\n"
+                f")")
+
+
 class ASTAutoencoder(torch.nn.Module):
     """
     Autoencoder for Abstract Syntax Trees using Graph Neural Networks.
