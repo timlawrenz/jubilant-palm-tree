@@ -28,7 +28,6 @@ REPOS=(
     "krisleech/wisper"
     "Shopify/identity_cache"
     "piotrmurach/tty"
-    "aws/aws-sdk-ruby"
     "presidentbeef/brakeman"
     "seattlerb/flog"
     "troessner/reek"
@@ -41,6 +40,10 @@ REPOS=(
     "aasm/aasm"
     "haml/haml"
     "rack/rack"
+    "github/hooks"
+    "ManageIQ/manageiq"
+    "gitlabhq/rouge"
+    "gitlabhq/gitlabhq"
 )
 
 # Create repos directory if it doesn't exist
