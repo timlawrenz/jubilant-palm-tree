@@ -24,11 +24,53 @@ from typing import Dict, Any, Optional
 # Add src directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from models import AutoregressiveASTDecoder
+from models import AutoregressiveASTDecoder, AlignmentModel
 from data_processing import create_autoregressive_data_loader
 
 
-def train_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any], optimizer: torch.optim.Optimizer) -> float:
+def load_alignment_model(model_path: str = "best_alignment_model.pt", 
+                        code_encoder_path: str = "best_model.pt", 
+                        device: torch.device = None) -> AlignmentModel:
+    """
+    Load the pre-trained AlignmentModel.
+    
+    Args:
+        model_path: Path to trained AlignmentModel weights
+        code_encoder_path: Path to trained code encoder weights
+        device: Device to load model on
+        
+    Returns:
+        Loaded and initialized AlignmentModel
+    """
+    if device is None:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    # Create model with same configuration as training
+    alignment_model = AlignmentModel(
+        input_dim=74,  # Based on dataset
+        hidden_dim=64,
+        text_model_name='all-MiniLM-L6-v2',  # Use same model as training
+        code_encoder_weights_path=code_encoder_path
+    )
+    
+    # Load trained weights
+    try:
+        checkpoint = torch.load(model_path, map_location=device)
+        alignment_model.load_state_dict(checkpoint['model_state_dict'])
+        alignment_model.eval()
+        print(f"✅ AlignmentModel loaded from {model_path}")
+    except FileNotFoundError:
+        print(f"⚠️  Warning: Could not find AlignmentModel at {model_path}")
+        print("Using randomly initialized AlignmentModel")
+    except Exception as e:
+        print(f"⚠️  Warning: Could not load AlignmentModel weights: {e}")
+        print("Using randomly initialized AlignmentModel")
+    
+    return alignment_model.to(device)
+
+
+def train_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any], 
+               optimizer: torch.optim.Optimizer, alignment_model: AlignmentModel) -> float:
     """
     Single training step with teacher forcing.
     
@@ -36,6 +78,7 @@ def train_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any], optimizer
         model: AutoregressiveASTDecoder model
         batch: Batch of training data
         optimizer: Optimizer for model parameters
+        alignment_model: Pre-trained AlignmentModel for text embeddings
         
     Returns:
         Average loss for this batch
@@ -75,9 +118,8 @@ def train_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any], optimizer
         # Sort by step to ensure proper order
         sample_indices.sort(key=lambda i: steps[i])
         
-        # Create text embedding (mock implementation - in practice this would come from alignment model)
-        # For now, use a simple hash-based embedding
-        text_embedding = create_mock_text_embedding(text_desc, device)
+        # Create text embedding using pre-trained AlignmentModel
+        text_embedding = alignment_model.encode_text([text_desc])
         
         sequence_loss = 0.0
         hidden_state = None
@@ -142,13 +184,14 @@ def train_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any], optimizer
     return 0.0
 
 
-def validate_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any]) -> float:
+def validate_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any], alignment_model: AlignmentModel) -> float:
     """
     Single validation step.
     
     Args:
         model: AutoregressiveASTDecoder model
         batch: Batch of validation data
+        alignment_model: Pre-trained AlignmentModel for text embeddings
         
     Returns:
         Average validation loss for this batch
@@ -184,8 +227,8 @@ def validate_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any]) -> flo
             # Sort by step to ensure proper order
             sample_indices.sort(key=lambda i: steps[i])
             
-            # Create text embedding
-            text_embedding = create_mock_text_embedding(text_desc, device)
+            # Create text embedding using pre-trained AlignmentModel
+            text_embedding = alignment_model.encode_text([text_desc])
             
             sequence_loss = 0.0
             hidden_state = None
@@ -228,29 +271,6 @@ def validate_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any]) -> flo
             return (total_loss / num_samples).item()
         
         return 0.0
-
-
-def create_mock_text_embedding(text: str, device: torch.device) -> torch.Tensor:
-    """
-    Create a mock text embedding for testing purposes.
-    In practice, this would use the trained alignment model.
-    
-    Args:
-        text: Text description
-        device: Device to create tensor on
-        
-    Returns:
-        Mock text embedding tensor
-    """
-    # Simple hash-based embedding for consistent results
-    hash_val = hash(text) % 10000
-    embedding = torch.randn(1, 64, device=device)
-    
-    # Make it deterministic based on text
-    torch.manual_seed(hash_val)
-    embedding = torch.randn(1, 64, device=device)
-    
-    return embedding
 
 
 def extract_sample_graph(partial_graphs: Dict[str, Any], sample_idx: int, batch_size: int) -> Optional[Dict[str, Any]]:
@@ -337,6 +357,10 @@ def train_autoregressive_decoder():
     model = model.to(device)
     print(f"✅ Model initialized with {sum(p.numel() for p in model.parameters())} parameters")
     
+    # Load pre-trained AlignmentModel
+    print("📦 Loading pre-trained AlignmentModel...")
+    alignment_model = load_alignment_model(device=device)
+    
     # Load datasets
     print("📊 Loading datasets...")
     try:
@@ -404,7 +428,7 @@ def train_autoregressive_decoder():
             if use_mock_data:
                 # Handle mock data (list of batches)
                 for batch_idx, batch in enumerate(train_loader):
-                    loss = train_step(model, batch, optimizer)
+                    loss = train_step(model, batch, optimizer, alignment_model)
                     train_losses.append(loss)
                     
                     if batch_idx % 2 == 0:
@@ -416,7 +440,7 @@ def train_autoregressive_decoder():
             else:
                 # Handle real data loader
                 for batch_idx, batch in enumerate(train_loader):
-                    loss = train_step(model, batch, optimizer)
+                    loss = train_step(model, batch, optimizer, alignment_model)
                     train_losses.append(loss)
                     
                     if batch_idx % 10 == 0:
@@ -436,7 +460,7 @@ def train_autoregressive_decoder():
             if use_mock_data:
                 # Handle mock data (list of batches)
                 for batch_idx, batch in enumerate(val_loader):
-                    val_loss = validate_step(model, batch)
+                    val_loss = validate_step(model, batch, alignment_model)
                     val_losses.append(val_loss)
                     
                     # Limit validation for testing purposes
@@ -445,7 +469,7 @@ def train_autoregressive_decoder():
             else:
                 # Handle real data loader
                 for batch_idx, batch in enumerate(val_loader):
-                    val_loss = validate_step(model, batch)
+                    val_loss = validate_step(model, batch, alignment_model)
                     val_losses.append(val_loss)
                     
                     # Limit validation for testing purposes
