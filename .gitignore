@@ -37,6 +37,10 @@ venv.bak/
 
 # PyTorch model files
 *.pth
+*.pt
+*.ckpt
+autoregressive_decoder_epoch_*.pt
+best_autoregressive_decoder.pt
 
 # Common development files
 .DS_Store
