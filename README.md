@@ -16,10 +16,12 @@ This project explores the potential of Graph Neural Networks (GNNs) to understan
 - **Complete Pipeline**: End-to-end system from Ruby source code to embeddings to reconstructed code
 - **Text-Code Alignment**: Contrastive learning aligns natural language descriptions with code embeddings
 - **Multimodal Learning**: Successful dual-encoder architecture with 43.5% loss improvement over training
+- **Text-to-Code Generation**: Complete pipeline from natural language to executable Ruby code
+- **Semantic Understanding**: Excellent performance for arithmetic operations and array methods
 
 ## Project Phases
 
-This project was completed in 5 phases:
+This project was completed in 6 phases:
 
 ### [Phase 1 - Data Generation & Preprocessing](README_phase1.md) ✅ **COMPLETED**
 **Goal**: To produce a clean, structured dataset from raw source code, ready for model training.
@@ -54,6 +56,12 @@ This project was completed in 5 phases:
 **Goal**: Train a text-encoder so that the embedding it produces for a method's description is located at the same point in the 64-dimensional space as the embedding our GNN produces for the method's AST.
 - [Alignment Training Loop](https://github.com/timlawrenz/jubilant-palm-tree/issues/77)
 
+### [Phase 6 - Text-to-Code Generation](README_phase6.md) ✅ **COMPLETED**
+**Goal**: Complete the end-to-end text-to-code generation pipeline by combining aligned text-code embeddings with AST reconstruction to generate Ruby code from natural language descriptions.
+- Complete integration of all phases into working text-to-code system
+- Demonstrated successful generation for arithmetic and array operations
+- Identified decoder limitations for complex control flow structures
+
 ## Quick Start
 
 ### Prerequisites
@@ -68,6 +76,7 @@ dataset/                  # 1,896 processed Ruby methods (train/val/test splits)
 src/models.py            # GNN models and autoencoder architecture
 best_model.pt            # Pre-trained complexity prediction model
 best_decoder.pt          # Trained AST reconstruction decoder
+best_alignment_model.pt  # Trained text-code alignment model
 
 # Training and evaluation
 train.py                 # GNN complexity prediction training
@@ -76,8 +85,10 @@ train_alignment.py       # Text-code alignment training
 evaluate_autoencoder_optimized.py  # Large-scale evaluation
 
 # Code generation tools
+generate_code.py         # Complete text-to-code generation pipeline
 scripts/pretty_print_ast.rb  # Convert AST JSON to Ruby code
-notebooks/evaluate_autoencoder.ipynb  # Interactive evaluation
+notebooks/demonstrate_text_to_code.ipynb  # Interactive text-to-code demo
+notebooks/evaluate_autoencoder.ipynb     # Interactive evaluation
 ```
 
 ### Quick Demo
@@ -99,6 +110,24 @@ embedding = result['embedding']           # 64-dimensional representation
 reconstruction = result['reconstruction'] # Reconstructed AST
 ```
 
+### Text-to-Code Generation
+```bash
+# Generate Ruby code from natural language
+python generate_code.py "a method that adds two numbers"
+
+# Interactive code generation
+python generate_code.py --interactive
+```
+
+```python
+# Use in Python scripts
+from generate_code import CodeGenerator
+
+generator = CodeGenerator()
+ruby_code = generator.generate_code("calculate total price with tax")
+print(ruby_code)
+```
+
 ## Project Results
 
 ### Complexity Prediction (Phases 1-3)
@@ -118,6 +147,14 @@ reconstruction = result['reconstruction'] # Reconstructed AST
 - **Contrastive Learning**: InfoNCE loss aligns text descriptions with code embeddings  
 - **Successful Training**: 43.5% loss improvement demonstrating effective alignment learning
 - **Shared Embedding Space**: 64-dimensional space enables text-to-code and code-to-text tasks
+
+### Text-to-Code Generation (Phase 6)
+- **End-to-End Pipeline**: Complete system from natural language to executable Ruby code
+- **Semantic Understanding**: Excellent performance for arithmetic operations and array methods
+- **Stable Architecture**: Consistent 64D embeddings and 15-node AST generation
+- **Successful Examples**: Perfect generation for "adds two numbers" and "finds largest in array"
+- **Current Limitations**: Decoder bottleneck identified for complex control flow (conditionals, loops)
+- **Future Direction**: Clear pathway for enhancement through improved AST decoder training
 
 ## Development Setup
 
@@ -174,15 +211,18 @@ jubilant-palm-tree/
 ├── README_phase2.md          # Phase 2: Model Setup & Training  
 ├── README_phase3.md          # Phase 3: Evaluation & Analysis
 ├── README_phase4.md          # Phase 4: AST Autoencoder for Code Generation
-├── README_phase5.md          # Phase 5: Text and Code Embeddings (planned)
+├── README_phase5.md          # Phase 5: Text and Code Embeddings
+├── README_phase6.md          # Phase 6: Text-to-Code Generation
 ├── dataset/                  # ML-ready Ruby method dataset
 ├── src/                      # GNN models and training code
 ├── scripts/                  # Data processing and AST conversion tools
 ├── notebooks/                # Analysis and evaluation notebooks
+├── generate_code.py          # Text-to-code generation pipeline
 ├── train.py                  # GNN complexity prediction training
-└── train_autoencoder.py      # AST autoencoder training
+├── train_autoencoder.py      # AST autoencoder training
+└── train_alignment.py        # Text-code alignment training
 ```
 
 ---
 
-*This project successfully demonstrates that Graph Neural Networks can learn meaningful structural representations of Ruby code, enabling complexity prediction, complete AST reconstruction, and text-code alignment through contrastive learning. For detailed information about each phase, see the individual phase README files.*
+*This project successfully demonstrates that Graph Neural Networks can learn meaningful structural representations of Ruby code, enabling complexity prediction, complete AST reconstruction, text-code alignment through contrastive learning, and end-to-end text-to-code generation. The 6-phase implementation proves the viability of neural approaches to code understanding and generation. For detailed information about each phase, see the individual phase README files.*
