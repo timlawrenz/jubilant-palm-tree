@@ -58,7 +58,7 @@ Empty Graph → AutoregressiveDecoder → Node 1 → Node 2 → ... → Complete
 
 ## Phase 7 Implementation Plan
 
-### Ticket 27: Update Data Loader for Autoregressive Training
+### Update Data Loader for Autoregressive Training
 
 **Description**: Modify the RubyASTDataset in `src/data_processing.py` to prepare data for sequential, step-by-step generation.
 
@@ -121,7 +121,7 @@ class AutoregressiveASTDataset(Dataset):
 - [ ] Proper ordering ensures causal generation (node i depends only on nodes 1...i-1)
 - [ ] Compatible with existing text-code alignment from Phase 5
 
-### Ticket 28: Implement Autoregressive AST Decoder Model
+### Implement Autoregressive AST Decoder Model
 
 **Description**: Replace the current one-shot ASTDecoder with a new AutoregressiveASTDecoder in `src/models.py`.
 
@@ -228,7 +228,7 @@ def forward(self, text_embedding, partial_graph, hidden_state=None):
 - [ ] Compatible with GRU, LSTM, and Transformer backends
 - [ ] Handles empty graph initialization for generation start
 
-### Ticket 29: Implement Autoregressive Training Loop
+### Implement Autoregressive Training Loop
 
 **Description**: Create a new training script (`train_autoregressive.py`) for the new decoder.
 
@@ -363,7 +363,7 @@ def train_autoregressive_decoder():
 - [ ] Early stopping and learning rate scheduling implemented
 - [ ] Best model weights saved based on validation performance
 
-### Ticket 30: Implement Autoregressive Inference
+### Implement Autoregressive Inference
 
 **Description**: Update the `generate_code.py` script to use the new autoregressive decoder.
 
