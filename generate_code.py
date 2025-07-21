@@ -155,7 +155,8 @@ def build_complete_ast(generated_nodes):
     return {
         'node_features': node_features_tensor,
         'edge_index': edge_index_tensor,
-        'num_nodes': len(generated_nodes)
+        'num_nodes': len(generated_nodes),
+        'generated_nodes': generated_nodes  # Preserve original nodes with connection info
     }
 
 
@@ -310,76 +311,159 @@ class CodeGenerator:
         """
         Convert decoder output to AST JSON format expected by Ruby pretty printer.
         
-        This is a simplified implementation that creates basic Ruby method structures.
-        In a full implementation, this would need to properly interpret the node features
-        to generate meaningful AST structures.
+        This implementation uses the proper tree-building algorithm that takes the sequence
+        of generated nodes and their predicted parent-child connections and assembles them
+        into the correct nested JSON structure.
         """
-        node_features = reconstruction['node_features'][0]  # First batch item
-        edge_index = reconstruction['edge_index']
-        num_nodes = node_features.shape[0]
+        # Import the node type mapping
+        import sys
+        import os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+        from data_processing import ASTNodeEncoder
         
-        # For simplicity, create a basic method structure
-        # In practice, you'd analyze node_features to determine types and content
+        # Initialize the encoder to get node type names
+        encoder = ASTNodeEncoder()
         
-        # Generate simple method arguments based on number of nodes
-        args = []
-        if num_nodes > 5:
-            args = ["arg1", "arg2"]
-        elif num_nodes > 3:
-            args = ["arg"]
-        
-        # Create basic method body - this is very simplified
-        body_statements = []
-        
-        # Add some basic statements based on method name hints
-        if any(word in method_name.lower() for word in ['calculate', 'compute', 'total']):
-            if args:
-                body_statements.append({
-                    "type": "send",
-                    "children": [
-                        {"type": "lvar", "children": [args[0]]},
-                        "+",
-                        {"type": "lvar", "children": [args[1]]} if len(args) > 1 else {"type": "int", "children": [1]}
-                    ]
+        # Check if we have the modern reconstruction format with generated nodes
+        if 'generated_nodes' in reconstruction:
+            generated_nodes = reconstruction['generated_nodes']
+        else:
+            # Fallback: Try to extract from node_features (though this won't have connection info)
+            # This provides backward compatibility with older reconstruction formats
+            node_features = reconstruction['node_features'][0]  # First batch item
+            num_nodes = node_features.shape[0]
+            
+            # Convert features back to node types (best effort)
+            generated_nodes = []
+            for i in range(num_nodes):
+                # Find the node type with highest probability
+                node_type_idx = torch.argmax(node_features[i]).item()
+                generated_nodes.append({
+                    'node_type': node_type_idx,
+                    'connections': [],  # No connection info available
+                    'features': node_features[i].tolist()
                 })
-            else:
-                body_statements.append({
-                    "type": "int",
-                    "children": [42]
-                })
-        elif any(word in method_name.lower() for word in ['get', 'fetch', 'find']):
-            body_statements.append({
-                "type": "send",
+        
+        # If no nodes generated, create minimal structure
+        if not generated_nodes:
+            return json.dumps({
+                "type": "def",
                 "children": [
-                    {"type": "const", "children": [None, "SomeClass"]},
-                    "find",
-                    {"type": "lvar", "children": [args[0]]} if args else {"type": "int", "children": [1]}
+                    method_name,
+                    {"type": "args", "children": []},
+                    {"type": "nil", "children": []}
                 ]
             })
-        else:
-            # Default simple return
-            body_statements.append({
-                "type": "str",
-                "children": ["result"]
-            })
         
-        # Construct method AST
-        method_ast = {
-            "type": "def",
-            "children": [
-                method_name,
-                {
-                    "type": "args",
-                    "children": [{"type": "arg", "children": [arg]} for arg in args]
-                } if args else {"type": "args", "children": []},
-                {
-                    "type": "begin",
-                    "children": body_statements
-                } if len(body_statements) > 1 else body_statements[0]
-            ]
-        }
+        # Step 1: Initialize node objects
+        node_objects = []
+        for i, node_data in enumerate(generated_nodes):
+            node_type_idx = node_data['node_type']
+            
+            # Convert node type index to name
+            if 0 <= node_type_idx < len(encoder.node_types):
+                node_type_name = encoder.node_types[node_type_idx]
+            else:
+                node_type_name = "unknown"
+            
+            # Create node object
+            node_obj = {
+                "type": node_type_name,
+                "children": [],
+                "_connections": node_data.get('connections', []),  # Temporary field for building
+                "_index": i  # Temporary field for building
+            }
+            node_objects.append(node_obj)
         
-        return json.dumps(method_ast)
+        # Step 2: Build tree structure by connecting nodes to their parents
+        # The first node is always the root
+        if not node_objects:
+            return json.dumps({"type": "nil", "children": []})
+        
+        root = node_objects[0]
+        
+        # For each subsequent node, find its parent and add it to parent's children
+        for i in range(1, len(node_objects)):
+            current_node = node_objects[i]
+            connections = current_node["_connections"]
+            
+            # Find the parent (typically the most recent connection, or previous node as fallback)
+            parent_idx = None
+            if connections:
+                # Use the last connection as the parent (most recent in sequence)
+                parent_idx = connections[-1] if connections[-1] < i else None
+            
+            # Fallback: if no valid parent connection, attach to the previous node
+            if parent_idx is None and i > 0:
+                parent_idx = i - 1
+            
+            # Add current node to parent's children
+            if parent_idx is not None and 0 <= parent_idx < len(node_objects):
+                parent_node = node_objects[parent_idx]
+                parent_node["children"].append(current_node)
+        
+        # Step 3: Clean up temporary fields and adjust structure for Ruby AST format
+        def clean_node(node):
+            # Remove temporary fields
+            if "_connections" in node:
+                del node["_connections"]
+            if "_index" in node:
+                del node["_index"]
+            
+            # Recursively clean children
+            for child in node["children"]:
+                if isinstance(child, dict):
+                    clean_node(child)
+            
+            # Apply Ruby AST conventions based on node type
+            node_type = node["type"]
+            
+            # Handle specific node types that need special structure
+            if node_type == "def" and len(node["children"]) == 0:
+                # Ensure def nodes have proper structure: name, args, body
+                node["children"] = [
+                    method_name,
+                    {"type": "args", "children": []},
+                    {"type": "nil", "children": []} if not node["children"] else node["children"][0]
+                ]
+            elif node_type == "args" and len(node["children"]) == 0:
+                # Args node can be empty
+                pass
+            elif node_type == "send" and len(node["children"]) < 2:
+                # Send nodes need at least receiver and method name
+                while len(node["children"]) < 2:
+                    node["children"].append("unknown")
+            elif node_type in ["int", "str", "sym"] and len(node["children"]) == 0:
+                # Literal nodes need a value
+                if node_type == "int":
+                    node["children"] = [42]
+                elif node_type == "str":
+                    node["children"] = ["generated"]
+                elif node_type == "sym":
+                    node["children"] = ["generated"]
+            elif node_type in ["lvar", "ivar", "gvar", "cvar"] and len(node["children"]) == 0:
+                # Variable nodes need a name
+                node["children"] = ["var"]
+            elif node_type == "const" and len(node["children"]) == 0:
+                # Constant nodes need scope and name
+                node["children"] = [None, "Generated"]
+        
+        # Clean the tree starting from root
+        clean_node(root)
+        
+        # Step 4: Ensure the root is a proper method definition
+        if root["type"] != "def":
+            # Wrap in a method definition if the root isn't already one
+            root = {
+                "type": "def",
+                "children": [
+                    method_name,
+                    {"type": "args", "children": []},
+                    root
+                ]
+            }
+        
+        return json.dumps(root)
     
     def ruby_prettify(self, ast_json):
         """Call Ruby pretty printer to convert AST JSON to Ruby code."""
@@ -550,76 +634,159 @@ class AutoregressiveCodeGenerator:
         """
         Convert decoder output to AST JSON format expected by Ruby pretty printer.
         
-        This is a simplified implementation that creates basic Ruby method structures.
-        In a full implementation, this would need to properly interpret the node features
-        to generate meaningful AST structures.
+        This implementation uses the proper tree-building algorithm that takes the sequence
+        of generated nodes and their predicted parent-child connections and assembles them
+        into the correct nested JSON structure.
         """
-        node_features = reconstruction['node_features'][0]  # First batch item
-        edge_index = reconstruction['edge_index']
-        num_nodes = node_features.shape[0]
+        # Import the node type mapping
+        import sys
+        import os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+        from data_processing import ASTNodeEncoder
         
-        # For simplicity, create a basic method structure
-        # In practice, you'd analyze node_features to determine types and content
+        # Initialize the encoder to get node type names
+        encoder = ASTNodeEncoder()
         
-        # Generate simple method arguments based on number of nodes
-        args = []
-        if num_nodes > 5:
-            args = ["arg1", "arg2"]
-        elif num_nodes > 3:
-            args = ["arg"]
-        
-        # Create basic method body - this is very simplified
-        body_statements = []
-        
-        # Add some basic statements based on method name hints
-        if any(word in method_name.lower() for word in ['calculate', 'compute', 'total']):
-            if args:
-                body_statements.append({
-                    "type": "send",
-                    "children": [
-                        {"type": "lvar", "children": [args[0]]},
-                        "+",
-                        {"type": "lvar", "children": [args[1]]} if len(args) > 1 else {"type": "int", "children": [1]}
-                    ]
+        # Check if we have the modern reconstruction format with generated nodes
+        if 'generated_nodes' in reconstruction:
+            generated_nodes = reconstruction['generated_nodes']
+        else:
+            # Fallback: Try to extract from node_features (though this won't have connection info)
+            # This provides backward compatibility with older reconstruction formats
+            node_features = reconstruction['node_features'][0]  # First batch item
+            num_nodes = node_features.shape[0]
+            
+            # Convert features back to node types (best effort)
+            generated_nodes = []
+            for i in range(num_nodes):
+                # Find the node type with highest probability
+                node_type_idx = torch.argmax(node_features[i]).item()
+                generated_nodes.append({
+                    'node_type': node_type_idx,
+                    'connections': [],  # No connection info available
+                    'features': node_features[i].tolist()
                 })
-            else:
-                body_statements.append({
-                    "type": "int",
-                    "children": [42]
-                })
-        elif any(word in method_name.lower() for word in ['get', 'fetch', 'find']):
-            body_statements.append({
-                "type": "send",
+        
+        # If no nodes generated, create minimal structure
+        if not generated_nodes:
+            return json.dumps({
+                "type": "def",
                 "children": [
-                    {"type": "const", "children": [None, "SomeClass"]},
-                    "find",
-                    {"type": "lvar", "children": [args[0]]} if args else {"type": "int", "children": [1]}
+                    method_name,
+                    {"type": "args", "children": []},
+                    {"type": "nil", "children": []}
                 ]
             })
-        else:
-            # Default simple return
-            body_statements.append({
-                "type": "str",
-                "children": ["result"]
-            })
         
-        # Construct method AST
-        method_ast = {
-            "type": "def",
-            "children": [
-                method_name,
-                {
-                    "type": "args",
-                    "children": [{"type": "arg", "children": [arg]} for arg in args]
-                } if args else {"type": "args", "children": []},
-                {
-                    "type": "begin",
-                    "children": body_statements
-                } if len(body_statements) > 1 else body_statements[0]
-            ]
-        }
+        # Step 1: Initialize node objects
+        node_objects = []
+        for i, node_data in enumerate(generated_nodes):
+            node_type_idx = node_data['node_type']
+            
+            # Convert node type index to name
+            if 0 <= node_type_idx < len(encoder.node_types):
+                node_type_name = encoder.node_types[node_type_idx]
+            else:
+                node_type_name = "unknown"
+            
+            # Create node object
+            node_obj = {
+                "type": node_type_name,
+                "children": [],
+                "_connections": node_data.get('connections', []),  # Temporary field for building
+                "_index": i  # Temporary field for building
+            }
+            node_objects.append(node_obj)
         
-        return json.dumps(method_ast)
+        # Step 2: Build tree structure by connecting nodes to their parents
+        # The first node is always the root
+        if not node_objects:
+            return json.dumps({"type": "nil", "children": []})
+        
+        root = node_objects[0]
+        
+        # For each subsequent node, find its parent and add it to parent's children
+        for i in range(1, len(node_objects)):
+            current_node = node_objects[i]
+            connections = current_node["_connections"]
+            
+            # Find the parent (typically the most recent connection, or previous node as fallback)
+            parent_idx = None
+            if connections:
+                # Use the last connection as the parent (most recent in sequence)
+                parent_idx = connections[-1] if connections[-1] < i else None
+            
+            # Fallback: if no valid parent connection, attach to the previous node
+            if parent_idx is None and i > 0:
+                parent_idx = i - 1
+            
+            # Add current node to parent's children
+            if parent_idx is not None and 0 <= parent_idx < len(node_objects):
+                parent_node = node_objects[parent_idx]
+                parent_node["children"].append(current_node)
+        
+        # Step 3: Clean up temporary fields and adjust structure for Ruby AST format
+        def clean_node(node):
+            # Remove temporary fields
+            if "_connections" in node:
+                del node["_connections"]
+            if "_index" in node:
+                del node["_index"]
+            
+            # Recursively clean children
+            for child in node["children"]:
+                if isinstance(child, dict):
+                    clean_node(child)
+            
+            # Apply Ruby AST conventions based on node type
+            node_type = node["type"]
+            
+            # Handle specific node types that need special structure
+            if node_type == "def" and len(node["children"]) == 0:
+                # Ensure def nodes have proper structure: name, args, body
+                node["children"] = [
+                    method_name,
+                    {"type": "args", "children": []},
+                    {"type": "nil", "children": []} if not node["children"] else node["children"][0]
+                ]
+            elif node_type == "args" and len(node["children"]) == 0:
+                # Args node can be empty
+                pass
+            elif node_type == "send" and len(node["children"]) < 2:
+                # Send nodes need at least receiver and method name
+                while len(node["children"]) < 2:
+                    node["children"].append("unknown")
+            elif node_type in ["int", "str", "sym"] and len(node["children"]) == 0:
+                # Literal nodes need a value
+                if node_type == "int":
+                    node["children"] = [42]
+                elif node_type == "str":
+                    node["children"] = ["generated"]
+                elif node_type == "sym":
+                    node["children"] = ["generated"]
+            elif node_type in ["lvar", "ivar", "gvar", "cvar"] and len(node["children"]) == 0:
+                # Variable nodes need a name
+                node["children"] = ["var"]
+            elif node_type == "const" and len(node["children"]) == 0:
+                # Constant nodes need scope and name
+                node["children"] = [None, "Generated"]
+        
+        # Clean the tree starting from root
+        clean_node(root)
+        
+        # Step 4: Ensure the root is a proper method definition
+        if root["type"] != "def":
+            # Wrap in a method definition if the root isn't already one
+            root = {
+                "type": "def",
+                "children": [
+                    method_name,
+                    {"type": "args", "children": []},
+                    root
+                ]
+            }
+        
+        return json.dumps(root)
     
     def ruby_prettify(self, ast_json):
         """Call Ruby pretty printer to convert AST JSON to Ruby code."""
