@@ -8,6 +8,7 @@ gem 'parser', '~> 3.0'
 # Standard library gems (often included but explicit for clarity)
 gem 'json', '~> 2.0'
 
+gem 'flog'
 group :development do
   # Testing framework - now required for RSpec formatter
   gem 'rspec', '~> 3.0'
