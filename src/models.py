@@ -247,13 +247,14 @@ class AutoregressiveASTDecoder(torch.nn.Module):
         self.max_nodes = max_nodes
         self.sequence_model = sequence_model
         
-        # Graph Context Encoder - encodes current partial graph state
+        # Graph Context Encoder - GNN for processing partial graph structure
         # Note: Node features are node_types dimensional (one-hot encoded)
-        self.graph_encoder = torch.nn.Sequential(
-            torch.nn.Linear(node_types, graph_hidden_dim),  # Project from node feature space
-            torch.nn.ReLU(),
-            torch.nn.LayerNorm(graph_hidden_dim)
-        )
+        self.graph_gnn_layers = torch.nn.ModuleList([
+            GCNConv(node_types, graph_hidden_dim),
+            GCNConv(graph_hidden_dim, graph_hidden_dim)
+        ])
+        self.graph_layer_norm = torch.nn.LayerNorm(graph_hidden_dim)
+        self.graph_dropout = torch.nn.Dropout(0.1)
         
         # Sequential State Encoder - maintains state across generation steps
         input_size = text_embedding_dim + graph_hidden_dim
@@ -321,11 +322,9 @@ class AutoregressiveASTDecoder(torch.nn.Module):
         batch_size = text_embedding.size(0)
         device = text_embedding.device
         
-        # 1. Encode current graph state
+        # 1. Encode current graph state using GNN
         if partial_graph is not None and 'x' in partial_graph and len(partial_graph['x']) > 0:
-            # We have a non-empty partial graph
-            # For simplicity, we'll use global mean pooling of the partial graph
-            # In practice, you might want a more sophisticated graph encoding
+            # We have a non-empty partial graph - process it with GNN
             
             # Convert partial graph to tensor if needed
             graph_features = partial_graph['x']
@@ -335,14 +334,43 @@ class AutoregressiveASTDecoder(torch.nn.Module):
                     graph_features = torch.tensor(graph_features, dtype=torch.float32, device=device)
                 else:
                     # Empty or malformed graph
-                    graph_representation = torch.zeros(batch_size, self.node_types, device=device)
+                    graph_encoded = torch.zeros(batch_size, self.graph_hidden_dim, device=device)
             else:
                 graph_features = graph_features.to(device)
             
-            if len(graph_features.shape) == 2:
-                # Pool graph features to get graph representation
-                # Simple approach: use mean pooling
-                if 'batch' in partial_graph and partial_graph['batch']:
+            if len(graph_features.shape) == 2 and graph_features.size(0) > 0:
+                # Get edge information for GNN processing
+                edge_index = partial_graph.get('edge_index', None)
+                if edge_index is None:
+                    # Create simple sequential edges if no edges provided
+                    num_nodes = graph_features.size(0)
+                    if num_nodes > 1:
+                        edge_list = []
+                        for i in range(num_nodes - 1):
+                            edge_list.extend([[i, i + 1], [i + 1, i]])  # Bidirectional edges
+                        edge_index = torch.tensor(edge_list, dtype=torch.long, device=device).t()
+                    else:
+                        # Single node - no edges
+                        edge_index = torch.empty((2, 0), dtype=torch.long, device=device)
+                else:
+                    if isinstance(edge_index, list):
+                        edge_index = torch.tensor(edge_index, dtype=torch.long, device=device)
+                    else:
+                        edge_index = edge_index.to(device)
+                
+                # Apply GNN layers for structural encoding
+                x = graph_features
+                for i, gnn_layer in enumerate(self.graph_gnn_layers):
+                    x = gnn_layer(x, edge_index)
+                    if i < len(self.graph_gnn_layers) - 1:  # Apply activation for all but last layer
+                        x = F.relu(x)
+                        x = self.graph_dropout(x)
+                
+                # Apply layer normalization to final GNN output
+                x = self.graph_layer_norm(x)
+                
+                # Global pooling to get graph-level representation per batch
+                if 'batch' in partial_graph and partial_graph['batch'] is not None:
                     # Use batch indices for proper pooling
                     batch_indices = partial_graph['batch']
                     if isinstance(batch_indices, list):
@@ -350,28 +378,27 @@ class AutoregressiveASTDecoder(torch.nn.Module):
                     else:
                         batch_indices = batch_indices.to(device)
                     
-                    # Compute mean features per batch
-                    graph_representation = []
-                    for b in range(batch_size):
-                        mask = batch_indices == b
-                        if mask.sum() > 0:
-                            batch_features = graph_features[mask].mean(dim=0)
-                        else:
-                            batch_features = torch.zeros(graph_features.size(1), device=device)
-                        graph_representation.append(batch_features)
-                    graph_representation = torch.stack(graph_representation)
+                    # Use global_mean_pool for proper batched pooling
+                    from torch_geometric.nn import global_mean_pool
+                    graph_encoded = global_mean_pool(x, batch_indices)
+                    
+                    # Ensure we have the right batch size
+                    if graph_encoded.size(0) < batch_size:
+                        # Pad with zeros for missing batches
+                        padding = torch.zeros(batch_size - graph_encoded.size(0), self.graph_hidden_dim, device=device)
+                        graph_encoded = torch.cat([graph_encoded, padding], dim=0)
+                    elif graph_encoded.size(0) > batch_size:
+                        # Trim if too many
+                        graph_encoded = graph_encoded[:batch_size]
                 else:
-                    # Single graph case - just take mean
-                    graph_representation = graph_features.mean(dim=0).unsqueeze(0).expand(batch_size, -1)
+                    # Single graph case - use mean pooling
+                    graph_encoded = x.mean(dim=0).unsqueeze(0).expand(batch_size, -1)
             else:
-                # Unexpected shape, use zeros
-                graph_representation = torch.zeros(batch_size, graph_features.size(-1), device=device)
+                # Unexpected shape or empty, use zeros
+                graph_encoded = torch.zeros(batch_size, self.graph_hidden_dim, device=device)
         else:
             # Empty graph - start with zero representation
-            graph_representation = torch.zeros(batch_size, self.node_types, device=device)
-        
-        # Encode graph representation to proper dimension
-        graph_encoded = self.graph_encoder(graph_representation)
+            graph_encoded = torch.zeros(batch_size, self.graph_hidden_dim, device=device)
         
         # 2. Combine text and graph context
         combined_input = torch.cat([text_embedding, graph_encoded], dim=-1)
