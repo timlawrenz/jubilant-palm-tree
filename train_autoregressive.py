@@ -278,25 +278,58 @@ def extract_sample_graph(partial_graphs: Dict[str, Any], sample_idx: int, batch_
     Extract the partial graph for a specific sample from batched data.
     
     Args:
-        partial_graphs: Batched partial graph data
-        sample_idx: Index of the sample to extract
+        partial_graphs: Batched partial graph data containing multiple samples
+        sample_idx: Index of the sample to extract (which sample in the batch)
         batch_size: Total batch size
         
     Returns:
-        Partial graph for the specified sample
+        Partial graph for the specified sample with properly extracted nodes and edges
     """
-    # This is a simplified extraction - in practice you'd need to properly
-    # separate the batched graph data based on batch indices
-    
     if not partial_graphs['x']:
         return {'x': [], 'edge_index': [[], []], 'batch': []}
     
-    # For simplicity, return the full batched data
-    # In a complete implementation, you'd extract only the nodes/edges for this sample
+    # Get batch indices to identify which nodes belong to this sample
+    batch_indices = partial_graphs.get('batch', [])
+    if not batch_indices:
+        # Fallback: assume single sample if no batch info
+        return {
+            'x': partial_graphs['x'],
+            'edge_index': partial_graphs['edge_index'],
+            'batch': [0] * len(partial_graphs['x'])
+        }
+    
+    # Find all node indices that belong to the specified sample
+    sample_node_indices = [i for i, batch_idx in enumerate(batch_indices) if batch_idx == sample_idx]
+    
+    if not sample_node_indices:
+        # No nodes for this sample
+        return {'x': [], 'edge_index': [[], []], 'batch': []}
+    
+    # Extract node features for this sample
+    sample_x = [partial_graphs['x'][i] for i in sample_node_indices]
+    
+    # Create mapping from original node indices to new local indices
+    old_to_new_idx = {old_idx: new_idx for new_idx, old_idx in enumerate(sample_node_indices)}
+    
+    # Extract edges that connect nodes within this sample
+    original_edges = partial_graphs['edge_index']
+    sample_edges = [[], []]  # [source_nodes, target_nodes]
+    
+    if len(original_edges) >= 2 and original_edges[0] and original_edges[1]:
+        for src, tgt in zip(original_edges[0], original_edges[1]):
+            # Only include edges where both source and target belong to this sample
+            if src in old_to_new_idx and tgt in old_to_new_idx:
+                # Remap to local node indices
+                sample_edges[0].append(old_to_new_idx[src])
+                sample_edges[1].append(old_to_new_idx[tgt])
+    
+    # Create batch indices for the extracted sample (all zeros since it's a single sample)
+    sample_batch = [0] * len(sample_x)
+    
     return {
-        'x': partial_graphs['x'],
-        'edge_index': partial_graphs['edge_index'],
-        'batch': partial_graphs.get('batch', [])
+        'x': sample_x,
+        'edge_index': sample_edges,
+        'batch': sample_batch
     }
 
 
