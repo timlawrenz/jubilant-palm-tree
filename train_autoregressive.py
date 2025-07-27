@@ -78,7 +78,7 @@ def train_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any],
         model: AutoregressiveASTDecoder model
         batch: Batch of training data
         optimizer: Optimizer for model parameters
-        alignment_model: Pre-trained AlignmentModel for text embeddings
+        alignment_model: Pre-trained AlignmentModel for text embeddings (used only if pre-computed unavailable)
         
     Returns:
         Average loss for this batch
@@ -87,6 +87,7 @@ def train_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any],
     
     # Extract batch data
     text_descriptions = batch['text_descriptions']
+    text_embeddings = batch.get('text_embeddings')  # May be None if not pre-computed
     steps = batch['steps']
     total_steps = batch['total_steps']
     partial_graphs = batch['partial_graphs']
@@ -119,8 +120,21 @@ def train_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any],
         # Sort by step to ensure proper order
         sample_indices.sort(key=lambda i: steps[i])
         
-        # Create text embedding using pre-trained AlignmentModel
-        text_embedding = alignment_model.encode_text([text_desc])
+        # Get text embedding - prioritize pre-computed, fallback to alignment model
+        text_embedding = None
+        if text_embeddings is not None and text_embeddings[sample_indices[0]] is not None:
+            # Use pre-computed embedding (much faster!)
+            text_embedding = text_embeddings[sample_indices[0]]
+            if not isinstance(text_embedding, torch.Tensor):
+                text_embedding = torch.tensor(text_embedding, dtype=torch.float32, device=device)
+            else:
+                text_embedding = text_embedding.to(device)
+            # Ensure it has batch dimension
+            if text_embedding.dim() == 1:
+                text_embedding = text_embedding.unsqueeze(0)
+        else:
+            # Fallback to alignment model (slower, but ensures compatibility)
+            text_embedding = alignment_model.encode_text([text_desc])
         
         sequence_loss = 0.0
         hidden_state = None
@@ -199,7 +213,7 @@ def validate_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any], alignm
     Args:
         model: AutoregressiveASTDecoder model
         batch: Batch of validation data
-        alignment_model: Pre-trained AlignmentModel for text embeddings
+        alignment_model: Pre-trained AlignmentModel for text embeddings (used only if pre-computed unavailable)
         
     Returns:
         Average validation loss for this batch
@@ -209,6 +223,7 @@ def validate_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any], alignm
     with torch.no_grad():
         # Extract batch data
         text_descriptions = batch['text_descriptions']
+        text_embeddings = batch.get('text_embeddings')  # May be None if not pre-computed
         steps = batch['steps']
         target_node_types = batch['target_node_types']
         partial_graphs = batch['partial_graphs']
@@ -236,8 +251,21 @@ def validate_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any], alignm
             # Sort by step to ensure proper order
             sample_indices.sort(key=lambda i: steps[i])
             
-            # Create text embedding using pre-trained AlignmentModel
-            text_embedding = alignment_model.encode_text([text_desc])
+            # Get text embedding - prioritize pre-computed, fallback to alignment model
+            text_embedding = None
+            if text_embeddings is not None and text_embeddings[sample_indices[0]] is not None:
+                # Use pre-computed embedding (much faster!)
+                text_embedding = text_embeddings[sample_indices[0]]
+                if not isinstance(text_embedding, torch.Tensor):
+                    text_embedding = torch.tensor(text_embedding, dtype=torch.float32, device=device)
+                else:
+                    text_embedding = text_embedding.to(device)
+                # Ensure it has batch dimension
+                if text_embedding.dim() == 1:
+                    text_embedding = text_embedding.unsqueeze(0)
+            else:
+                # Fallback to alignment model (slower, but ensures compatibility)
+                text_embedding = alignment_model.encode_text([text_desc])
             
             sequence_loss = 0.0
             hidden_state = None
@@ -415,12 +443,16 @@ def train_autoregressive_decoder():
     # Load datasets
     print("📊 Loading datasets...")
     try:
+        # Use pre-computed embeddings for significant speedup
+        embeddings_path = "output/text_embeddings.pt"
+        
         train_loader = create_autoregressive_data_loader(
             "dataset/train_paired_data.jsonl", 
             batch_size=256, 
             shuffle=True,
             max_sequence_length=30,  # Limit sequence length for training stability
-            seed=42
+            seed=42,
+            precomputed_embeddings_path=embeddings_path
         )
         
         val_loader = create_autoregressive_data_loader(
@@ -428,7 +460,8 @@ def train_autoregressive_decoder():
             batch_size=256,
             shuffle=False,
             max_sequence_length=30,
-            seed=42
+            seed=42,
+            precomputed_embeddings_path=embeddings_path
         )
         
         # Check if datasets are empty
