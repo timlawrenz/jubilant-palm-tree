@@ -183,7 +183,7 @@ def main():
             input_dim=74,  # Based on dataset
             hidden_dim=64,
             text_model_name='all-MiniLM-L6-v2',
-            code_encoder_weights_path=str(project_root / 'best_model.pt')
+            code_encoder_weights_path=str(project_root / 'models/best_model.pt')
         )
         alignment_model = alignment_model.to(device)
         alignment_model.eval()

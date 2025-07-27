@@ -132,7 +132,7 @@ def main():
     print("=" * 60)
     
     # Configuration
-    model_path = "best_model.pt"
+    model_path = "models/best_model.pt"
     test_dataset_path = "dataset/test.jsonl"
     output_path = "final_embedding_visualization.png"
     

@@ -233,9 +233,9 @@ def generate_ast_autoregressive(model, text_embedding, max_length=50,
 class CodeGenerator:
     """Main code generation class."""
     
-    def __init__(self, alignment_model_path="best_alignment_model.pt", 
-                 decoder_model_path="best_decoder.pt",
-                 code_encoder_path="best_model.pt"):
+    def __init__(self, alignment_model_path="models/best_alignment_model.pt", 
+                 decoder_model_path="models/best_decoder.pt",
+                 code_encoder_path="models/best_model.pt"):
         """
         Initialize the code generator.
         
@@ -550,9 +550,9 @@ class CodeGenerator:
 class AutoregressiveCodeGenerator:
     """Enhanced code generator using autoregressive AST decoder."""
     
-    def __init__(self, alignment_model_path="best_alignment_model.pt", 
+    def __init__(self, alignment_model_path="models/best_alignment_model.pt", 
                  autoregressive_decoder_path="best_autoregressive_decoder.pt",
-                 code_encoder_path="best_model.pt"):
+                 code_encoder_path="models/best_model.pt"):
         """
         Initialize the autoregressive code generator.
         
@@ -928,14 +928,14 @@ Examples:
     
     parser.add_argument(
         '--alignment-model',
-        default='best_alignment_model.pt',
-        help='Path to trained AlignmentModel (default: best_alignment_model.pt)'
+        default='models/best_alignment_model.pt',
+        help='Path to trained AlignmentModel (default: models/best_alignment_model.pt)'
     )
     
     parser.add_argument(
         '--decoder-model',
-        default='best_decoder.pt',
-        help='Path to trained ASTDecoder (default: best_decoder.pt)'
+        default='models/best_decoder.pt',
+        help='Path to trained ASTDecoder (default: models/best_decoder.pt)'
     )
     
     parser.add_argument(
@@ -946,8 +946,8 @@ Examples:
     
     parser.add_argument(
         '--code-encoder',
-        default='best_model.pt',
-        help='Path to trained code encoder (default: best_model.pt)'
+        default='models/best_model.pt',
+        help='Path to trained code encoder (default: models/best_model.pt)'
     )
     
     parser.add_argument(

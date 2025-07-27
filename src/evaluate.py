@@ -2,7 +2,7 @@
 """
 Model Evaluation Script for Ruby Complexity Prediction
 
-This script loads the best saved model from Phase 2 (best_model.pt) and the test dataset
+This script loads the best saved model from Phase 2 (models/best_model.pt) and the test dataset
 (dataset/test.jsonl). It predicts the complexity for each method in the test set and
 calculates the final performance metrics (MAE and RMSE).
 
@@ -165,7 +165,7 @@ def main():
     print("=" * 60)
     
     # Configuration
-    model_path = "best_model.pt"
+    model_path = "models/best_model.pt"
     test_dataset_path = "dataset/test.jsonl"
     batch_size = 32
     heuristic_baseline_mae = 4.4617  # From Ticket 9 heuristic benchmark
@@ -201,7 +201,7 @@ def main():
         
     except FileNotFoundError as e:
         print(f"❌ Error: {e}")
-        print("   Make sure to run training first to generate best_model.pt")
+        print("   Make sure to run training first to generate models/best_model.pt")
         sys.exit(1)
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
