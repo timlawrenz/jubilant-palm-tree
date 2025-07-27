@@ -59,3 +59,4 @@ best_autoregressive_decoder.pt
 
 # Bundler local configuration (user-specific)
 .bundle/
+vendor/
