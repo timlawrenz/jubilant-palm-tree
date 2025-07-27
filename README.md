@@ -104,6 +104,22 @@ notebooks/demonstrate_text_to_code.ipynb  # Interactive text-to-code demo
 notebooks/evaluate_autoencoder.ipynb     # Interactive evaluation
 ```
 
+## Testing and CI
+
+The project uses lightweight sample datasets and models for fast testing and continuous integration:
+
+- **Sample Datasets**: Located in `dataset/samples/`, contain 20 representative examples each
+- **Sample Models**: Located in `models/samples/`, are lightweight versions of trained models  
+- **CI Strategy**: CircleCI runs tests using only sample data, avoiding large file downloads
+- **Test Coverage**: Core functionality tested with `test_dataset.py`, `test_autoencoder.py`, `test_alignment_model.py`
+
+To run the full test suite locally:
+```bash
+python test_dataset.py      # Tests data loading and processing
+python test_autoencoder.py  # Tests AST autoencoder functionality  
+python test_alignment_model.py  # Tests text-code alignment
+```
+
 ### Quick Demo
 ```python
 # Load trained autoencoder for AST reconstruction
