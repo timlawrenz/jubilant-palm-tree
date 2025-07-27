@@ -22,6 +22,12 @@ except ImportError as e:
     print(f"Required imports not available: {e}")
     TORCH_AVAILABLE = False
 
+# Helper function to get dataset paths relative to this script
+def get_dataset_path(relative_path):
+    """Get dataset path relative to this script location."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, relative_path)
+
 
 def test_autoregressive_with_text_encoder():
     """Test that autoregressive data works with text encoders."""
@@ -34,7 +40,7 @@ def test_autoregressive_with_text_encoder():
     try:
         # Create autoregressive data loader
         loader = create_autoregressive_data_loader(
-            "../dataset/paired_data.jsonl",
+            get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl"),
             batch_size=2,
             max_sequence_length=5,
             seed=42
@@ -77,7 +83,7 @@ def test_data_format_compatibility():
     
     try:
         loader = create_autoregressive_data_loader(
-            "../dataset/paired_data.jsonl",
+            get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl"),
             batch_size=1,
             max_sequence_length=3,
             seed=42
@@ -121,7 +127,7 @@ def test_sequence_causality():
     
     try:
         loader = create_autoregressive_data_loader(
-            "../dataset/paired_data.jsonl",
+            get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl"),
             batch_size=10,
             max_sequence_length=5,
             seed=42

@@ -15,13 +15,19 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from data_processing import AutoregressiveASTDataset, create_autoregressive_data_loader
 
+# Helper function to get dataset paths relative to this script
+def get_dataset_path(relative_path):
+    """Get dataset path relative to this script location."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, relative_path)
+
 
 def test_sequential_pair_generation():
     """Test that ASTs are converted to sequence of (input, target) pairs."""
     print("Testing sequential pair generation...")
     
     try:
-        dataset = AutoregressiveASTDataset("../dataset/paired_data.jsonl", max_sequence_length=5, seed=42)
+        dataset = AutoregressiveASTDataset(get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl"), max_sequence_length=5, seed=42)
         
         if len(dataset) == 0:
             print("❌ No sequential pairs generated")
@@ -51,7 +57,7 @@ def test_progressive_inputs():
     print("\nTesting progressive inputs...")
     
     try:
-        dataset = AutoregressiveASTDataset("../dataset/paired_data.jsonl", max_sequence_length=5, seed=42)
+        dataset = AutoregressiveASTDataset(get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl"), max_sequence_length=5, seed=42)
         
         # Find a sequence for the same method
         method_sequence = []
@@ -102,7 +108,7 @@ def test_incremental_targets():
     print("\nTesting incremental targets...")
     
     try:
-        dataset = AutoregressiveASTDataset("../dataset/paired_data.jsonl", max_sequence_length=5, seed=42)
+        dataset = AutoregressiveASTDataset(get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl"), max_sequence_length=5, seed=42)
         
         # Get a sample to check target structure
         sample = dataset[0]
@@ -144,7 +150,7 @@ def test_training_sequence_format():
     
     try:
         loader = create_autoregressive_data_loader(
-            "../dataset/paired_data.jsonl",
+            get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl"),
             batch_size=2,
             max_sequence_length=3,
             seed=42
@@ -195,7 +201,7 @@ def test_causal_generation_order():
     print("\nTesting causal generation order...")
     
     try:
-        dataset = AutoregressiveASTDataset("../dataset/paired_data.jsonl", max_sequence_length=5, seed=42)
+        dataset = AutoregressiveASTDataset(get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl"), max_sequence_length=5, seed=42)
         
         # Check that steps are in proper order
         previous_step = -1
@@ -251,7 +257,7 @@ def test_phase5_compatibility():
     print("\nTesting Phase 5 compatibility...")
     
     try:
-        dataset = AutoregressiveASTDataset("../dataset/paired_data.jsonl", max_sequence_length=3, seed=42)
+        dataset = AutoregressiveASTDataset(get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl"), max_sequence_length=3, seed=42)
         
         # Check that text descriptions are preserved
         sample = dataset[0]
