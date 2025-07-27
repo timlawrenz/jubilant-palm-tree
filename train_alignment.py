@@ -12,6 +12,7 @@ text descriptions with code embeddings in a shared 64-dimensional space. It uses
 import sys
 import os
 import time
+import argparse
 import torch
 import torch.nn.functional as F
 from torch_geometric.data import Data
@@ -186,26 +187,61 @@ def calculate_alignment_metrics(model, val_loader, device, max_batches=10):
         return {'avg_positive_similarity': 0.0, 'avg_negative_similarity': 0.0, 'alignment_gap': 0.0}
 
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Train text-code alignment model')
+    parser.add_argument('--dataset_path', type=str, default='dataset/',
+                        help='Path to dataset directory (default: dataset/)')
+    parser.add_argument('--epochs', type=int, default=200,
+                        help='Number of training epochs (default: 200)')
+    parser.add_argument('--output_path', type=str, default='models/best_alignment_model.pt',
+                        help='Path to save the best alignment model (default: models/best_alignment_model.pt)')
+    parser.add_argument('--code_encoder_weights_path', type=str, default='models/best_model.pt',
+                        help='Path to pre-trained code encoder weights (default: models/best_model.pt)')
+    parser.add_argument('--batch_size', type=int, default=8,
+                        help='Batch size for training (default: 8)')
+    parser.add_argument('--learning_rate', type=float, default=1e-3,
+                        help='Learning rate (default: 1e-3)')
+    parser.add_argument('--patience', type=int, default=5,
+                        help='Early stopping patience (default: 5)')
+    return parser.parse_args()
+
+
 def main():
     """Main training function."""
+    args = parse_args()
+    
     print("🚀 Starting Alignment Training")
     print("=" * 50)
     
-    # Training hyperparameters
-    batch_size = 8  # Smaller batch size for alignment training
-    learning_rate = 1e-3
-    num_epochs = 200  # Reduced for demonstration
-    patience = 5  # Early stopping patience
+    # Training hyperparameters from args
+    batch_size = args.batch_size
+    learning_rate = args.learning_rate
+    num_epochs = args.epochs
+    patience = args.patience
     
     # Data paths
-    train_data_path = "dataset/train_paired_data.jsonl"
-    val_data_path = "dataset/validation_paired_data.jsonl"
-    code_encoder_weights_path = "models/best_model.pt"  # Pre-trained code encoder
-    output_path = "models/best_alignment_model.pt"
+    train_data_path = os.path.join(args.dataset_path, "train_paired_data.jsonl")
+    val_data_path = os.path.join(args.dataset_path, "validation_paired_data.jsonl")
+    code_encoder_weights_path = args.code_encoder_weights_path
+    output_path = args.output_path
+    
+    print(f"📋 Training Configuration:")
+    print(f"   dataset_path: {args.dataset_path}")
+    print(f"   epochs: {num_epochs}")
+    print(f"   batch_size: {batch_size}")
+    print(f"   learning_rate: {learning_rate}")
+    print(f"   patience: {patience}")
+    print(f"   output_path: {output_path}")
+    print(f"   code_encoder_weights_path: {code_encoder_weights_path}")
+    print()
     
     # Device configuration
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
+    
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     # Load paired dataset
     print(f"\n📊 Loading training dataset from {train_data_path}")
