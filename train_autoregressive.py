@@ -18,8 +18,13 @@ Usage:
 import os
 import sys
 import torch
+import torch.multiprocessing
 import torch.nn.functional as F
 from typing import Dict, Any, Optional
+
+# Set PyTorch multiprocessing sharing strategy to avoid "Too many open files" error
+# when using high num_workers in DataLoader
+torch.multiprocessing.set_sharing_strategy('file_system')
 
 # Add src directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))

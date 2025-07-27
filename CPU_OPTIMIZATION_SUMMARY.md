@@ -12,7 +12,24 @@ The original training script (`train_autoregressive.py`) had significant perform
 
 ## Optimizations Implemented
 
-### 1. Pre-computed Text Embeddings (Primary Optimization)
+### 1. PyTorch Multiprocessing Sharing Strategy Fix
+
+**Problem**: When using high numbers of DataLoader workers (e.g., `num_workers=32`), the training script fails with `OSError: [Errno 24] Too many open files`. This occurs because PyTorch's default multiprocessing sharing strategy on Linux (`file_descriptor`) creates a new file descriptor for each tensor shared between processes, quickly exhausting the OS file descriptor limit.
+
+**Solution**: Change PyTorch's multiprocessing sharing strategy to `file_system` which uses the file system to manage shared memory objects instead of file descriptors.
+
+**Implementation**: 
+```python
+import torch.multiprocessing
+torch.multiprocessing.set_sharing_strategy('file_system')
+```
+
+**Files Modified**:
+- `train_autoregressive.py` - Added sharing strategy configuration at the top of the script
+
+**Performance Impact**: Eliminates "Too many open files" errors while maintaining full training performance and GPU utilization. Enables robust training with high worker counts.
+
+### 2. Pre-computed Text Embeddings (Primary Optimization)
 
 **Files Modified:**
 - **NEW**: `scripts/precompute_embeddings.py` - Script to pre-compute all text embeddings
@@ -28,7 +45,7 @@ The original training script (`train_autoregressive.py`) had significant perform
 
 **Performance Impact:** **503.6x speedup** for text encoding operations
 
-### 2. Optimized PyTorch DataLoader (Secondary Optimization)
+### 3. Optimized PyTorch DataLoader (Secondary Optimization)
 
 **Files Modified:**
 - `src/data_processing.py` - Updated `create_autoregressive_data_loader` function
