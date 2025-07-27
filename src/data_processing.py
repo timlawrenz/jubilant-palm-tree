@@ -746,12 +746,18 @@ class AutoregressiveASTDataset:
         pairs = []
         
         try:
-            # Extract nodes in proper order
-            nodes = self._extract_nodes_in_order(ast_json)
+            # Extract nodes in proper order along with their connections
+            nodes, connections = self._extract_nodes_and_connections_in_order(ast_json)
             
             # Limit sequence length if needed
             if len(nodes) > self.max_sequence_length:
                 nodes = nodes[:self.max_sequence_length]
+                # Also limit connections to only include those within the sequence
+                filtered_connections = []
+                for src, tgt in connections:
+                    if src < self.max_sequence_length and tgt < self.max_sequence_length:
+                        filtered_connections.append((src, tgt))
+                connections = filtered_connections
             
             # Create sequential pairs
             for i in range(len(nodes)):
@@ -761,10 +767,15 @@ class AutoregressiveASTDataset:
                 # Target is the i-th node
                 target_node = nodes[i]
                 
+                # Create target connections for this step
+                # This represents which existing nodes (0 to i-1) the new node i should connect to
+                target_connections = self._create_target_connections(i, connections)
+                
                 pair = {
                     'text_description': text_description,
                     'partial_graph': partial_graph,
                     'target_node': target_node,
+                    'target_connections': target_connections,
                     'step': i,
                     'total_steps': len(nodes)
                 }
@@ -777,24 +788,84 @@ class AutoregressiveASTDataset:
             
         return pairs
     
-    def _extract_nodes_in_order(self, ast_json: str) -> List[Dict[str, Any]]:
+    def _extract_nodes_and_connections_in_order(self, ast_json: str) -> Tuple[List[Dict[str, Any]], List[Tuple[int, int]]]:
         """
-        Extract nodes from AST in proper depth-first order.
+        Extract nodes and their connections from AST in proper depth-first order.
         
         Args:
             ast_json: JSON string representing the AST
             
         Returns:
-            List of nodes in traversal order
+            Tuple of (nodes_list, connections_list) where connections are (parent_idx, child_idx) pairs
         """
         try:
             ast_data = json.loads(ast_json)
             nodes = []
-            self._traverse_ast_nodes(ast_data, nodes)
-            return nodes
+            connections = []
+            self._traverse_ast_nodes_with_connections(ast_data, nodes, connections, parent_idx=None)
+            return nodes, connections
         except (json.JSONDecodeError, Exception):
-            # Return empty list for malformed JSON
-            return []
+            # Return empty lists for malformed JSON
+            return [], []
+    
+    def _traverse_ast_nodes_with_connections(self, node: Union[Dict, List, str, int, float, None], 
+                                           nodes: List[Dict[str, Any]], 
+                                           connections: List[Tuple[int, int]],
+                                           parent_idx: Optional[int] = None):
+        """
+        Recursively traverse AST and collect nodes and connections in depth-first order.
+        
+        Args:
+            node: Current AST node
+            nodes: List to collect nodes
+            connections: List to collect connections as (parent_idx, child_idx) pairs
+            parent_idx: Index of parent node
+        """
+        if isinstance(node, dict) and 'type' in node:
+            # This is an AST node with a type
+            current_idx = len(nodes)
+            node_info = {
+                'node_type': node['type'],
+                'features': self.converter.node_encoder.create_node_features(node['type']),
+                'raw_node': node  # Keep reference for debugging
+            }
+            nodes.append(node_info)
+            
+            # Add connection from parent to current node
+            if parent_idx is not None:
+                connections.append((parent_idx, current_idx))
+            
+            # Traverse children
+            if 'children' in node:
+                for child in node['children']:
+                    self._traverse_ast_nodes_with_connections(child, nodes, connections, current_idx)
+                    
+        elif isinstance(node, list):
+            # Process list of nodes
+            for child in node:
+                self._traverse_ast_nodes_with_connections(child, nodes, connections, parent_idx)
+    
+    def _create_target_connections(self, node_idx: int, all_connections: List[Tuple[int, int]]) -> List[float]:
+        """
+        Create target connection vector for a specific node being added.
+        
+        Args:
+            node_idx: Index of the node being added to the graph
+            all_connections: List of all connections in the full AST as (parent_idx, child_idx) pairs
+            
+        Returns:
+            Binary vector of length max_nodes indicating which existing nodes to connect to
+        """
+        # Initialize with zeros for all possible connections
+        target_vector = [0.0] * 100  # max_nodes = 100 from model
+        
+        # Find all connections where this node is the target (child)
+        # We want to know which existing nodes (with index < node_idx) should connect to this node
+        for parent_idx, child_idx in all_connections:
+            if child_idx == node_idx and parent_idx < node_idx and parent_idx < 100:
+                target_vector[parent_idx] = 1.0
+        
+        return target_vector
     
     def _traverse_ast_nodes(self, node: Union[Dict, List, str, int, float, None], nodes: List[Dict[str, Any]]):
         """
@@ -934,10 +1005,11 @@ def collate_autoregressive_data(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
             batch_idx.extend([i] * num_nodes)
             node_offset += num_nodes
     
-    # Target nodes
+    # Target nodes and connections
     target_nodes = [item['target_node'] for item in batch]
     target_node_types = [node['node_type'] for node in target_nodes]
     target_node_features = [node['features'] for node in target_nodes]
+    target_connections = [item['target_connections'] for item in batch]
     
     return {
         'text_descriptions': text_descriptions,
@@ -949,6 +1021,7 @@ def collate_autoregressive_data(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
         },
         'target_node_types': target_node_types,
         'target_node_features': target_node_features,
+        'target_connections': target_connections,
         'steps': steps,
         'total_steps': total_steps
     }

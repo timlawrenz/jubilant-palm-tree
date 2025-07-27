@@ -91,6 +91,7 @@ def train_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any],
     total_steps = batch['total_steps']
     partial_graphs = batch['partial_graphs']
     target_node_types = batch['target_node_types']
+    target_connections = batch['target_connections']
     
     batch_size = len(text_descriptions)
     device = next(model.parameters()).device
@@ -144,13 +145,20 @@ def train_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any],
             
             # Calculate loss for this step
             node_type_logits = outputs['node_type_logits']
-            target_tensor = torch.tensor([target_node_idx], dtype=torch.long, device=device)
+            connection_probs = outputs['connection_probs']
             
+            target_tensor = torch.tensor([target_node_idx], dtype=torch.long, device=device)
             node_type_loss = F.cross_entropy(node_type_logits, target_tensor)
             
-            # For now, skip connection loss as it requires more complex target preparation
-            # In a full implementation, you'd calculate connection loss here too
-            step_loss = node_type_loss
+            # Calculate connection loss
+            # Get target connections for this batch item
+            target_connections_for_item = target_connections[batch_idx]
+            target_connections_tensor = torch.tensor(target_connections_for_item, dtype=torch.float32, device=device).unsqueeze(0)
+            
+            connection_loss = F.binary_cross_entropy(connection_probs, target_connections_tensor)
+            
+            # Combine both losses
+            step_loss = node_type_loss + connection_loss
             sequence_loss += step_loss
             
             # Update hidden state for next step (detach to prevent gradient flow)
@@ -204,6 +212,7 @@ def validate_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any], alignm
         steps = batch['steps']
         target_node_types = batch['target_node_types']
         partial_graphs = batch['partial_graphs']
+        target_connections = batch['target_connections']
         
         batch_size = len(text_descriptions)
         device = next(model.parameters()).device
@@ -251,10 +260,19 @@ def validate_step(model: AutoregressiveASTDecoder, batch: Dict[str, Any], alignm
                 
                 # Calculate loss for this step
                 node_type_logits = outputs['node_type_logits']
-                target_tensor = torch.tensor([target_node_idx], dtype=torch.long, device=device)
+                connection_probs = outputs['connection_probs']
                 
+                target_tensor = torch.tensor([target_node_idx], dtype=torch.long, device=device)
                 node_type_loss = F.cross_entropy(node_type_logits, target_tensor)
-                step_loss = node_type_loss
+                
+                # Calculate connection loss
+                target_connections_for_item = target_connections[batch_idx]
+                target_connections_tensor = torch.tensor(target_connections_for_item, dtype=torch.float32, device=device).unsqueeze(0)
+                
+                connection_loss = F.binary_cross_entropy(connection_probs, target_connections_tensor)
+                
+                # Combine both losses
+                step_loss = node_type_loss + connection_loss
                 sequence_loss += step_loss
                 
                 # Update hidden state for next step
@@ -593,7 +611,11 @@ def create_mock_data_loader(num_batches: int, device: torch.device):
                 'num_graphs': 2
             },
             'target_node_types': ['def', 'send'],
-            'target_node_features': [[1.0] * 74, [1.0] * 74]
+            'target_node_features': [[1.0] * 74, [1.0] * 74],
+            'target_connections': [
+                [0.0] * 100,  # First node (step 0) connects to no previous nodes
+                [1.0] + [0.0] * 99  # Second node (step 1) connects to first node (index 0)
+            ]
         }
         batches.append(batch)
     
