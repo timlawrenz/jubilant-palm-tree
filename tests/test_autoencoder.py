@@ -12,10 +12,16 @@ import torch
 from torch_geometric.data import Data
 
 # Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from data_processing import RubyASTDataset, create_data_loaders
 from models import RubyComplexityGNN, ASTDecoder, ASTAutoencoder
+
+# Helper function to get dataset paths relative to this script
+def get_dataset_path(relative_path):
+    """Get dataset path relative to this script location."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, relative_path)
 
 
 def test_encoder_embedding_extraction():
@@ -24,7 +30,7 @@ def test_encoder_embedding_extraction():
     print("-" * 40)
     
     # Load a sample
-    dataset = RubyASTDataset("dataset/samples/train_sample.jsonl")
+    dataset = RubyASTDataset(get_dataset_path("../dataset/samples/train_sample.jsonl"))
     sample = dataset[0]
     
     # Convert to PyTorch format
@@ -94,7 +100,7 @@ def test_ast_autoencoder():
     print("-" * 40)
     
     # Load a sample
-    dataset = RubyASTDataset("dataset/samples/train_sample.jsonl")
+    dataset = RubyASTDataset(get_dataset_path("../dataset/samples/train_sample.jsonl"))
     sample = dataset[0]
     
     # Convert to PyTorch format
@@ -163,8 +169,8 @@ def test_batch_processing():
     
     # Create data loaders
     train_loader, _ = create_data_loaders(
-        "dataset/samples/train_sample.jsonl", 
-        "dataset/samples/validation_sample.jsonl", 
+        get_dataset_path("../dataset/samples/train_sample.jsonl"), 
+        get_dataset_path("../dataset/samples/validation_sample.jsonl"), 
         batch_size=3
     )
     

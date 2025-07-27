@@ -9,7 +9,7 @@ import torch
 from pathlib import Path
 
 # Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from models import AutoregressiveASTDecoder, AlignmentModel
 from data_processing import create_autoregressive_data_loader
@@ -27,7 +27,7 @@ def test_optimized_training():
     print("\n1. Testing optimized data loader...")
     try:
         loader = create_autoregressive_data_loader(
-            "dataset/train_paired_data.jsonl",
+            "../dataset/train_paired_data.jsonl",
             batch_size=2,
             shuffle=False,
             max_sequence_length=5,

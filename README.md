@@ -111,13 +111,23 @@ The project uses lightweight sample datasets and models for fast testing and con
 - **Sample Datasets**: Located in `dataset/samples/`, contain 20 representative examples each
 - **Sample Models**: Located in `models/samples/`, are lightweight versions of trained models  
 - **CI Strategy**: CircleCI runs tests using only sample data, avoiding large file downloads
-- **Test Coverage**: Core functionality tested with `test_dataset.py`, `test_autoencoder.py`, `test_alignment_model.py`
+- **Test Coverage**: Core functionality tested with organized test files in `tests/` directory
+
+### Project Organization
+
+The repository is organized into dedicated directories for better maintainability:
+
+```bash
+tests/          # All test files (test_*.py, validate_*.py, verify_*.py)
+demos/          # Demo scripts showing functionality (demo_*.py, demonstrate_*.py)  
+examples/       # Usage examples (example_*.py)
+```
 
 To run the full test suite locally:
 ```bash
-python test_dataset.py      # Tests data loading and processing
-python test_autoencoder.py  # Tests AST autoencoder functionality  
-python test_alignment_model.py  # Tests text-code alignment
+python tests/test_dataset.py      # Tests data loading and processing
+python tests/test_autoencoder.py  # Tests AST autoencoder functionality  
+python tests/test_alignment_model.py  # Tests text-code alignment
 ```
 
 ### Quick Demo
@@ -131,6 +141,7 @@ autoencoder = ASTAutoencoder(
     hidden_dim=64,
     freeze_encoder=True,
     encoder_weights_path="models/best_model.pt"
+)
 )
 
 # Complete pipeline: AST → embedding → reconstructed AST
@@ -279,11 +290,15 @@ ruby test-ruby-setup.rb
 ruby scripts/check_syntax.rb < scripts/check_syntax.rb
 
 # Test Python ML pipeline
-python test_dataset.py
-python test_autoencoder.py
+python tests/test_dataset.py
+python tests/test_autoencoder.py
 
 # Test AST pretty printing
 ruby scripts/pretty_print_ast.rb --help
+
+# Run example usage demonstrations
+python examples/example_usage.py
+python demos/demo_alignment_model.py
 ```
 
 ## Project Structure

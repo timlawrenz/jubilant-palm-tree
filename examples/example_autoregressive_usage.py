@@ -10,7 +10,7 @@ import sys
 import os
 
 # Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from data_processing import create_autoregressive_data_loader, AutoregressiveASTDataset
 
@@ -23,7 +23,7 @@ def demonstrate_autoregressive_dataset():
     # Create autoregressive dataset
     print("1. Creating AutoregressiveASTDataset...")
     dataset = AutoregressiveASTDataset(
-        paired_data_path="dataset/paired_data.jsonl",
+        paired_data_path="../dataset/paired_data.jsonl",
         max_sequence_length=10,  # Limit sequences to 10 nodes for demo
         seed=42
     )
@@ -63,7 +63,7 @@ def demonstrate_autoregressive_dataset():
     # Create data loader for training
     print("\n4. Creating DataLoader for training...")
     loader = create_autoregressive_data_loader(
-        paired_data_path="dataset/paired_data.jsonl",
+        paired_data_path="../dataset/paired_data.jsonl",
         batch_size=4,
         max_sequence_length=8,
         shuffle=True,
@@ -108,7 +108,7 @@ def show_comparison_with_phase6():
     print("   Target: complete_ast_structure")
     print("   Training: reconstruct entire AST in one forward pass")
     
-    phase6_loader = create_paired_data_loaders("dataset/paired_data.jsonl", batch_size=2, seed=42)
+    phase6_loader = create_paired_data_loaders("../dataset/paired_data.jsonl", batch_size=2, seed=42)
     for graphs, texts in phase6_loader:
         print(f"   Sample: {len(graphs['x'])} total nodes → complete AST")
         print(f"   Text: '{texts[0][:40]}...'")
@@ -119,7 +119,7 @@ def show_comparison_with_phase6():
     print("   Target: next_node_type + connections")
     print("   Training: predict next node given partial AST")
     
-    phase7_loader = create_autoregressive_data_loader("dataset/paired_data.jsonl", batch_size=2, seed=42)
+    phase7_loader = create_autoregressive_data_loader("../dataset/paired_data.jsonl", batch_size=2, seed=42)
     for batch in phase7_loader:
         print(f"   Sample: {len(batch['partial_graphs']['x'])} partial nodes → next node")
         print(f"   Text: '{batch['text_descriptions'][0][:40]}...'")

@@ -12,7 +12,7 @@ import torch
 from torch_geometric.data import Data
 
 # Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from data_processing import RubyASTDataset
 from models import ASTAutoencoder
@@ -25,7 +25,7 @@ def demo_single_method():
     
     # Load dataset and get a sample
     print("📥 Loading Ruby AST dataset...")
-    dataset = RubyASTDataset("dataset/train.jsonl")
+    dataset = RubyASTDataset("../dataset/train.jsonl")
     sample = dataset[0]
     
     print(f"📊 Original AST Statistics:")
@@ -88,7 +88,7 @@ def demo_batch_processing():
     print("=" * 50)
     
     # Load multiple samples
-    dataset = RubyASTDataset("dataset/train.jsonl")
+    dataset = RubyASTDataset("../dataset/train.jsonl")
     batch_size = 3
     
     # Manually create a batch (simplified)
