@@ -6,11 +6,23 @@ This script demonstrates the AlignmentModel's ability to create aligned
 embeddings for Ruby code and text descriptions.
 """
 
+import sys
+import os
 import torch
 import torch.nn.functional as F
 from torch_geometric.data import Data, Batch
-from src.models import AlignmentModel
-from src.data_processing import create_data_loaders
+
+# Add src directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
+
+from models import AlignmentModel
+from data_processing import create_data_loaders
+
+# Helper function to get dataset paths relative to this script
+def get_dataset_path(relative_path):
+    """Get dataset path relative to this script location."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, relative_path)
 
 def demonstrate_alignment_model():
     """Demonstrate the AlignmentModel with both synthetic and real data."""
@@ -98,8 +110,8 @@ def demonstrate_alignment_model():
     try:
         # Load real data
         train_loader, _ = create_data_loaders(
-            train_path="../dataset/train.jsonl",
-            val_path="../dataset/validation.jsonl",
+            train_path=get_dataset_path("../dataset/train.jsonl"),
+            val_path=get_dataset_path("../dataset/validation.jsonl"),
             batch_size=3,
             shuffle=False
         )
