@@ -13,7 +13,7 @@ import traceback
 from pathlib import Path
 
 # Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from data_processing import (
     AutoregressiveASTDataset, 
@@ -27,7 +27,7 @@ def test_autoregressive_dataset_loading():
     """Test loading the autoregressive dataset."""
     print("Testing autoregressive dataset loading...")
     
-    dataset_path = "dataset/paired_data.jsonl"
+    dataset_path = "../dataset/paired_data.jsonl"
     if not os.path.exists(dataset_path):
         print(f"❌ Dataset file not found: {dataset_path}")
         return False
@@ -50,7 +50,7 @@ def test_autoregressive_dataset_item_access():
     """Test accessing items from the autoregressive dataset."""
     print("\nTesting autoregressive dataset item access...")
     
-    dataset_path = "dataset/paired_data.jsonl"
+    dataset_path = "../dataset/paired_data.jsonl"
     if not os.path.exists(dataset_path):
         print(f"❌ Dataset file not found: {dataset_path}")
         return False
@@ -89,7 +89,7 @@ def test_autoregressive_batch_collation():
     """Test collating autoregressive data into batches."""
     print("\nTesting autoregressive batch collation...")
     
-    dataset_path = "dataset/paired_data.jsonl"
+    dataset_path = "../dataset/paired_data.jsonl"
     if not os.path.exists(dataset_path):
         print(f"❌ Dataset file not found: {dataset_path}")
         return False
@@ -123,7 +123,7 @@ def test_autoregressive_data_loader():
     """Test the AutoregressiveDataLoader functionality."""
     print("\nTesting AutoregressiveDataLoader functionality...")
     
-    dataset_path = "dataset/paired_data.jsonl"
+    dataset_path = "../dataset/paired_data.jsonl"
     if not os.path.exists(dataset_path):
         print(f"❌ Dataset file not found: {dataset_path}")
         return False
@@ -164,7 +164,7 @@ def test_sequential_progression():
     """Test that sequences progress correctly for a single method."""
     print("\nTesting sequential progression for single method...")
     
-    dataset_path = "dataset/paired_data.jsonl"
+    dataset_path = "../dataset/paired_data.jsonl"
     if not os.path.exists(dataset_path):
         print(f"❌ Dataset file not found: {dataset_path}")
         return False

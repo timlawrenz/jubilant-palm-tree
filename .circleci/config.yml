@@ -34,9 +34,9 @@ jobs:
           # and sample models from models/samples/ for fast CI execution
           command: |
             . .venv/bin/activate
-            python test_dataset.py
-            python test_autoencoder.py
-            python test_alignment_model.py
+            python tests/test_dataset.py
+            python tests/test_autoencoder.py
+            python tests/test_alignment_model.py
 
   test_ruby:
     executor: ruby/default
