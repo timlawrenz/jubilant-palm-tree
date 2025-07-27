@@ -10,7 +10,7 @@ import torch
 import torch.nn.functional as F
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from models import AutoregressiveASTDecoder
 from torch_geometric.nn import GCNConv, global_mean_pool

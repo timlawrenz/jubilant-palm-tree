@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from torch_geometric.data import Data
 
 # Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from data_processing import create_data_loaders
 from models import ASTAutoencoder
@@ -67,8 +67,8 @@ def test_short_training():
     # Create data loaders
     print("📂 Loading datasets...")
     train_loader, val_loader = create_data_loaders(
-        "dataset/train.jsonl",
-        "dataset/validation.jsonl", 
+        "../dataset/train.jsonl",
+        "../dataset/validation.jsonl", 
         batch_size=4,  # Small batch size for speed
         shuffle=True
     )

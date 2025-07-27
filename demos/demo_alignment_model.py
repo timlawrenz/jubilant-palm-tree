@@ -98,8 +98,8 @@ def demonstrate_alignment_model():
     try:
         # Load real data
         train_loader, _ = create_data_loaders(
-            train_path="dataset/train.jsonl",
-            val_path="dataset/validation.jsonl",
+            train_path="../dataset/train.jsonl",
+            val_path="../dataset/validation.jsonl",
             batch_size=3,
             shuffle=False
         )

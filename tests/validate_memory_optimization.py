@@ -80,8 +80,8 @@ def check_files():
     # Check for dataset files
     dataset_files = [
         "dataset_paired_data_example.jsonl",
-        "dataset/test.jsonl",
-        "dataset/train.jsonl"
+        "../dataset/test.jsonl",
+        "../dataset/train.jsonl"
     ]
     
     dataset_found = False

@@ -12,7 +12,7 @@ import torch
 import torch.nn.functional as F
 
 # Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from loss import info_nce_loss, cosine_embedding_loss, simple_contrastive_loss
 

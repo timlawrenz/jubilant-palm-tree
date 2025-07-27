@@ -12,7 +12,7 @@ import torch
 from torch_geometric.data import Data
 
 # Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from models import ASTAutoencoder
 

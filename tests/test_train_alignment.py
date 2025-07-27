@@ -11,7 +11,7 @@ import os
 import torch
 
 # Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from data_processing import create_paired_data_loaders
 from models import AlignmentModel
@@ -25,7 +25,7 @@ def test_alignment_training():
     
     # Test configuration
     batch_size = 2  # Very small batch for testing
-    paired_data_path = "dataset/paired_data.jsonl"
+    paired_data_path = "../dataset/paired_data.jsonl"
     code_encoder_weights_path = "models/best_model.pt"
     
     # Device configuration
