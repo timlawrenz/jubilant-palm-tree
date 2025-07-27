@@ -24,7 +24,7 @@ def test_encoder_embedding_extraction():
     print("-" * 40)
     
     # Load a sample
-    dataset = RubyASTDataset("dataset/train.jsonl")
+    dataset = RubyASTDataset("dataset/samples/train_sample.jsonl")
     sample = dataset[0]
     
     # Convert to PyTorch format
@@ -94,7 +94,7 @@ def test_ast_autoencoder():
     print("-" * 40)
     
     # Load a sample
-    dataset = RubyASTDataset("dataset/train.jsonl")
+    dataset = RubyASTDataset("dataset/samples/train_sample.jsonl")
     sample = dataset[0]
     
     # Convert to PyTorch format
@@ -140,7 +140,7 @@ def test_autoencoder_with_frozen_encoder():
         node_output_dim=74,
         hidden_dim=64,
         freeze_encoder=True,
-        encoder_weights_path="nonexistent_model.pt"  # Should handle gracefully
+        encoder_weights_path="models/samples/best_model.pt"  # Use sample model
     )
     
     # Check that encoder parameters are frozen
@@ -163,8 +163,8 @@ def test_batch_processing():
     
     # Create data loaders
     train_loader, _ = create_data_loaders(
-        "dataset/train.jsonl", 
-        "dataset/validation.jsonl", 
+        "dataset/samples/train_sample.jsonl", 
+        "dataset/samples/validation_sample.jsonl", 
         batch_size=3
     )
     

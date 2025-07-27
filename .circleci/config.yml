@@ -30,6 +30,8 @@ jobs:
             - ".venv"
       - run:
           name: "Run Core Python Tests"
+          # Note: These tests use lightweight sample data from dataset/samples/ 
+          # and sample models from models/samples/ for fast CI execution
           command: |
             . .venv/bin/activate
             python test_dataset.py
