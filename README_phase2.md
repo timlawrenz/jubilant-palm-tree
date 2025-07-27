@@ -100,7 +100,7 @@ requirements.txt          # Python dependencies
 
 ## Next Steps to Phase 3
 
-Phase 2 successfully established the GNN training foundation. The trained model (`best_model.pt`) is ready for comprehensive evaluation in Phase 3, where:
+Phase 2 successfully established the GNN training foundation. The trained model (`models/best_model.pt`) is ready for comprehensive evaluation in Phase 3, where:
 
 1. Final performance metrics will be calculated
 2. Comparison against heuristic baseline will be performed
