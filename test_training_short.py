@@ -85,7 +85,7 @@ def test_short_training():
         conv_type='GCN',
         dropout=0.1,
         freeze_encoder=True,
-        encoder_weights_path='best_model.pt'
+        encoder_weights_path='models/best_model.pt'
     ).to(device)
     
     # Setup optimizer

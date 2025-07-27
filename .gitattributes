@@ -2,3 +2,4 @@ output/*.json filter=lfs diff=lfs merge=lfs -text
 output/*.jsonl filter=lfs diff=lfs merge=lfs -text
 dataset/*.jsonl filter=lfs diff=lfs merge=lfs -text
 dataset/samples/** !filter !diff !merge
+models/*.pt filter=lfs diff=lfs merge=lfs -text

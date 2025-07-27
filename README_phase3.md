@@ -10,7 +10,7 @@ Phase 3 focused on comprehensive evaluation of the GNN model trained in Phase 2.
 
 ### [Issue #22: Model Evaluation Script](https://github.com/timlawrenz/jubilant-palm-tree/issues/22)
 - Created comprehensive evaluation script (`src/evaluate.py`)
-- Loaded best model from Phase 2 training (`best_model.pt`)
+- Loaded best model from Phase 2 training (`models/best_model.pt`)
 - Calculated final performance metrics on test dataset
 - **Result**: GNN achieved MAE of 4.27 vs heuristic baseline of 4.46 (4.3% improvement)
 
@@ -94,7 +94,7 @@ The t-SNE visualization of learned embeddings revealed:
 ### Evaluation Pipeline
 ```python
 # Load trained model and test data
-model = RubyComplexityGNN.load('best_model.pt')
+model = RubyComplexityGNN.load('models/best_model.pt')
 test_loader = ASTDataLoader('dataset/test.jsonl')
 
 # Calculate performance metrics
@@ -127,8 +127,8 @@ notebooks/
 
 generate_visualization.py    # Standalone visualization script
 final_embedding_visualization.png  # High-resolution t-SNE plot
-best_model.pt               # Final trained model (100 epochs)
-final_model.pt             # Training completion checkpoint
+models/best_model.pt               # Final trained model (100 epochs)
+models/final_model.pt             # Training completion checkpoint
 ```
 
 ## Impact and Conclusions

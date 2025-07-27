@@ -438,7 +438,7 @@ def train_autoregressive_decoder():
                 'optimizer_state_dict': optimizer.state_dict(),
                 'epoch': epoch,
                 'val_loss': avg_val_loss
-            }, 'best_autoregressive_decoder.pt')
+            }, 'models/best_autoregressive_decoder.pt')
             patience_counter = 0
         else:
             patience_counter += 1
@@ -470,7 +470,7 @@ def train_autoregressive_decoder():
 ##### Training Infrastructure
 - **Early Stopping**: Monitors validation loss with configurable patience (default: 10 epochs)
 - **Learning Rate Scheduling**: Uses ReduceLROnPlateau with factor=0.5, patience=5
-- **Model Checkpointing**: Saves best model based on validation performance as `best_autoregressive_decoder.pt`
+- **Model Checkpointing**: Saves best model based on validation performance as `models/best_autoregressive_decoder.pt`
 - **Intermediate Checkpoints**: Saves model every 5 epochs for debugging and recovery
 - **Gradient Clipping**: Applies gradient clipping with max_norm=1.0 for training stability
 
@@ -493,8 +493,8 @@ def train_autoregressive_decoder():
 python train_autoregressive.py
 
 # Model will be saved as:
-# - best_autoregressive_decoder.pt (best validation performance)
-# - autoregressive_decoder_epoch_*.pt (intermediate checkpoints)
+# - models/best_autoregressive_decoder.pt (best validation performance)
+# - models/autoregressive_decoder_epoch_*.pt (intermediate checkpoints)
 ```
 
 ##### Validation Results

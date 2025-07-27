@@ -207,7 +207,7 @@ def test_autoencoder_loading():
             num_layers=3,
             conv_type='GCN',
             freeze_encoder=True,
-            encoder_weights_path="best_model.pt" if os.path.exists("best_model.pt") else None
+            encoder_weights_path="models/best_model.pt" if os.path.exists("models/best_model.pt") else None
         )
         
         autoencoder.eval()

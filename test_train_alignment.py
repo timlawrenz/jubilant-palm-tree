@@ -26,7 +26,7 @@ def test_alignment_training():
     # Test configuration
     batch_size = 2  # Very small batch for testing
     paired_data_path = "dataset/paired_data.jsonl"
-    code_encoder_weights_path = "best_model.pt"
+    code_encoder_weights_path = "models/best_model.pt"
     
     # Device configuration
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

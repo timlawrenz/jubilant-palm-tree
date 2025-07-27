@@ -142,7 +142,7 @@ def main():
         'conv_type': 'GCN',
         'dropout': 0.1,
         'freeze_encoder': True,  # Key requirement: freeze encoder
-        'encoder_weights_path': 'best_model.pt'  # Pre-trained encoder weights
+        'encoder_weights_path': 'models/best_model.pt'  # Pre-trained encoder weights
     }
     
     print("📋 Training Configuration:")
@@ -230,7 +230,7 @@ def main():
         # Save best decoder weights (required by Definition of Done)
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            save_decoder_weights(model, 'best_decoder.pt', epoch, train_loss, val_loss)
+            save_decoder_weights(model, 'models/best_decoder.pt', epoch, train_loss, val_loss)
             print(f"   💾 New best decoder saved (val_loss: {val_loss:.4f})")
     
     total_time = time.time() - start_time
@@ -239,11 +239,11 @@ def main():
     print("🎉 Training completed successfully!")
     print(f"   Total time: {total_time:.2f}s")
     print(f"   Best validation loss: {best_val_loss:.4f}")
-    print(f"   Best decoder weights saved to: best_decoder.pt")
+    print(f"   Best decoder weights saved to: models/best_decoder.pt")
     
     # Final decoder save
-    save_decoder_weights(model, 'final_decoder.pt', config['epochs']-1, train_loss, val_loss)
-    print(f"   Final decoder weights saved to: final_decoder.pt")
+    save_decoder_weights(model, 'models/final_decoder.pt', config['epochs']-1, train_loss, val_loss)
+    print(f"   Final decoder weights saved to: models/final_decoder.pt")
     
     # Verify training objectives
     print("\n✅ Training Objectives Met:")
@@ -251,7 +251,7 @@ def main():
     print(f"   ✓ Only decoder weights trained (encoder frozen)")
     print(f"   ✓ Used AST reconstruction loss function")
     print(f"   ✓ Input and target are same AST graph")
-    print(f"   ✓ Best decoder weights saved to best_decoder.pt")
+    print(f"   ✓ Best decoder weights saved to models/best_decoder.pt")
     if config['epochs'] > 1:
         print(f"   ✓ Training completed successfully over multiple epochs")
 

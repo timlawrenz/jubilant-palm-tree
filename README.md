@@ -83,9 +83,9 @@ This project has been developed through 7 phases, with Phase 7 representing the 
 # Dataset and models
 dataset/                  # 1,896 processed Ruby methods (train/val/test splits)  
 src/models.py            # GNN models and autoencoder architecture
-best_model.pt            # Pre-trained complexity prediction model
-best_decoder.pt          # Trained AST reconstruction decoder
-best_alignment_model.pt  # Trained text-code alignment model
+models/best_model.pt            # Pre-trained complexity prediction model
+models/best_decoder.pt          # Trained AST reconstruction decoder
+models/best_alignment_model.pt  # Trained text-code alignment model
 
 # Training and evaluation
 train.py                 # GNN complexity prediction training
@@ -110,7 +110,7 @@ autoencoder = ASTAutoencoder(
     node_output_dim=74,
     hidden_dim=64,
     freeze_encoder=True,
-    encoder_weights_path="best_model.pt"
+    encoder_weights_path="models/best_model.pt"
 )
 
 # Complete pipeline: AST → embedding → reconstructed AST
