@@ -7,6 +7,7 @@ data for GNN training. Includes custom Dataset class for AST to graph conversion
 
 import json
 import random
+import os
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Union
 try:
@@ -679,7 +680,8 @@ class AutoregressiveASTDataset:
     autoregressive training. Each method generates multiple training examples.
     """
     
-    def __init__(self, paired_data_path: str, max_sequence_length: int = 50, seed: Optional[int] = None):
+    def __init__(self, paired_data_path: str, max_sequence_length: int = 50, seed: Optional[int] = None,
+                 precomputed_embeddings_path: Optional[str] = None):
         """
         Initialize the autoregressive dataset.
         
@@ -687,6 +689,7 @@ class AutoregressiveASTDataset:
             paired_data_path: Path to the paired_data.jsonl file
             max_sequence_length: Maximum number of nodes per sequence
             seed: Random seed for consistent description sampling
+            precomputed_embeddings_path: Path to pre-computed text embeddings file (optional)
         """
         self.paired_data_path = paired_data_path
         self.max_sequence_length = max_sequence_length
@@ -694,6 +697,20 @@ class AutoregressiveASTDataset:
         
         if seed is not None:
             random.seed(seed)
+        
+        # Load pre-computed embeddings if available
+        self.precomputed_embeddings = {}
+        if precomputed_embeddings_path and os.path.exists(precomputed_embeddings_path):
+            try:
+                if TORCH_AVAILABLE:
+                    self.precomputed_embeddings = torch.load(precomputed_embeddings_path, map_location='cpu')
+                    print(f"✅ Loaded {len(self.precomputed_embeddings)} pre-computed text embeddings")
+                else:
+                    print("⚠️  PyTorch not available, skipping pre-computed embeddings")
+            except Exception as e:
+                print(f"⚠️  Warning: Could not load pre-computed embeddings: {e}")
+        elif precomputed_embeddings_path:
+            print(f"⚠️  Warning: Pre-computed embeddings file not found: {precomputed_embeddings_path}")
         
         # Load the paired data
         self.paired_data = load_jsonl_file(paired_data_path)
@@ -759,6 +776,11 @@ class AutoregressiveASTDataset:
                         filtered_connections.append((src, tgt))
                 connections = filtered_connections
             
+            # Get pre-computed text embedding if available, otherwise store text
+            text_embedding = None
+            if text_description in self.precomputed_embeddings:
+                text_embedding = self.precomputed_embeddings[text_description]
+            
             # Create sequential pairs
             for i in range(len(nodes)):
                 # Build partial graph with nodes 0 to i-1
@@ -773,6 +795,7 @@ class AutoregressiveASTDataset:
                 
                 pair = {
                     'text_description': text_description,
+                    'text_embedding': text_embedding,  # Pre-computed embedding if available
                     'partial_graph': partial_graph,
                     'target_node': target_node,
                     'target_connections': target_connections,
@@ -976,6 +999,7 @@ def collate_autoregressive_data(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     
     # Separate different components
     text_descriptions = [item['text_description'] for item in batch]
+    text_embeddings = [item.get('text_embedding') for item in batch]
     steps = [item['step'] for item in batch]
     total_steps = [item['total_steps'] for item in batch]
     
@@ -1013,6 +1037,7 @@ def collate_autoregressive_data(batch: List[Dict[str, Any]]) -> Dict[str, Any]:
     
     return {
         'text_descriptions': text_descriptions,
+        'text_embeddings': text_embeddings,  # Can contain None values if not pre-computed
         'partial_graphs': {
             'x': all_x,
             'edge_index': all_edge_index,
@@ -1063,7 +1088,9 @@ class AutoregressiveDataLoader:
 
 
 def create_autoregressive_data_loader(paired_data_path: str, batch_size: int = 8, shuffle: bool = True, 
-                                    max_sequence_length: int = 50, seed: Optional[int] = None):
+                                    max_sequence_length: int = 50, seed: Optional[int] = None,
+                                    precomputed_embeddings_path: Optional[str] = None,
+                                    num_workers: Optional[int] = None, pin_memory: bool = True):
     """
     Create data loader for autoregressive AST training.
     
@@ -1073,11 +1100,49 @@ def create_autoregressive_data_loader(paired_data_path: str, batch_size: int = 8
         shuffle: Whether to shuffle the data
         max_sequence_length: Maximum sequence length per method
         seed: Random seed for consistent description sampling
+        precomputed_embeddings_path: Path to pre-computed text embeddings file
+        num_workers: Number of worker processes for data loading (defaults to CPU count)
+        pin_memory: Whether to use pinned memory for faster GPU transfer
         
     Returns:
-        AutoregressiveDataLoader instance
+        DataLoader instance (PyTorch DataLoader if available, otherwise AutoregressiveDataLoader)
     """
-    dataset = AutoregressiveASTDataset(paired_data_path, max_sequence_length=max_sequence_length, seed=seed)
+    dataset = AutoregressiveASTDataset(
+        paired_data_path, 
+        max_sequence_length=max_sequence_length, 
+        seed=seed,
+        precomputed_embeddings_path=precomputed_embeddings_path
+    )
+    
+    # Use PyTorch DataLoader if available for better performance
+    if TORCH_AVAILABLE:
+        import os
+        if num_workers is None:
+            num_workers = os.cpu_count()
+        
+        try:
+            from torch.utils.data import DataLoader
+            
+            # Create PyTorch DataLoader with optimizations
+            loader = DataLoader(
+                dataset,
+                batch_size=batch_size,
+                shuffle=shuffle,
+                num_workers=num_workers,
+                pin_memory=pin_memory and torch.cuda.is_available(),
+                collate_fn=collate_autoregressive_data,
+                persistent_workers=num_workers > 0,  # Keep workers alive between epochs
+                prefetch_factor=2 if num_workers > 0 else 2  # Prefetch batches
+            )
+            
+            print(f"✅ Using optimized PyTorch DataLoader with {num_workers} workers, pin_memory={pin_memory and torch.cuda.is_available()}")
+            return loader
+            
+        except Exception as e:
+            print(f"⚠️  Warning: Could not create PyTorch DataLoader ({e}), falling back to custom loader")
+    
+    # Fallback to custom loader
     loader = AutoregressiveDataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+    print("ℹ️  Using custom AutoregressiveDataLoader")
     
     return loader
