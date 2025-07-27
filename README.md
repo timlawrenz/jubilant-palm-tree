@@ -1,5 +1,7 @@
 # jubilant-palm-tree
 
+[![CircleCI](https://circleci.com/gh/timlawrenz/jubilant-palm-tree.svg?style=svg)](https://circleci.com/gh/timlawrenz/jubilant-palm-tree)
+
 ## Overview
 
 This project explores the potential of Graph Neural Networks (GNNs) to understand and generate Ruby code through Abstract Syntax Tree (AST) analysis. The project demonstrates that neural networks can learn meaningful structural representations of code complexity and successfully reconstruct AST structures from learned embeddings.
