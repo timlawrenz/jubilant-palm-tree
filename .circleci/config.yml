@@ -4,7 +4,7 @@ version: 2.1
 # Orbs are reusable packages of CircleCI configuration.
 orbs:
   python: circleci/python@2.1.1
-  ruby: circleci/ruby@2.0.1
+  ruby: circleci/ruby@3.2.0
 
 # Jobs define the specific tasks to be executed.
 jobs:
