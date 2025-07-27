@@ -200,8 +200,8 @@ def main():
     # Data paths
     train_data_path = "dataset/train_paired_data.jsonl"
     val_data_path = "dataset/validation_paired_data.jsonl"
-    code_encoder_weights_path = "best_model.pt"  # Pre-trained code encoder
-    output_path = "best_alignment_model.pt"
+    code_encoder_weights_path = "models/best_model.pt"  # Pre-trained code encoder
+    output_path = "models/best_alignment_model.pt"
     
     # Device configuration
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

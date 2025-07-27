@@ -64,8 +64,8 @@ def main():
     print("\n✅ Test 3: Checking data files...")
     required_files = [
         'dataset/test.jsonl',
-        'best_model.pt',
-        'best_decoder.pt',
+        'models/best_model.pt',
+        'models/best_decoder.pt',
         'scripts/pretty_print_ast.rb',
         'scripts/check_syntax.rb'
     ]
@@ -132,11 +132,11 @@ def main():
             num_layers=3,
             conv_type='GCN',
             freeze_encoder=True,
-            encoder_weights_path="../best_model.pt"
+            encoder_weights_path="../models/best_model.pt"
         )
         
         # Load decoder
-        checkpoint = torch.load("../best_decoder.pt", map_location='cpu')
+        checkpoint = torch.load("../models/best_decoder.pt", map_location='cpu')
         if 'decoder_state_dict' in checkpoint:
             autoencoder.decoder.load_state_dict(checkpoint['decoder_state_dict'])
         else:

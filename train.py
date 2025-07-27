@@ -216,7 +216,7 @@ def main():
         # Save best model (required by Definition of Done)
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            save_model(model, 'best_model.pt', epoch, train_loss, val_loss)
+            save_model(model, 'models/best_model.pt', epoch, train_loss, val_loss)
             print(f"   💾 New best model saved (val_loss: {val_loss:.4f})")
     
     total_time = time.time() - start_time
@@ -225,11 +225,11 @@ def main():
     print("🎉 Training completed successfully!")
     print(f"   Total time: {total_time:.2f}s")
     print(f"   Best validation loss: {best_val_loss:.4f}")
-    print(f"   Best model saved to: best_model.pt")
+    print(f"   Best model saved to: models/best_model.pt")
     
     # Final model save
-    save_model(model, 'final_model.pt', config['epochs']-1, train_loss, val_loss)
-    print(f"   Final model saved to: final_model.pt")
+    save_model(model, 'models/final_model.pt', config['epochs']-1, train_loss, val_loss)
+    print(f"   Final model saved to: models/final_model.pt")
 
 
 if __name__ == "__main__":
