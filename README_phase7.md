@@ -10,6 +10,18 @@ This phase introduces an autoregressive approach to AST generation, where the de
 
 ## Current System Limitations (Phase 6 Analysis)
 
+### Critical Fix: DataLoader "Too Many Open Files" Error
+
+**Issue Resolved**: Following performance optimizations that increased DataLoader workers to 32, the training script encountered `OSError: [Errno 24] Too many open files` due to PyTorch's default `file_descriptor` sharing strategy exhausting the OS file descriptor limit.
+
+**Solution Implemented**: Changed PyTorch's multiprocessing sharing strategy to `file_system` in `train_autoregressive.py`:
+```python
+import torch.multiprocessing
+torch.multiprocessing.set_sharing_strategy('file_system')
+```
+
+This enables robust, high-performance training with many workers without hitting OS limits.
+
 ### Identified Bottleneck: One-Shot Decoder Architecture
 
 From Phase 6 results, the current system shows clear limitations:
