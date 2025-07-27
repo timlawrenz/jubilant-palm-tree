@@ -17,6 +17,7 @@ Usage:
 
 import os
 import sys
+import argparse
 import torch
 import torch.multiprocessing
 import torch.nn.functional as F
@@ -31,6 +32,28 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from models import AutoregressiveASTDecoder, AlignmentModel
 from data_processing import create_autoregressive_data_loader
+
+
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Train autoregressive AST decoder model')
+    parser.add_argument('--dataset_path', type=str, default='dataset/',
+                        help='Path to dataset directory (default: dataset/)')
+    parser.add_argument('--epochs', type=int, default=20,
+                        help='Number of training epochs (default: 20)')
+    parser.add_argument('--output_path', type=str, default='models/best_autoregressive_decoder.pt',
+                        help='Path to save the best model (default: models/best_autoregressive_decoder.pt)')
+    parser.add_argument('--alignment_model_path', type=str, default='models/best_alignment_model.pt',
+                        help='Path to pre-trained alignment model (default: models/best_alignment_model.pt)')
+    parser.add_argument('--code_encoder_path', type=str, default='models/best_model.pt',
+                        help='Path to pre-trained code encoder (default: models/best_model.pt)')
+    parser.add_argument('--batch_size', type=int, default=4,
+                        help='Batch size for training (default: 4)')
+    parser.add_argument('--learning_rate', type=float, default=1e-4,
+                        help='Learning rate (default: 1e-4)')
+    parser.add_argument('--patience', type=int, default=5,
+                        help='Early stopping patience (default: 5)')
+    return parser.parse_args()
 
 
 def load_alignment_model(model_path: str = "models/best_alignment_model.pt", 
@@ -417,16 +440,31 @@ def get_node_type_index(node_type: str) -> Optional[int]:
         return 0
 
 
-def train_autoregressive_decoder():
+def train_autoregressive_decoder(args=None):
     """
     Main training function for the autoregressive AST decoder.
     """
+    if args is None:
+        args = parse_args()
+    
     print("🚀 Starting Autoregressive AST Decoder Training")
     print("=" * 50)
+    
+    print(f"📋 Training Configuration:")
+    print(f"   dataset_path: {args.dataset_path}")
+    print(f"   epochs: {args.epochs}")
+    print(f"   batch_size: {args.batch_size}")
+    print(f"   learning_rate: {args.learning_rate}")
+    print(f"   patience: {args.patience}")
+    print(f"   output_path: {args.output_path}")
+    print()
     
     # Check if GPU is available
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
+    
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
     
     # Initialize model
     print("📋 Initializing model...")
@@ -443,7 +481,11 @@ def train_autoregressive_decoder():
     
     # Load pre-trained AlignmentModel
     print("📦 Loading pre-trained AlignmentModel...")
-    alignment_model = load_alignment_model(device=device)
+    alignment_model = load_alignment_model(
+        model_path=args.alignment_model_path,
+        code_encoder_path=args.code_encoder_path,
+        device=device
+    )
     
     # Load datasets
     print("📊 Loading datasets...")
@@ -451,9 +493,12 @@ def train_autoregressive_decoder():
         # Use pre-computed embeddings for significant speedup
         embeddings_path = "output/text_embeddings.pt"
         
+        train_data_path = os.path.join(args.dataset_path, "train_paired_data.jsonl")
+        val_data_path = os.path.join(args.dataset_path, "validation_paired_data.jsonl")
+        
         train_loader = create_autoregressive_data_loader(
-            "dataset/train_paired_data.jsonl", 
-            batch_size=256, 
+            train_data_path, 
+            batch_size=args.batch_size, 
             shuffle=True,
             max_sequence_length=30,  # Limit sequence length for training stability
             seed=42,
@@ -461,8 +506,8 @@ def train_autoregressive_decoder():
         )
         
         val_loader = create_autoregressive_data_loader(
-            "dataset/validation_paired_data.jsonl", 
-            batch_size=256,
+            val_data_path, 
+            batch_size=args.batch_size,
             shuffle=False,
             max_sequence_length=30,
             seed=42,
@@ -489,7 +534,7 @@ def train_autoregressive_decoder():
     
     # Training configuration
     print("⚙️  Configuring training...")
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=1e-5)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, 
         mode='min',
@@ -498,10 +543,10 @@ def train_autoregressive_decoder():
     )
     
     # Training parameters
-    max_epochs = 50
+    max_epochs = args.epochs
     best_val_loss = float('inf')
     patience_counter = 0
-    patience_limit = 10
+    patience_limit = args.patience
     
     print("🏋️  Starting training loop...")
     print(f"Max epochs: {max_epochs}, Early stopping patience: {patience_limit}")
@@ -591,7 +636,7 @@ def train_autoregressive_decoder():
                     'node_types': 74,
                     'sequence_model': 'GRU'
                 }
-            }, 'best_autoregressive_decoder.pt')
+            }, args.output_path)
             
             patience_counter = 0
         else:
@@ -609,17 +654,18 @@ def train_autoregressive_decoder():
         
         # Save intermediate checkpoint every 5 epochs
         if (epoch + 1) % 5 == 0:
+            intermediate_path = args.output_path.replace('.pt', f'_epoch_{epoch + 1}.pt')
             torch.save({
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'epoch': epoch,
                 'train_loss': avg_train_loss,
                 'val_loss': avg_val_loss
-            }, f'autoregressive_decoder_epoch_{epoch + 1}.pt')
+            }, intermediate_path)
     
     print("\n🎉 Training completed!")
     print(f"Best validation loss: {best_val_loss:.4f}")
-    print("Model saved as: best_autoregressive_decoder.pt")
+    print(f"Model saved as: {args.output_path}")
     
     return model
 
@@ -666,7 +712,8 @@ if __name__ == "__main__":
     print("=" * 50)
     
     try:
-        model = train_autoregressive_decoder()
+        args = parse_args()
+        model = train_autoregressive_decoder(args)
         print("\n✅ Training script completed successfully!")
         
     except KeyboardInterrupt:
