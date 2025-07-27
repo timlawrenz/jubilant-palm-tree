@@ -43,7 +43,7 @@ def test_dataset_loading():
     """Test loading the dataset from JSONL files."""
     print("\nTesting dataset loading...")
     
-    dataset_path = "dataset/train.jsonl"
+    dataset_path = "dataset/samples/train_sample.jsonl"
     if not os.path.exists(dataset_path):
         print(f"❌ Dataset file not found: {dataset_path}")
         return False
@@ -65,7 +65,7 @@ def test_dataset_getitem():
     print("\nTesting dataset item access...")
     
     try:
-        dataset = RubyASTDataset("dataset/train.jsonl")
+        dataset = RubyASTDataset("dataset/samples/train_sample.jsonl")
         
         # Test getting first item
         sample = dataset[0]
@@ -89,7 +89,7 @@ def test_batch_collation():
     print("\nTesting batch collation...")
     
     try:
-        dataset = RubyASTDataset("dataset/train.jsonl")
+        dataset = RubyASTDataset("dataset/samples/train_sample.jsonl")
         
         # Get a few samples
         batch = [dataset[i] for i in range(min(3, len(dataset)))]
@@ -117,7 +117,7 @@ def test_dataloader_simulation():
     print("\nTesting DataLoader simulation...")
     
     try:
-        dataset = RubyASTDataset("dataset/train.jsonl")
+        dataset = RubyASTDataset("dataset/samples/train_sample.jsonl")
         batch_size = 4
         num_batches = 3
         
@@ -155,7 +155,7 @@ def test_dataloader_functionality():
         from data_processing import SimpleDataLoader, create_data_loaders
         
         # Test individual DataLoader
-        dataset = RubyASTDataset("dataset/train.jsonl")
+        dataset = RubyASTDataset("dataset/samples/train_sample.jsonl")
         loader = SimpleDataLoader(dataset, batch_size=8, shuffle=False)
         
         print(f"   DataLoader created with {len(loader)} batches")
@@ -171,7 +171,7 @@ def test_dataloader_functionality():
                 break
         
         # Test create_data_loaders function
-        train_loader, val_loader = create_data_loaders("dataset/train.jsonl", "dataset/validation.jsonl", batch_size=16)
+        train_loader, val_loader = create_data_loaders("dataset/samples/train_sample.jsonl", "dataset/samples/validation_sample.jsonl", batch_size=16)
         print(f"   Created train loader: {len(train_loader)} batches")
         print(f"   Created val loader: {len(val_loader)} batches")
         
@@ -188,7 +188,7 @@ def test_validation_dataset():
     """Test loading validation dataset."""
     print("\nTesting validation dataset...")
     
-    validation_path = "dataset/validation.jsonl"
+    validation_path = "dataset/samples/validation_sample.jsonl"
     if not os.path.exists(validation_path):
         print(f"❌ Validation file not found: {validation_path}")
         return False
@@ -216,12 +216,12 @@ def main():
     
     tests = [
         test_ast_converter,
-        test_dataset_loading
-        # test_dataset_getitem
-        # test_batch_collation,
-        # test_dataloader_simulation,
-        # test_dataloader_functionality,
-        # test_validation_dataset
+        test_dataset_loading,
+        test_dataset_getitem,
+        test_batch_collation,
+        test_dataloader_simulation,
+        test_dataloader_functionality,
+        test_validation_dataset
     ]
     
     passed = 0
