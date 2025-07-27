@@ -893,19 +893,19 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Standard generation
+  # Enhanced autoregressive generation (default, recommended)
   python generate_code.py "calculate total price with tax"
   python generate_code.py "find user by email address" --method-name find_user
+  python generate_code.py "validate user input" --temperature 0.5 --top-k 3
+  python generate_code.py "process data creatively" --temperature 1.2 --top-k 10
+  python generate_code.py "complex validation method" --max-length 100
   
-  # Enhanced autoregressive generation
-  python generate_code.py "calculate total price with tax" --use-autoregressive
-  python generate_code.py "validate user input" --use-autoregressive --temperature 0.5 --top-k 3
-  python generate_code.py "process data creatively" --use-autoregressive --temperature 1.2 --top-k 10
-  python generate_code.py "complex validation method" --use-autoregressive --max-length 100
+  # Standard generation (not recommended due to known issues)
+  python generate_code.py "calculate total price" --use-standard
   
   # Interactive mode
   python generate_code.py --interactive
-  python generate_code.py --interactive --use-autoregressive
+  python generate_code.py --interactive --temperature 0.8
         """
     )
     
@@ -951,9 +951,9 @@ Examples:
     )
     
     parser.add_argument(
-        '--use-autoregressive',
+        '--use-standard',
         action='store_true',
-        help='Use autoregressive decoder for enhanced generation'
+        help='Use standard one-shot decoder (not recommended due to known issues)'
     )
     
     parser.add_argument(
@@ -984,35 +984,33 @@ Examples:
         parser.error("Either provide a prompt or use --interactive mode")
     
     try:
-        # Initialize code generator based on user preference
-        if args.use_autoregressive:
-            print("🚀 Using Enhanced Autoregressive Code Generator")
-            generator = AutoregressiveCodeGenerator(
-                alignment_model_path=args.alignment_model,
-                autoregressive_decoder_path=args.autoregressive_decoder,
-                code_encoder_path=args.code_encoder
-            )
-        else:
-            print("🚀 Using Standard Code Generator")
+        # Initialize code generator - now using autoregressive by default
+        if args.use_standard:
+            print("⚠️  Using Standard Code Generator (known issues with repetitive output)")
             generator = CodeGenerator(
                 alignment_model_path=args.alignment_model,
                 decoder_model_path=args.decoder_model,
                 code_encoder_path=args.code_encoder
             )
-        
-        # Prepare generation kwargs for autoregressive generator
-        generation_kwargs = {}
-        if args.use_autoregressive:
-            generation_kwargs.update({
+            generation_kwargs = {}  # Standard generator doesn't support extra parameters
+        else:
+            print("🚀 Using Enhanced Autoregressive Code Generator (Recommended)")
+            generator = AutoregressiveCodeGenerator(
+                alignment_model_path=args.alignment_model,
+                autoregressive_decoder_path=args.autoregressive_decoder,
+                code_encoder_path=args.code_encoder
+            )
+            # Prepare generation kwargs for autoregressive generator
+            generation_kwargs = {
                 'max_length': args.max_length,
                 'temperature': args.temperature,
                 'top_k': args.top_k
-            })
+            }
         
         if args.interactive:
             # Interactive mode
             print(f"\n🎨 Interactive Code Generation")
-            if args.use_autoregressive:
+            if not args.use_standard:
                 print("🔥 Enhanced with autoregressive generation controls!")
                 print(f"   Settings: max_length={args.max_length}, temperature={args.temperature}, top_k={args.top_k}")
             print("Type 'quit' or 'exit' to stop")
