@@ -10,6 +10,7 @@ and only trains the decoder weights.
 import sys
 import os
 import time
+import argparse
 import torch
 import torch.nn.functional as F
 from torch_geometric.data import Data
@@ -127,27 +128,57 @@ def save_decoder_weights(model, filepath, epoch, train_loss, val_loss):
     }, filepath)
 
 
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description='Train AST Autoencoder model')
+    parser.add_argument('--dataset_path', type=str, default='dataset/',
+                        help='Path to dataset directory (default: dataset/)')
+    parser.add_argument('--epochs', type=int, default=100,
+                        help='Number of training epochs (default: 100)')
+    parser.add_argument('--output_path', type=str, default='models/best_decoder.pt',
+                        help='Path to save the best decoder model (default: models/best_decoder.pt)')
+    parser.add_argument('--encoder_weights_path', type=str, default='models/best_model.pt',
+                        help='Path to pre-trained encoder weights (default: models/best_model.pt)')
+    parser.add_argument('--batch_size', type=int, default=32,
+                        help='Batch size for training (default: 32)')
+    parser.add_argument('--learning_rate', type=float, default=0.001,
+                        help='Learning rate (default: 0.001)')
+    parser.add_argument('--hidden_dim', type=int, default=64,
+                        help='Hidden dimension size (default: 64)')
+    parser.add_argument('--num_layers', type=int, default=3,
+                        help='Number of GNN layers (default: 3)')
+    parser.add_argument('--conv_type', type=str, default='GCN', choices=['GCN', 'SAGE'],
+                        help='GNN convolution type (default: GCN)')
+    parser.add_argument('--dropout', type=float, default=0.1,
+                        help='Dropout rate (default: 0.1)')
+    return parser.parse_args()
+
+
 def main():
     """Main training function."""
+    args = parse_args()
+    
     print("🚀 AST Autoencoder Training")
     print("=" * 50)
     
-    # Training configuration
+    # Training configuration from args
     config = {
-        'epochs': 100,  # More than 2 epochs as required
-        'batch_size': 32,  # Smaller batch size for autoencoder training
-        'learning_rate': 0.001,
-        'hidden_dim': 64,
-        'num_layers': 3,
-        'conv_type': 'GCN',
-        'dropout': 0.1,
+        'epochs': args.epochs,
+        'batch_size': args.batch_size,
+        'learning_rate': args.learning_rate,
+        'hidden_dim': args.hidden_dim,
+        'num_layers': args.num_layers,
+        'conv_type': args.conv_type,
+        'dropout': args.dropout,
         'freeze_encoder': True,  # Key requirement: freeze encoder
-        'encoder_weights_path': 'models/best_model.pt'  # Pre-trained encoder weights
+        'encoder_weights_path': args.encoder_weights_path
     }
     
     print("📋 Training Configuration:")
     for key, value in config.items():
         print(f"   {key}: {value}")
+    print(f"   dataset_path: {args.dataset_path}")
+    print(f"   output_path: {args.output_path}")
     print()
     
     # Setup device
@@ -156,9 +187,18 @@ def main():
     
     # Create data loaders
     print("📂 Loading datasets...")
+    
+    # Handle sample dataset naming convention
+    if args.dataset_path.rstrip('/').endswith('samples'):
+        train_data_path = os.path.join(args.dataset_path, "train_sample.jsonl")
+        val_data_path = os.path.join(args.dataset_path, "validation_sample.jsonl")
+    else:
+        train_data_path = os.path.join(args.dataset_path, "train.jsonl")
+        val_data_path = os.path.join(args.dataset_path, "validation.jsonl")
+    
     train_loader, val_loader = create_data_loaders(
-        "dataset/train.jsonl",
-        "dataset/validation.jsonl", 
+        train_data_path,
+        val_data_path,
         batch_size=config['batch_size'],
         shuffle=True
     )
@@ -203,6 +243,9 @@ def main():
     print(f"   Input/Target: Same AST graph (autoencoder)")
     print()
     
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
+    
     # Training loop
     print("🏋️  Starting training...")
     print("=" * 50)
@@ -230,7 +273,7 @@ def main():
         # Save best decoder weights (required by Definition of Done)
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            save_decoder_weights(model, 'models/best_decoder.pt', epoch, train_loss, val_loss)
+            save_decoder_weights(model, args.output_path, epoch, train_loss, val_loss)
             print(f"   💾 New best decoder saved (val_loss: {val_loss:.4f})")
     
     total_time = time.time() - start_time
@@ -239,11 +282,12 @@ def main():
     print("🎉 Training completed successfully!")
     print(f"   Total time: {total_time:.2f}s")
     print(f"   Best validation loss: {best_val_loss:.4f}")
-    print(f"   Best decoder weights saved to: models/best_decoder.pt")
+    print(f"   Best decoder weights saved to: {args.output_path}")
     
-    # Final decoder save
-    save_decoder_weights(model, 'models/final_decoder.pt', config['epochs']-1, train_loss, val_loss)
-    print(f"   Final decoder weights saved to: models/final_decoder.pt")
+    # Final decoder save (optional, keeping for compatibility)
+    final_path = args.output_path.replace('.pt', '_final.pt')
+    save_decoder_weights(model, final_path, config['epochs']-1, train_loss, val_loss)
+    print(f"   Final decoder weights saved to: {final_path}")
     
     # Verify training objectives
     print("\n✅ Training Objectives Met:")
@@ -251,7 +295,7 @@ def main():
     print(f"   ✓ Only decoder weights trained (encoder frozen)")
     print(f"   ✓ Used AST reconstruction loss function")
     print(f"   ✓ Input and target are same AST graph")
-    print(f"   ✓ Best decoder weights saved to models/best_decoder.pt")
+    print(f"   ✓ Best decoder weights saved to {args.output_path}")
     if config['epochs'] > 1:
         print(f"   ✓ Training completed successfully over multiple epochs")
 

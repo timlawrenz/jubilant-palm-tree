@@ -82,15 +82,19 @@ This project has been developed through 7 phases, with Phase 7 representing the 
 ```bash
 # Dataset and models
 dataset/                  # 1,896 processed Ruby methods (train/val/test splits)  
+dataset/samples/          # Small sample datasets for fast testing
 src/models.py            # GNN models and autoencoder architecture
 models/best_model.pt            # Pre-trained complexity prediction model
 models/best_decoder.pt          # Trained AST reconstruction decoder
 models/best_alignment_model.pt  # Trained text-code alignment model
+models/samples/                 # Lightweight sample models for testing
 
 # Training and evaluation
 train.py                 # GNN complexity prediction training
 train_autoencoder.py     # AST autoencoder training
 train_alignment.py       # Text-code alignment training
+train_autoregressive.py  # Autoregressive AST decoder training
+scripts/train_sample_models.sh  # Create sample models for fast testing
 evaluate_autoencoder_optimized.py  # Large-scale evaluation
 
 # Code generation tools
@@ -117,6 +121,36 @@ autoencoder = ASTAutoencoder(
 result = autoencoder(ast_data)
 embedding = result['embedding']           # 64-dimensional representation
 reconstruction = result['reconstruction'] # Reconstructed AST
+```
+
+### Sample Models for Testing
+
+For fast testing and development, lightweight sample models can be trained using minimal data:
+
+```bash
+# Train all sample models at once (fast, 1 epoch each)
+./scripts/train_sample_models.sh
+
+# Generated sample models in models/samples/:
+# - best_model.pt                    (complexity prediction)
+# - best_decoder.pt                  (AST autoencoder)
+# - best_alignment_model.pt          (text-code alignment)
+# - best_autoregressive_decoder.pt   (autoregressive decoder)
+```
+
+**Use Cases for Sample Models:**
+- **Unit Testing**: Fast model loading and inference testing
+- **CI/CD Pipelines**: Lightweight validation without full model training
+- **Development**: Quick iteration and debugging
+- **Integration Testing**: End-to-end pipeline validation
+
+**Training Individual Sample Models:**
+```bash
+# Train individual models with custom parameters
+python train.py --dataset_path dataset/samples/ --epochs 1 --output_path models/samples/test_model.pt
+python train_autoencoder.py --dataset_path dataset/samples/ --epochs 1 --output_path models/samples/test_decoder.pt
+python train_alignment.py --dataset_path dataset/samples/ --epochs 1 --output_path models/samples/test_alignment.pt
+python train_autoregressive.py --dataset_path dataset/samples/ --epochs 1 --output_path models/samples/test_autoregressive.pt
 ```
 
 ### Text-to-Code Generation
