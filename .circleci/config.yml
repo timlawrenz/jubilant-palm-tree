@@ -1,0 +1,55 @@
+# .circleci/config.yml
+version: 2.1
+
+# Orbs are reusable packages of CircleCI configuration.
+orbs:
+  python: circleci/python@2.1.1
+  ruby: circleci/ruby@2.0.1
+
+# Jobs define the specific tasks to be executed.
+jobs:
+  test_python:
+    executor: python/default
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-pip-{{ checksum "requirements.txt" }}
+            - v1-pip-
+      - run:
+          name: "Create Virtual Environment"
+          command: python3 -m venv .venv
+      - run:
+          name: "Install Python Dependencies"
+          command: |
+            . .venv/bin/activate
+            pip install -r requirements.txt
+      - save_cache:
+          key: v1-pip-{{ checksum "requirements.txt" }}
+          paths:
+            - ".venv"
+      - run:
+          name: "Run Core Python Tests"
+          command: |
+            . .venv/bin/activate
+            python test_dataset.py
+            python test_autoencoder.py
+            python test_alignment_model.py
+
+  test_ruby:
+    executor: ruby/default
+    steps:
+      - checkout
+      - ruby/install-deps # This handles caching automatically
+      - run:
+          name: "Run Core Ruby Tests"
+          command: bundle exec ruby test-ruby-setup.rb
+
+# Workflows orchestrate the execution of jobs.
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      # These two jobs will run in parallel for fast feedback.
+      - test_python
+      - test_ruby
