@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 
 # Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from models import AlignmentModel
 from data_processing import create_autoregressive_data_loader
@@ -117,7 +117,7 @@ def demonstrate_dataloader_optimizations():
     try:
         # Test the optimized data loader
         loader = create_autoregressive_data_loader(
-            "dataset/train_paired_data.jsonl",
+            "../dataset/train_paired_data.jsonl",
             batch_size=32,
             shuffle=True,
             max_sequence_length=20,

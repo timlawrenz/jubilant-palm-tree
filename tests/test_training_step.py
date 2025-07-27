@@ -10,7 +10,7 @@ import torch
 from torch_geometric.data import Data
 
 # Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from data_processing import create_data_loaders
 from models import ASTAutoencoder
@@ -28,8 +28,8 @@ def test_training_step():
     # Create small data loaders for quick testing
     try:
         train_loader, _ = create_data_loaders(
-            "dataset/train.jsonl",
-            "dataset/validation.jsonl", 
+            "../dataset/train.jsonl",
+            "../dataset/validation.jsonl", 
             batch_size=2,  # Small batch size
             shuffle=True
         )

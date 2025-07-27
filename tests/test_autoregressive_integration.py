@@ -11,7 +11,7 @@ import os
 import traceback
 
 # Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 try:
     from data_processing import create_autoregressive_data_loader
@@ -34,7 +34,7 @@ def test_autoregressive_with_text_encoder():
     try:
         # Create autoregressive data loader
         loader = create_autoregressive_data_loader(
-            "dataset/paired_data.jsonl",
+            "../dataset/paired_data.jsonl",
             batch_size=2,
             max_sequence_length=5,
             seed=42
@@ -77,7 +77,7 @@ def test_data_format_compatibility():
     
     try:
         loader = create_autoregressive_data_loader(
-            "dataset/paired_data.jsonl",
+            "../dataset/paired_data.jsonl",
             batch_size=1,
             max_sequence_length=3,
             seed=42
@@ -121,7 +121,7 @@ def test_sequence_causality():
     
     try:
         loader = create_autoregressive_data_loader(
-            "dataset/paired_data.jsonl",
+            "../dataset/paired_data.jsonl",
             batch_size=10,
             max_sequence_length=5,
             seed=42

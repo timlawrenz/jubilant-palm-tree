@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch_geometric.data import Data, Batch
 
 # Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from data_processing import RubyASTDataset, create_data_loaders
 from models import RubyComplexityGNN
@@ -63,8 +63,8 @@ def demonstrate_batch_processing():
     
     # Create data loaders as defined in Ticket 6
     train_loader, val_loader = create_data_loaders(
-        "dataset/train.jsonl", 
-        "dataset/validation.jsonl", 
+        "../dataset/train.jsonl", 
+        "../dataset/validation.jsonl", 
         batch_size=8
     )
     
@@ -136,8 +136,8 @@ def demonstrate_training_setup():
     
     # Create data loaders
     train_loader, val_loader = create_data_loaders(
-        "dataset/train.jsonl", 
-        "dataset/validation.jsonl", 
+        "../dataset/train.jsonl", 
+        "../dataset/validation.jsonl", 
         batch_size=32
     )
     
@@ -198,7 +198,7 @@ def demonstrate_model_flexibility():
     ]
     
     # Load a sample for testing
-    dataset = RubyASTDataset("dataset/train.jsonl")
+    dataset = RubyASTDataset("../dataset/train.jsonl")
     sample = dataset[0]
     x = torch.tensor(sample['x'], dtype=torch.float)
     edge_index = torch.tensor(sample['edge_index'], dtype=torch.long)

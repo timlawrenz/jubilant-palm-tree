@@ -10,7 +10,7 @@ import sys
 import os
 
 # Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from data_processing import (
     RubyASTDataset, 
@@ -26,7 +26,7 @@ def example_basic_usage():
     print("-" * 40)
     
     # Load a dataset
-    dataset = RubyASTDataset("dataset/train.jsonl")
+    dataset = RubyASTDataset("../dataset/train.jsonl")
     print(f"Dataset size: {len(dataset)}")
     print(f"Feature dimension: {dataset.get_feature_dim()}")
     
@@ -54,8 +54,8 @@ def example_dataloader_usage():
     
     # Create data loaders
     train_loader, val_loader = create_data_loaders(
-        "dataset/train.jsonl", 
-        "dataset/validation.jsonl", 
+        "../dataset/train.jsonl", 
+        "../dataset/validation.jsonl", 
         batch_size=8
     )
     
@@ -107,7 +107,7 @@ def example_pytorch_compatibility():
     print("\n🔥 PyTorch Compatibility Example")
     print("-" * 40)
     
-    dataset = RubyASTDataset("dataset/train.jsonl")
+    dataset = RubyASTDataset("../dataset/train.jsonl")
     sample = dataset[0]
     
     print("Converting to PyTorch tensors (when available):")
@@ -141,8 +141,8 @@ def example_training_preparation():
     
     # Create loaders
     train_loader, val_loader = create_data_loaders(
-        "dataset/train.jsonl",
-        "dataset/validation.jsonl", 
+        "../dataset/train.jsonl",
+        "../dataset/validation.jsonl", 
         batch_size=16
     )
     

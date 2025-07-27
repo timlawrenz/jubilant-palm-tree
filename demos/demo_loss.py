@@ -12,7 +12,7 @@ import torch
 from torch_geometric.data import Data
 
 # Add src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from data_processing import RubyASTDataset, create_data_loaders
 from models import ASTAutoencoder
@@ -25,7 +25,7 @@ def demonstrate_loss_usage():
     print("=" * 50)
     
     # Load sample data
-    dataset = RubyASTDataset("dataset/train.jsonl")
+    dataset = RubyASTDataset("../dataset/train.jsonl")
     sample = dataset[0]
     
     # Convert to PyTorch format
@@ -89,8 +89,8 @@ def demonstrate_batch_training():
     
     # Create data loaders
     train_loader, _ = create_data_loaders(
-        "dataset/train.jsonl", 
-        "dataset/validation.jsonl", 
+        "../dataset/train.jsonl", 
+        "../dataset/validation.jsonl", 
         batch_size=4
     )
     
@@ -134,7 +134,7 @@ def show_loss_components():
     print("-" * 30)
     
     # Load sample data
-    dataset = RubyASTDataset("dataset/train.jsonl")
+    dataset = RubyASTDataset("../dataset/train.jsonl")
     sample = dataset[0]
     
     # Convert to PyTorch format
