@@ -183,8 +183,14 @@ def main():
     
     # Create data loaders
     print("📂 Loading datasets...")
-    train_data_path = os.path.join(args.dataset_path, "train.jsonl")
-    val_data_path = os.path.join(args.dataset_path, "validation.jsonl")
+    
+    # Handle sample dataset naming convention
+    if args.dataset_path.rstrip('/').endswith('samples'):
+        train_data_path = os.path.join(args.dataset_path, "train_sample.jsonl")
+        val_data_path = os.path.join(args.dataset_path, "validation_sample.jsonl")
+    else:
+        train_data_path = os.path.join(args.dataset_path, "train.jsonl")
+        val_data_path = os.path.join(args.dataset_path, "validation.jsonl")
     
     train_loader, val_loader = create_data_loaders(
         train_data_path,
