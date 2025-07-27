@@ -213,8 +213,8 @@ def test_with_real_data():
         # Try to load real data
         try:
             train_loader, _ = create_data_loaders(
-                train_path="dataset/train.jsonl",
-                val_path="dataset/validation.jsonl",
+                train_path="dataset/samples/train_sample.jsonl",
+                val_path="dataset/samples/validation_sample.jsonl",
                 batch_size=2,
                 shuffle=False
             )
