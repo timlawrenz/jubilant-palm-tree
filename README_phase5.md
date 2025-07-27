@@ -77,7 +77,7 @@ from torch_geometric.data import Data
 model = AlignmentModel(
     input_dim=74,  # Node feature dimension from dataset
     hidden_dim=64,
-    code_encoder_weights_path="best_model.pt"  # Optional pre-trained weights
+    code_encoder_weights_path="models/best_model.pt"  # Optional pre-trained weights
 )
 
 # Forward pass
@@ -587,11 +587,11 @@ import torch
 model = AlignmentModel(
     input_dim=74,
     hidden_dim=64,
-    code_encoder_weights_path="best_model.pt"
+    code_encoder_weights_path="models/best_model.pt"
 )
 
 # Load trained alignment weights
-checkpoint = torch.load("best_alignment_model.pt")
+checkpoint = torch.load("models/best_alignment_model.pt")
 model.load_state_dict(checkpoint['model_state_dict'])
 
 # Encode code and text
@@ -628,8 +628,8 @@ The alignment training implementation satisfies all requirements:
 
 ### Output Files
 
-- `best_alignment_model.pt`: Best model weights based on validation loss
-- `demo_alignment_model.pt`: Demo training results for testing
+- `models/best_alignment_model.pt`: Best model weights based on validation loss
+- `models/demo_alignment_model.pt`: Demo training results for testing
 - Training logs with epoch-by-epoch loss progression and metrics
 
 Phase 5 alignment training implementation is complete and ready for production use.

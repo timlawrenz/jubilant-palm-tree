@@ -193,8 +193,8 @@ notebooks/
 └── ...
 
 # Model checkpoints
-best_decoder.pt             # Trained decoder weights
-final_decoder.pt           # Final training state
+models/best_decoder.pt             # Trained decoder weights
+models/final_decoder.pt           # Final training state
 ```
 
 ## Key Achievements
