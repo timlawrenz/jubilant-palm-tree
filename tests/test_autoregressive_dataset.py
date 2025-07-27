@@ -22,12 +22,18 @@ from data_processing import (
     create_autoregressive_data_loader
 )
 
+# Helper function to get dataset paths relative to this script
+def get_dataset_path(relative_path):
+    """Get dataset path relative to this script location."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, relative_path)
+
 
 def test_autoregressive_dataset_loading():
     """Test loading the autoregressive dataset."""
     print("Testing autoregressive dataset loading...")
     
-    dataset_path = "../dataset/paired_data.jsonl"
+    dataset_path = get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl")
     if not os.path.exists(dataset_path):
         print(f"❌ Dataset file not found: {dataset_path}")
         return False
@@ -50,7 +56,7 @@ def test_autoregressive_dataset_item_access():
     """Test accessing items from the autoregressive dataset."""
     print("\nTesting autoregressive dataset item access...")
     
-    dataset_path = "../dataset/paired_data.jsonl"
+    dataset_path = get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl")
     if not os.path.exists(dataset_path):
         print(f"❌ Dataset file not found: {dataset_path}")
         return False
@@ -89,7 +95,7 @@ def test_autoregressive_batch_collation():
     """Test collating autoregressive data into batches."""
     print("\nTesting autoregressive batch collation...")
     
-    dataset_path = "../dataset/paired_data.jsonl"
+    dataset_path = get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl")
     if not os.path.exists(dataset_path):
         print(f"❌ Dataset file not found: {dataset_path}")
         return False
@@ -123,7 +129,7 @@ def test_autoregressive_data_loader():
     """Test the AutoregressiveDataLoader functionality."""
     print("\nTesting AutoregressiveDataLoader functionality...")
     
-    dataset_path = "../dataset/paired_data.jsonl"
+    dataset_path = get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl")
     if not os.path.exists(dataset_path):
         print(f"❌ Dataset file not found: {dataset_path}")
         return False
@@ -164,7 +170,7 @@ def test_sequential_progression():
     """Test that sequences progress correctly for a single method."""
     print("\nTesting sequential progression for single method...")
     
-    dataset_path = "../dataset/paired_data.jsonl"
+    dataset_path = get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl")
     if not os.path.exists(dataset_path):
         print(f"❌ Dataset file not found: {dataset_path}")
         return False
