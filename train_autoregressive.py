@@ -399,7 +399,7 @@ def train_autoregressive_decoder():
     try:
         train_loader = create_autoregressive_data_loader(
             "dataset/train_paired_data.jsonl", 
-            batch_size=8, 
+            batch_size=256, 
             shuffle=True,
             max_sequence_length=30,  # Limit sequence length for training stability
             seed=42
@@ -407,7 +407,7 @@ def train_autoregressive_decoder():
         
         val_loader = create_autoregressive_data_loader(
             "dataset/validation_paired_data.jsonl", 
-            batch_size=8, 
+            batch_size=256,
             shuffle=False,
             max_sequence_length=30,
             seed=42
