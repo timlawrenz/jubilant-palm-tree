@@ -173,6 +173,24 @@ print(ruby_code)
 
 ## Development Setup
 
+### Sample Data for Testing and CI
+
+For development and CI/CD environments where the full LFS-managed dataset files are not available, you can generate small sample datasets that are checked directly into the repository.
+
+```bash
+# Generate sample datasets (first 20 lines from each dataset file)
+./scripts/create_sample_datasets.sh
+```
+
+This script creates the `dataset/samples/` directory and generates five sample files:
+- `train_sample.jsonl`
+- `validation_sample.jsonl` 
+- `test_sample.jsonl`
+- `train_paired_data_sample.jsonl`
+- `validation_paired_data_sample.jsonl`
+
+These sample files are used for testing and CI environments where quick test execution is needed without downloading the full dataset.
+
 ### Ruby Dependencies (Required for AST processing)
 
 **Quick Setup for Copilot Agents:**
