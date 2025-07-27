@@ -221,8 +221,14 @@ def main():
     patience = args.patience
     
     # Data paths
-    train_data_path = os.path.join(args.dataset_path, "train_paired_data.jsonl")
-    val_data_path = os.path.join(args.dataset_path, "validation_paired_data.jsonl")
+    # Handle sample dataset naming convention
+    if args.dataset_path.rstrip('/').endswith('samples'):
+        train_data_path = os.path.join(args.dataset_path, "train_paired_data_sample.jsonl")
+        val_data_path = os.path.join(args.dataset_path, "validation_paired_data_sample.jsonl")
+    else:
+        train_data_path = os.path.join(args.dataset_path, "train_paired_data.jsonl")
+        val_data_path = os.path.join(args.dataset_path, "validation_paired_data.jsonl")
+    
     code_encoder_weights_path = args.code_encoder_weights_path
     output_path = args.output_path
     

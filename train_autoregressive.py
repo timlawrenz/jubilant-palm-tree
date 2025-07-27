@@ -493,8 +493,13 @@ def train_autoregressive_decoder(args=None):
         # Use pre-computed embeddings for significant speedup
         embeddings_path = "output/text_embeddings.pt"
         
-        train_data_path = os.path.join(args.dataset_path, "train_paired_data.jsonl")
-        val_data_path = os.path.join(args.dataset_path, "validation_paired_data.jsonl")
+        # Handle sample dataset naming convention
+        if args.dataset_path.rstrip('/').endswith('samples'):
+            train_data_path = os.path.join(args.dataset_path, "train_paired_data_sample.jsonl")
+            val_data_path = os.path.join(args.dataset_path, "validation_paired_data_sample.jsonl")
+        else:
+            train_data_path = os.path.join(args.dataset_path, "train_paired_data.jsonl")
+            val_data_path = os.path.join(args.dataset_path, "validation_paired_data.jsonl")
         
         train_loader = create_autoregressive_data_loader(
             train_data_path, 
