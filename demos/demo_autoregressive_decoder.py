@@ -6,9 +6,15 @@ This script demonstrates the key features of the Phase 7 AutoregressiveASTDecode
 including different sequence models, partial graph processing, and sequential generation.
 """
 
+import sys
+import os
 import torch
-from src.models import AutoregressiveASTDecoder
-from src.data_processing import create_autoregressive_data_loader
+
+# Add src directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
+
+from models import AutoregressiveASTDecoder
+from data_processing import create_autoregressive_data_loader
 
 def main():
     """Demonstrate AutoregressiveASTDecoder functionality."""

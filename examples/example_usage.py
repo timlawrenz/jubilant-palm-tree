@@ -19,6 +19,12 @@ from data_processing import (
     ASTGraphConverter
 )
 
+# Helper function to get dataset paths relative to this script
+def get_dataset_path(relative_path):
+    """Get dataset path relative to this script location."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, relative_path)
+
 
 def example_basic_usage():
     """Demonstrate basic dataset usage."""
@@ -26,7 +32,7 @@ def example_basic_usage():
     print("-" * 40)
     
     # Load a dataset
-    dataset = RubyASTDataset("../dataset/train.jsonl")
+    dataset = RubyASTDataset(get_dataset_path("../dataset/samples/train_sample.jsonl"))
     print(f"Dataset size: {len(dataset)}")
     print(f"Feature dimension: {dataset.get_feature_dim()}")
     
@@ -54,8 +60,8 @@ def example_dataloader_usage():
     
     # Create data loaders
     train_loader, val_loader = create_data_loaders(
-        "../dataset/train.jsonl", 
-        "../dataset/validation.jsonl", 
+        get_dataset_path("../dataset/samples/train_sample.jsonl"), 
+        get_dataset_path("../dataset/samples/validation_sample.jsonl"), 
         batch_size=8
     )
     
@@ -107,7 +113,7 @@ def example_pytorch_compatibility():
     print("\n🔥 PyTorch Compatibility Example")
     print("-" * 40)
     
-    dataset = RubyASTDataset("../dataset/train.jsonl")
+    dataset = RubyASTDataset(get_dataset_path("../dataset/samples/train_sample.jsonl"))
     sample = dataset[0]
     
     print("Converting to PyTorch tensors (when available):")
@@ -141,8 +147,8 @@ def example_training_preparation():
     
     # Create loaders
     train_loader, val_loader = create_data_loaders(
-        "../dataset/train.jsonl",
-        "../dataset/validation.jsonl", 
+        get_dataset_path("../dataset/samples/train_sample.jsonl"),
+        get_dataset_path("../dataset/samples/validation_sample.jsonl"), 
         batch_size=16
     )
     
