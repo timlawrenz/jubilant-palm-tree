@@ -195,7 +195,7 @@ The decoder limitation stems from the training approach:
 ### System Requirements
 - **Python Environment**: PyTorch, SentenceTransformers, model dependencies
 - **Ruby Environment**: Parser gem for AST processing and pretty printing
-- **Model Files**: `best_alignment_model.pt`, `best_decoder.pt`, `best_model.pt`
+- **Model Files**: `models/best_alignment_model.pt`, `models/best_decoder.pt`, `models/best_model.pt`
 
 ### Code Generation Tools
 - **AST Processing**: `scripts/pretty_print_ast.rb` for JSON-to-Ruby conversion
@@ -240,8 +240,8 @@ python generate_code.py --interactive
 
 # Custom model paths
 python generate_code.py "description" \
-  --alignment-model custom_alignment.pt \
-  --decoder-model custom_decoder.pt
+  --alignment-model models/custom_alignment.pt \
+  --decoder-model models/custom_decoder.pt
 ```
 
 ### Integration in Python Code

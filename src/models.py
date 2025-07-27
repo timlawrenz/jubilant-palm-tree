@@ -661,7 +661,7 @@ class AlignmentModel(torch.nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int = 64, num_layers: int = 3,
                  conv_type: str = 'GCN', dropout: float = 0.1,
                  text_model_name: str = 'all-MiniLM-L6-v2',
-                 code_encoder_weights_path: str = 'best_encoder_model.pt'):
+                 code_encoder_weights_path: str = 'models/best_encoder_model.pt'):
         """
         Initialize the alignment model.
         
@@ -672,7 +672,7 @@ class AlignmentModel(torch.nn.Module):
             conv_type: Type of convolution for code encoder ('GCN' or 'SAGE')
             dropout: Dropout rate for code encoder
             text_model_name: Name of the sentence-transformers model to use
-            code_encoder_weights_path: Path to pre-trained code encoder weights (default: 'best_encoder_model.pt')
+            code_encoder_weights_path: Path to pre-trained code encoder weights (default: 'models/best_encoder_model.pt')
         """
         super().__init__()
         

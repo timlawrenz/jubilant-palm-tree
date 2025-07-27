@@ -33,8 +33,8 @@ from models import AutoregressiveASTDecoder, AlignmentModel
 from data_processing import create_autoregressive_data_loader
 
 
-def load_alignment_model(model_path: str = "best_alignment_model.pt", 
-                        code_encoder_path: str = "best_model.pt", 
+def load_alignment_model(model_path: str = "models/best_alignment_model.pt", 
+                        code_encoder_path: str = "models/best_model.pt", 
                         device: torch.device = None) -> AlignmentModel:
     """
     Load the pre-trained AlignmentModel.

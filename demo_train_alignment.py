@@ -35,7 +35,7 @@ def demo_alignment_training():
     
     # Data paths
     train_data_path = "dataset/train_paired_data.jsonl"
-    code_encoder_weights_path = "best_model.pt"
+    code_encoder_weights_path = "models/best_model.pt"
     
     # Device configuration
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -170,7 +170,7 @@ def demo_alignment_training():
         print(f"  Epoch {i+1:2d}: {loss:.4f}")
     
     # Save demo model
-    demo_output_path = "demo_alignment_model.pt"
+    demo_output_path = "models/demo_alignment_model.pt"
     checkpoint = {
         'epoch': num_epochs,
         'model_state_dict': model.state_dict(),
