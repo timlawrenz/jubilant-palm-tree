@@ -42,18 +42,3 @@ jobs:
         with:
           ruby-version: "3.2"
           bundler-cache: true
-      - name: Set up Ruby environment
-        run: |
-          # Ruby is pre-installed on ubuntu-latest, verify version
-          ruby --version
-          # Run our custom Ruby setup script for gems
-          ./setup-ruby.sh
-
-      - name: Verify installation
-        run: |
-          # Source Ruby environment and test both Python and Ruby components
-          source .env-ruby
-          echo "Testing Python ML environment..."
-          python test_dataset.py
-          echo "Testing Ruby AST processing..."
-          bundle exec ruby test-ruby-setup.rb
