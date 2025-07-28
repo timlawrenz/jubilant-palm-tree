@@ -233,9 +233,9 @@ def generate_ast_autoregressive(model, text_embedding, max_length=50,
 class CodeGenerator:
     """Main code generation class."""
     
-    def __init__(self, alignment_model_path="models/best_alignment_model.pt", 
-                 decoder_model_path="models/best_decoder.pt",
-                 code_encoder_path="models/best_model.pt"):
+    def __init__(self, alignment_model_path="models/samples/best_alignment_model.pt", 
+                 decoder_model_path="models/samples/best_decoder.pt",
+                 code_encoder_path="models/samples/best_model.pt"):
         """
         Initialize the code generator.
         
@@ -503,7 +503,7 @@ class CodeGenerator:
             # Call Ruby pretty printer
             result = subprocess.run([
                 'bundle', 'exec', 'ruby', 'scripts/pretty_print_ast.rb', temp_file
-            ], capture_output=True, text=True, env=ruby_env, cwd=os.path.dirname(__file__))
+            ], capture_output=True, text=True, env=ruby_env, cwd=os.path.dirname(os.path.abspath(__file__)) or os.getcwd())
             
             # Clean up temp file
             os.unlink(temp_file)
@@ -568,9 +568,9 @@ class CodeGenerator:
 class AutoregressiveCodeGenerator:
     """Enhanced code generator using autoregressive AST decoder."""
     
-    def __init__(self, alignment_model_path="models/best_alignment_model.pt", 
-                 autoregressive_decoder_path="best_autoregressive_decoder.pt",
-                 code_encoder_path="models/best_model.pt"):
+    def __init__(self, alignment_model_path="models/samples/best_alignment_model.pt", 
+                 autoregressive_decoder_path="models/samples/best_autoregressive_decoder.pt",
+                 code_encoder_path="models/samples/best_model.pt"):
         """
         Initialize the autoregressive code generator.
         
@@ -754,7 +754,7 @@ class AutoregressiveCodeGenerator:
             
             # Fallback: if no valid parent connection, attach to the previous node
             if parent_idx is None and i > 0:
-                parent_idx = i - 1
+                parent_idx = 0  # Attach to root to avoid linear chain
             
             # Add current node to parent's children
             if parent_idx is not None and 0 <= parent_idx < len(node_objects):
@@ -844,7 +844,7 @@ class AutoregressiveCodeGenerator:
             # Call Ruby pretty printer
             result = subprocess.run([
                 'bundle', 'exec', 'ruby', 'scripts/pretty_print_ast.rb', temp_file
-            ], capture_output=True, text=True, env=ruby_env, cwd=os.path.dirname(__file__))
+            ], capture_output=True, text=True, env=ruby_env, cwd=os.path.dirname(os.path.abspath(__file__)) or os.getcwd())
             
             # Clean up temp file
             os.unlink(temp_file)
@@ -964,26 +964,26 @@ Examples:
     
     parser.add_argument(
         '--alignment-model',
-        default='models/best_alignment_model.pt',
-        help='Path to trained AlignmentModel (default: models/best_alignment_model.pt)'
+        default='models/samples/best_alignment_model.pt',
+        help='Path to trained AlignmentModel (default: models/samples/best_alignment_model.pt)'
     )
     
     parser.add_argument(
         '--decoder-model',
-        default='models/best_decoder.pt',
-        help='Path to trained ASTDecoder (default: models/best_decoder.pt)'
+        default='models/samples/best_decoder.pt',
+        help='Path to trained ASTDecoder (default: models/samples/best_decoder.pt)'
     )
     
     parser.add_argument(
         '--autoregressive-decoder',
-        default='best_autoregressive_decoder.pt',
-        help='Path to trained AutoregressiveASTDecoder (default: best_autoregressive_decoder.pt)'
+        default='models/samples/best_autoregressive_decoder.pt',
+        help='Path to trained AutoregressiveASTDecoder (default: models/samples/best_autoregressive_decoder.pt)'
     )
     
     parser.add_argument(
         '--code-encoder',
-        default='models/best_model.pt',
-        help='Path to trained code encoder (default: models/best_model.pt)'
+        default='models/samples/best_model.pt',
+        help='Path to trained code encoder (default: models/samples/best_model.pt)'
     )
     
     parser.add_argument(
