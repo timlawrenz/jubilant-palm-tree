@@ -39,7 +39,7 @@ def load_best_model(model_path: str, device: torch.device) -> RubyComplexityGNN:
         raise FileNotFoundError(f"Model file not found: {model_path}")
     
     # Load checkpoint
-    checkpoint = torch.load(model_path, map_location=device)
+    checkpoint = torch.load(model_path, map_location=device, weights_only=True)
     
     # Extract model configuration
     config = checkpoint['model_config']

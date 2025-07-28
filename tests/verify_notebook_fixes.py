@@ -136,7 +136,7 @@ def main():
         )
         
         # Load decoder
-        checkpoint = torch.load("../models/best_decoder.pt", map_location='cpu')
+        checkpoint = torch.load("../models/best_decoder.pt", map_location='cpu', weights_only=True)
         if 'decoder_state_dict' in checkpoint:
             autoencoder.decoder.load_state_dict(checkpoint['decoder_state_dict'])
         else:

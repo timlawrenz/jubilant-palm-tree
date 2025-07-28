@@ -111,7 +111,7 @@ The project uses lightweight sample datasets and models for fast testing and con
 - **Sample Datasets**: Located in `dataset/samples/`, contain 20 representative examples each
 - **Sample Models**: Located in `models/samples/`, are lightweight versions of trained models  
 - **CI Strategy**: CircleCI runs tests using only sample data, avoiding large file downloads
-- **Test Coverage**: Core functionality tested with organized test files in `tests/` directory
+- **Test Coverage**: All test files matching `tests/test_*.py` are executed in CI for comprehensive coverage
 
 ### Project Organization
 
@@ -125,6 +125,13 @@ examples/       # Usage examples (example_*.py)
 
 To run the full test suite locally:
 ```bash
+# Run all test files (all files matching tests/test_*.py are executed in CI)
+for test_file in tests/test_*.py; do
+  echo "Running $test_file"
+  python "$test_file"
+done
+
+# Or run individual tests:
 python tests/test_dataset.py      # Tests data loading and processing
 python tests/test_autoencoder.py  # Tests AST autoencoder functionality  
 python tests/test_alignment_model.py  # Tests text-code alignment

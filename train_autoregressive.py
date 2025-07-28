@@ -83,7 +83,7 @@ def load_alignment_model(model_path: str = "models/best_alignment_model.pt",
     
     # Load trained weights
     try:
-        checkpoint = torch.load(model_path, map_location=device)
+        checkpoint = torch.load(model_path, map_location=device, weights_only=True)
         alignment_model.load_state_dict(checkpoint['model_state_dict'])
         alignment_model.eval()
         print(f"✅ AlignmentModel loaded from {model_path}")
