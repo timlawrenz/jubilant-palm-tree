@@ -17,12 +17,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from data_processing import PairedDataset, PairedDataLoader, collate_paired_data, create_paired_data_loaders
 
+# Helper function to get dataset paths relative to this script
+def get_dataset_path(relative_path):
+    """Get dataset path relative to this script location."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, relative_path)
+
 
 def test_paired_dataset_loading():
     """Test loading the paired dataset from paired_data.jsonl."""
     print("Testing paired dataset loading...")
     
-    dataset_path = "../dataset/paired_data.jsonl"
+    dataset_path = get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl")
     if not os.path.exists(dataset_path):
         print(f"❌ Paired dataset file not found: {dataset_path}")
         return False
@@ -44,7 +50,7 @@ def test_paired_dataset_item_access():
     """Test accessing items from the paired dataset."""
     print("\nTesting paired dataset item access...")
     
-    dataset_path = "../dataset/paired_data.jsonl"
+    dataset_path = get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl")
     if not os.path.exists(dataset_path):
         print(f"❌ Paired dataset file not found: {dataset_path}")
         return False
@@ -80,7 +86,7 @@ def test_paired_batch_collation():
     """Test collating paired data into batches."""
     print("\nTesting paired batch collation...")
     
-    dataset_path = "../dataset/paired_data.jsonl"
+    dataset_path = get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl")
     if not os.path.exists(dataset_path):
         print(f"❌ Paired dataset file not found: {dataset_path}")
         return False
@@ -111,7 +117,7 @@ def test_paired_data_loader():
     """Test the PairedDataLoader functionality."""
     print("\nTesting PairedDataLoader functionality...")
     
-    dataset_path = "../dataset/paired_data.jsonl"
+    dataset_path = get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl")
     if not os.path.exists(dataset_path):
         print(f"❌ Paired dataset file not found: {dataset_path}")
         return False
@@ -145,7 +151,7 @@ def test_description_variety():
     """Test that different description sources are being sampled."""
     print("\nTesting description variety...")
     
-    dataset_path = "../dataset/paired_data.jsonl"
+    dataset_path = get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl")
     if not os.path.exists(dataset_path):
         print(f"❌ Paired dataset file not found: {dataset_path}")
         return False

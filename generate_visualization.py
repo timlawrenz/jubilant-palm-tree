@@ -22,7 +22,7 @@ from models import RubyComplexityGNN
 
 def load_model(model_path: str, device: torch.device) -> RubyComplexityGNN:
     """Load the trained model."""
-    checkpoint = torch.load(model_path, map_location=device)
+    checkpoint = torch.load(model_path, map_location=device, weights_only=True)
     config = checkpoint['model_config']
     
     model = RubyComplexityGNN(
