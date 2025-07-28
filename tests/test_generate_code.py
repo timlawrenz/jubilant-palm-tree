@@ -8,6 +8,9 @@ import sys
 import os
 import tempfile
 
+# Get the project root directory (parent of tests directory)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 def test_basic_generation():
     """Test basic code generation."""
     print("🔍 Testing Basic Code Generation")
@@ -16,7 +19,7 @@ def test_basic_generation():
     try:
         result = subprocess.run([
             'python', 'generate_code.py', 'calculate sum of two numbers'
-        ], capture_output=True, text=True, cwd='/home/runner/work/jubilant-palm-tree/jubilant-palm-tree',
+        ], capture_output=True, text=True, cwd=PROJECT_ROOT,
         env=dict(os.environ, **{
             'PATH': '/home/runner/.local/share/gem/ruby/3.2.0/bin:' + os.environ.get('PATH', ''),
             'GEM_PATH': '/home/runner/.local/share/gem/ruby/3.2.0:' + os.environ.get('GEM_PATH', '')
@@ -72,7 +75,7 @@ def test_help_command():
     try:
         result = subprocess.run([
             'python', 'generate_code.py', '--help'
-        ], capture_output=True, text=True, cwd='/home/runner/work/jubilant-palm-tree/jubilant-palm-tree')
+        ], capture_output=True, text=True, cwd=PROJECT_ROOT)
         
         if result.returncode == 0 and "Generate Ruby code from natural language" in result.stdout:
             print("✅ Help command works correctly")
@@ -93,7 +96,7 @@ def test_standard_generator_flag():
     try:
         result = subprocess.run([
             'python', 'generate_code.py', 'simple test', '--use-standard'
-        ], capture_output=True, text=True, cwd='/home/runner/work/jubilant-palm-tree/jubilant-palm-tree',
+        ], capture_output=True, text=True, cwd=PROJECT_ROOT,
         env=dict(os.environ, **{
             'PATH': '/home/runner/.local/share/gem/ruby/3.2.0/bin:' + os.environ.get('PATH', ''),
             'GEM_PATH': '/home/runner/.local/share/gem/ruby/3.2.0:' + os.environ.get('GEM_PATH', '')
@@ -126,7 +129,7 @@ def test_method_name_override():
     try:
         result = subprocess.run([
             'python', 'generate_code.py', 'get user data', '--method-name', 'fetch_user'
-        ], capture_output=True, text=True, cwd='/home/runner/work/jubilant-palm-tree/jubilant-palm-tree',
+        ], capture_output=True, text=True, cwd=PROJECT_ROOT,
         env=dict(os.environ, **{
             'PATH': '/home/runner/.local/share/gem/ruby/3.2.0/bin:' + os.environ.get('PATH', ''),
             'GEM_PATH': '/home/runner/.local/share/gem/ruby/3.2.0:' + os.environ.get('GEM_PATH', '')
