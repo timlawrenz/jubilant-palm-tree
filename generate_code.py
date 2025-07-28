@@ -273,9 +273,18 @@ class CodeGenerator:
             code_encoder_weights_path=code_encoder_path
         )
         
-        # Load trained weights
-        checkpoint = torch.load(model_path, map_location=self.device)
-        alignment_model.load_state_dict(checkpoint['model_state_dict'])
+        # Load trained weights if available
+        try:
+            checkpoint = torch.load(model_path, map_location=self.device)
+            alignment_model.load_state_dict(checkpoint['model_state_dict'])
+            print(f"✅ Loaded alignment model weights from {model_path}")
+        except FileNotFoundError:
+            print(f"⚠️  Warning: Could not find alignment model at {model_path}")
+            print("   Using randomly initialized weights (for testing only)")
+        except Exception as e:
+            print(f"⚠️  Warning: Could not load alignment model weights: {e}")
+            print("   Using randomly initialized weights (for testing only)")
+            
         alignment_model.eval()
         
         return alignment_model.to(self.device)
@@ -288,9 +297,18 @@ class CodeGenerator:
             hidden_dim=64
         )
         
-        # Load trained weights
-        checkpoint = torch.load(model_path, map_location=self.device)
-        decoder.load_state_dict(checkpoint['decoder_state_dict'])
+        # Load trained weights if available
+        try:
+            checkpoint = torch.load(model_path, map_location=self.device)
+            decoder.load_state_dict(checkpoint['decoder_state_dict'])
+            print(f"✅ Loaded AST decoder weights from {model_path}")
+        except FileNotFoundError:
+            print(f"⚠️  Warning: Could not find AST decoder at {model_path}")
+            print("   Using randomly initialized weights (for testing only)")
+        except Exception as e:
+            print(f"⚠️  Warning: Could not load AST decoder weights: {e}")
+            print("   Using randomly initialized weights (for testing only)")
+            
         decoder.eval()
         
         return decoder.to(self.device)
@@ -590,9 +608,18 @@ class AutoregressiveCodeGenerator:
             code_encoder_weights_path=code_encoder_path
         )
         
-        # Load trained weights
-        checkpoint = torch.load(model_path, map_location=self.device)
-        alignment_model.load_state_dict(checkpoint['model_state_dict'])
+        # Load trained weights if available
+        try:
+            checkpoint = torch.load(model_path, map_location=self.device)
+            alignment_model.load_state_dict(checkpoint['model_state_dict'])
+            print(f"✅ Loaded alignment model weights from {model_path}")
+        except FileNotFoundError:
+            print(f"⚠️  Warning: Could not find alignment model at {model_path}")
+            print("   Using randomly initialized weights (for testing only)")
+        except Exception as e:
+            print(f"⚠️  Warning: Could not load alignment model weights: {e}")
+            print("   Using randomly initialized weights (for testing only)")
+            
         alignment_model.eval()
         
         return alignment_model.to(self.device)
@@ -607,9 +634,18 @@ class AutoregressiveCodeGenerator:
             sequence_model='GRU'
         )
         
-        # Load trained weights
-        checkpoint = torch.load(model_path, map_location=self.device)
-        decoder.load_state_dict(checkpoint['model_state_dict'])
+        # Load trained weights if available
+        try:
+            checkpoint = torch.load(model_path, map_location=self.device)
+            decoder.load_state_dict(checkpoint['model_state_dict'])
+            print(f"✅ Loaded autoregressive decoder weights from {model_path}")
+        except FileNotFoundError:
+            print(f"⚠️  Warning: Could not find autoregressive decoder at {model_path}")
+            print("   Using randomly initialized weights (for testing only)")
+        except Exception as e:
+            print(f"⚠️  Warning: Could not load autoregressive decoder weights: {e}")
+            print("   Using randomly initialized weights (for testing only)")
+            
         decoder.eval()
         
         return decoder.to(self.device)
