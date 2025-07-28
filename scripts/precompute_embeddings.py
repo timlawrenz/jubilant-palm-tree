@@ -218,7 +218,7 @@ def main():
         
         # Verify the saved file
         try:
-            loaded_embeddings = torch.load(output_file, map_location='cpu')
+            loaded_embeddings = torch.load(output_file, map_location='cpu', weights_only=True)
             print(f"✅ Verification successful - loaded {len(loaded_embeddings)} embeddings")
             
             # Show embedding info

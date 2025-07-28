@@ -275,7 +275,7 @@ class CodeGenerator:
         
         # Load trained weights if available
         try:
-            checkpoint = torch.load(model_path, map_location=self.device)
+            checkpoint = torch.load(model_path, map_location=self.device, weights_only=True)
             alignment_model.load_state_dict(checkpoint['model_state_dict'])
             print(f"✅ Loaded alignment model weights from {model_path}")
         except FileNotFoundError:
@@ -299,7 +299,7 @@ class CodeGenerator:
         
         # Load trained weights if available
         try:
-            checkpoint = torch.load(model_path, map_location=self.device)
+            checkpoint = torch.load(model_path, map_location=self.device, weights_only=True)
             decoder.load_state_dict(checkpoint['decoder_state_dict'])
             print(f"✅ Loaded AST decoder weights from {model_path}")
         except FileNotFoundError:
@@ -610,7 +610,7 @@ class AutoregressiveCodeGenerator:
         
         # Load trained weights if available
         try:
-            checkpoint = torch.load(model_path, map_location=self.device)
+            checkpoint = torch.load(model_path, map_location=self.device, weights_only=True)
             alignment_model.load_state_dict(checkpoint['model_state_dict'])
             print(f"✅ Loaded alignment model weights from {model_path}")
         except FileNotFoundError:
@@ -636,7 +636,7 @@ class AutoregressiveCodeGenerator:
         
         # Load trained weights if available
         try:
-            checkpoint = torch.load(model_path, map_location=self.device)
+            checkpoint = torch.load(model_path, map_location=self.device, weights_only=True)
             decoder.load_state_dict(checkpoint['model_state_dict'])
             print(f"✅ Loaded autoregressive decoder weights from {model_path}")
         except FileNotFoundError:

@@ -482,7 +482,7 @@ class ASTAutoencoder(torch.nn.Module):
         self.encoder_weights_path = encoder_weights_path
         if encoder_weights_path is not None:
             try:
-                checkpoint = torch.load(encoder_weights_path, map_location='cpu')
+                checkpoint = torch.load(encoder_weights_path, map_location='cpu', weights_only=True)
                 # Check if checkpoint contains model config and use it to create compatible encoder
                 if 'model_config' in checkpoint:
                     saved_config = checkpoint['model_config']
@@ -690,7 +690,7 @@ class AlignmentModel(torch.nn.Module):
         # Load pre-trained weights if provided
         if code_encoder_weights_path is not None:
             try:
-                checkpoint = torch.load(code_encoder_weights_path, map_location='cpu')
+                checkpoint = torch.load(code_encoder_weights_path, map_location='cpu', weights_only=True)
                 # Handle both direct state dict and checkpoint format
                 if 'model_state_dict' in checkpoint:
                     state_dict = checkpoint['model_state_dict']
