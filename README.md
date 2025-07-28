@@ -78,6 +78,22 @@ This project has been developed through 7 phases, with Phase 7 representing the 
 - PyTorch and PyTorch Geometric for GNN training
 - See individual phase READMEs for detailed setup instructions
 
+### End-to-End Setup (Recommended)
+
+For a complete setup from scratch, use the master pipeline script that executes all data preparation and training steps in the correct order:
+
+```bash
+# Run the complete end-to-end pipeline
+./scripts/run_full_pipeline.sh
+```
+
+This script will:
+1. **Data Preparation**: Clone repositories, extract methods, process data, create paired datasets, and precompute embeddings
+2. **Production Model Training**: Train all four production models (GNN complexity, AST autoencoder, text-code alignment, autoregressive decoder)
+3. **Sample Assets**: Generate sample datasets and train lightweight sample models for testing
+
+The script includes robust error handling and clear progress messages for each stage. It serves as the single source of truth for the complete workflow and ensures reproducible results.
+
 ### Key Components
 ```bash
 # Dataset and models
