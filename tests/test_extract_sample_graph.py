@@ -11,6 +11,8 @@ import os
 
 # Add src directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
+# Add root directory to path for main training scripts
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from train_autoregressive import extract_sample_graph
 
