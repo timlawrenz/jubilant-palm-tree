@@ -503,7 +503,7 @@ class CodeGenerator:
             # Call Ruby pretty printer
             result = subprocess.run([
                 'bundle', 'exec', 'ruby', 'scripts/pretty_print_ast.rb', temp_file
-            ], capture_output=True, text=True, env=ruby_env, cwd=os.path.dirname(__file__))
+            ], capture_output=True, text=True, env=ruby_env, cwd=os.path.dirname(os.path.abspath(__file__)) or os.getcwd())
             
             # Clean up temp file
             os.unlink(temp_file)
@@ -754,7 +754,7 @@ class AutoregressiveCodeGenerator:
             
             # Fallback: if no valid parent connection, attach to the previous node
             if parent_idx is None and i > 0:
-                parent_idx = i - 1
+                parent_idx = 0  # Attach to root to avoid linear chain
             
             # Add current node to parent's children
             if parent_idx is not None and 0 <= parent_idx < len(node_objects):
@@ -844,7 +844,7 @@ class AutoregressiveCodeGenerator:
             # Call Ruby pretty printer
             result = subprocess.run([
                 'bundle', 'exec', 'ruby', 'scripts/pretty_print_ast.rb', temp_file
-            ], capture_output=True, text=True, env=ruby_env, cwd=os.path.dirname(__file__))
+            ], capture_output=True, text=True, env=ruby_env, cwd=os.path.dirname(os.path.abspath(__file__)) or os.getcwd())
             
             # Clean up temp file
             os.unlink(temp_file)
