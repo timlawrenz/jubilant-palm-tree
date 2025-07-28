@@ -703,7 +703,7 @@ class AutoregressiveASTDataset:
         if precomputed_embeddings_path and os.path.exists(precomputed_embeddings_path):
             try:
                 if TORCH_AVAILABLE:
-                    self.precomputed_embeddings = torch.load(precomputed_embeddings_path, map_location='cpu')
+                    self.precomputed_embeddings = torch.load(precomputed_embeddings_path, map_location='cpu', weights_only=True)
                     print(f"✅ Loaded {len(self.precomputed_embeddings)} pre-computed text embeddings")
                 else:
                     print("⚠️  PyTorch not available, skipping pre-computed embeddings")
