@@ -9,10 +9,9 @@ gem 'parser', '~> 3.0'
 gem 'json', '~> 2.0'
 
 gem 'flog'
-group :development, :test do
+group :development do
   # Testing framework - now required for RSpec formatter
   gem 'rspec', '~> 3.0'
-  gem 'rubocop-performance'
   # gem 'rubocop', '~> 1.0'   # Code linting
   # gem 'yard', '~> 0.9'      # Documentation generation
 end
