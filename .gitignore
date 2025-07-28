@@ -42,6 +42,9 @@ venv.bak/
 autoregressive_decoder_epoch_*.pt
 best_autoregressive_decoder.pt
 
+# Generated sample models (these should be created by running scripts/train_sample_models.sh)
+models/samples/
+
 # Common development files
 .DS_Store
 *.log

@@ -233,9 +233,9 @@ def generate_ast_autoregressive(model, text_embedding, max_length=50,
 class CodeGenerator:
     """Main code generation class."""
     
-    def __init__(self, alignment_model_path="models/best_alignment_model.pt", 
-                 decoder_model_path="models/best_decoder.pt",
-                 code_encoder_path="models/best_model.pt"):
+    def __init__(self, alignment_model_path="models/samples/best_alignment_model.pt", 
+                 decoder_model_path="models/samples/best_decoder.pt",
+                 code_encoder_path="models/samples/best_model.pt"):
         """
         Initialize the code generator.
         
@@ -568,9 +568,9 @@ class CodeGenerator:
 class AutoregressiveCodeGenerator:
     """Enhanced code generator using autoregressive AST decoder."""
     
-    def __init__(self, alignment_model_path="models/best_alignment_model.pt", 
-                 autoregressive_decoder_path="best_autoregressive_decoder.pt",
-                 code_encoder_path="models/best_model.pt"):
+    def __init__(self, alignment_model_path="models/samples/best_alignment_model.pt", 
+                 autoregressive_decoder_path="models/samples/best_autoregressive_decoder.pt",
+                 code_encoder_path="models/samples/best_model.pt"):
         """
         Initialize the autoregressive code generator.
         
@@ -964,26 +964,26 @@ Examples:
     
     parser.add_argument(
         '--alignment-model',
-        default='models/best_alignment_model.pt',
-        help='Path to trained AlignmentModel (default: models/best_alignment_model.pt)'
+        default='models/samples/best_alignment_model.pt',
+        help='Path to trained AlignmentModel (default: models/samples/best_alignment_model.pt)'
     )
     
     parser.add_argument(
         '--decoder-model',
-        default='models/best_decoder.pt',
-        help='Path to trained ASTDecoder (default: models/best_decoder.pt)'
+        default='models/samples/best_decoder.pt',
+        help='Path to trained ASTDecoder (default: models/samples/best_decoder.pt)'
     )
     
     parser.add_argument(
         '--autoregressive-decoder',
-        default='best_autoregressive_decoder.pt',
-        help='Path to trained AutoregressiveASTDecoder (default: best_autoregressive_decoder.pt)'
+        default='models/samples/best_autoregressive_decoder.pt',
+        help='Path to trained AutoregressiveASTDecoder (default: models/samples/best_autoregressive_decoder.pt)'
     )
     
     parser.add_argument(
         '--code-encoder',
-        default='models/best_model.pt',
-        help='Path to trained code encoder (default: models/best_model.pt)'
+        default='models/samples/best_model.pt',
+        help='Path to trained code encoder (default: models/samples/best_model.pt)'
     )
     
     parser.add_argument(
