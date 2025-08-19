@@ -58,6 +58,10 @@ def train_epoch(model, train_loader, optimizer, device):
         
         # Backward pass (only decoder weights will be updated)
         loss.backward()
+        
+        # Gradient clipping for additional numerical stability
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        
         optimizer.step()
         
         total_loss += loss.item()
