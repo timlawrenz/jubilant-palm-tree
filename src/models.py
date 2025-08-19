@@ -143,7 +143,8 @@ class ASTDecoder(torch.nn.Module):
         
         # Output projections
         self.node_output = torch.nn.Linear(hidden_dim, output_node_dim)
-        self.edge_predictor = torch.nn.Linear(hidden_dim * 2, 1)  # For edge existence
+        # For each node, predict its parent from the set of existing nodes
+        self.parent_predictor = torch.nn.Linear(hidden_dim, max_nodes)
         
     def forward(self, embedding: torch.Tensor, target_num_nodes: int = None) -> dict:
         """
@@ -154,61 +155,38 @@ class ASTDecoder(torch.nn.Module):
             target_num_nodes: Target number of nodes to generate (for training)
             
         Returns:
-            Dictionary containing generated node features and edge information
+            Dictionary containing generated node features and parent predictions.
         """
         batch_size = embedding.size(0)
-        
-        # Use target_num_nodes if provided, otherwise use default max_nodes
-        num_nodes = target_num_nodes if target_num_nodes is not None else self.max_nodes
-        
-        # Initialize node features from embedding
-        # Broadcast embedding to all nodes
-        initial_features = self.embedding_transform(embedding)  # (batch_size, hidden_dim)
-        node_features = initial_features.unsqueeze(1).expand(batch_size, num_nodes, self.hidden_dim)
-        
-        # Create a simple fully connected graph for initial processing
-        # This is a simplified approach - in practice, you'd want more sophisticated edge generation
-        edge_list = []
-        batch_indices = []
-        
-        for b in range(batch_size):
-            # Create edges for this batch
-            for i in range(num_nodes):
-                for j in range(i + 1, min(i + 3, num_nodes)):  # Connect to next 2 nodes
-                    edge_list.extend([[b * num_nodes + i, b * num_nodes + j],
-                                    [b * num_nodes + j, b * num_nodes + i]])
-            batch_indices.extend([b] * num_nodes)
-        
-        # Determine device from embedding to ensure tensor consistency
         device = embedding.device
         
-        if edge_list:
-            edge_index = torch.tensor(edge_list, dtype=torch.long, device=device).t().contiguous()
-        else:
-            # No edges case
-            edge_index = torch.empty((2, 0), dtype=torch.long, device=device)
+        if batch_size > 1:
+            embedding = embedding[0].unsqueeze(0)
+
+        num_nodes = target_num_nodes if target_num_nodes is not None else self.max_nodes
         
-        batch_tensor = torch.tensor(batch_indices, dtype=torch.long, device=device)
+        initial_features = self.embedding_transform(embedding)
+        node_features = initial_features.expand(num_nodes, self.hidden_dim)
         
-        # Flatten node features for GNN processing
-        x = node_features.reshape(-1, self.hidden_dim)  # (batch_size * num_nodes, hidden_dim)
-        
-        # Apply GNN layers for refinement
+        # In a true autoregressive model, we would build the graph step-by-step.
+        # In this simplified one-shot decoder, we refine all nodes at once.
+        # We create a placeholder fully connected graph to allow message passing.
+        adj = torch.ones(num_nodes, num_nodes, device=device)
+        edge_index = adj.nonzero().t().contiguous()
+
+        x = node_features
         for conv in self.convs:
             x = conv(x, edge_index)
             x = F.relu(x)
         
-        # Generate final node features
-        output_node_features = self.node_output(x)  # (batch_size * num_nodes, output_node_dim)
+        output_node_features = self.node_output(x)
         
-        # Reshape back to batch format
-        output_node_features = output_node_features.reshape(batch_size, num_nodes, self.output_node_dim)
+        # For each node, predict a parent from the existing nodes
+        parent_logits = self.parent_predictor(x) # Shape: [num_nodes, max_nodes]
         
         return {
-            'node_features': output_node_features,
-            'edge_index': edge_index,
-            'batch': batch_tensor,
-            'num_nodes_per_graph': [num_nodes] * batch_size
+            'node_features': output_node_features.unsqueeze(0),
+            'parent_logits': parent_logits.unsqueeze(0) # Shape: [1, num_nodes, max_nodes]
         }
 
 

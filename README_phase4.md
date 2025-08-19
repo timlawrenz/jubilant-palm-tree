@@ -264,14 +264,11 @@ python train_autoencoder.py
 
 ### Evaluating Reconstruction Quality
 ```bash
-# Run enhanced evaluation (25 samples)
-jupyter notebook notebooks/evaluate_autoencoder.ipynb
+# Run the consolidated evaluation script
+python scripts/evaluate_model.py --model_path models/best_decoder.pt --num_samples 100
 
-# Large-scale evaluation (100-1000+ samples)
-python evaluate_autoencoder_optimized.py
-
-# Ruby syntax validation
-ruby scripts/check_syntax.rb
+# For help and more options
+python scripts/evaluate_model.py --help
 ```
 
 ### Interactive Exploration
@@ -285,3 +282,61 @@ python test_loss.py
 ```
 
 Phase 4 successfully demonstrated that the GNN embeddings learned in Phases 2-3 contain sufficient structural information for complete AST reconstruction, validating the generative potential of learned code representations and establishing the foundation for advanced code synthesis applications.
+
+## Future Work: A Plan for Rigorous Evaluation
+
+While Phase 4 successfully established a functional autoencoder, the current evaluation metrics are insufficient to guarantee semantic correctness. The model produces syntactically valid but semantically meaningless code, indicating it has converged on a poor local minimum.
+
+To address this, we will adopt a formal experimental process guided by a clear distinction between the **Loss Function (the "teacher")** and the **Evaluation Framework (the "final exam")**.
+
+-   **The Loss Function:** The mathematical signal used *during training* to guide the model. It must be differentiable and computationally efficient.
+-   **The Evaluation Framework:** A comprehensive set of metrics used *after training* to judge the model's true performance. It can be complex and is used to validate which loss function is a better "teacher".
+
+The plan is to use the evaluation framework to measure the impact of improvements to the loss function and training process.
+
+### 1. Create a Consolidated Evaluation Notebook
+
+A new standardized testbed, `notebooks/evaluate_autoencoder_consolidated.ipynb`, will be created. It will provide:
+-   **Standardized Input:** A 100-sample test set from `dataset/test.jsonl`.
+-   **Quantitative Analysis:** A comparison table with robust metrics.
+-   **Qualitative Analysis:** Side-by-side code comparisons for human inspection.
+
+### 2. Implement Semantically-Aware Evaluation Metrics
+
+The new evaluation framework will use the following metrics to provide a holistic view of performance:
+
+| Model Name          | Avg. Val Loss | AST Isomorphism (%) | **Normalized BLEU** | Standard BLEU | Syntactic Validity (%) |
+|---------------------|---------------|---------------------|---------------------|---------------|------------------------|
+| **Baseline**        | *TBD*         | *TBD*               | *TBD*               | *TBD*         | *TBD*                  |
+| **Improved...**     | *TBD*         | *TBD*               | *TBD*               | *TBD*         | *TBD*                  |
+
+-   **AST Isomorphism:** The percentage of reconstructed ASTs that are structurally identical to the originals, ignoring node labels. This is the definitive measure of structural preservation.
+-   **Normalized BLEU Score:** A semantic similarity score calculated on tokenized code where all variable/method names have been replaced with generic placeholders (e.g., `VAR_1`, `METHOD_1`). This measures the correctness of the code's *logic*, independent of naming choices.
+-   **Standard BLEU Score:** A token-similarity score on the raw reconstructed code. This measures how well the model predicts original identifier names.
+
+### 3. Define and Test Improved Loss Functions
+
+The core of the improvement plan is to experiment with more sophisticated loss functions. The goal is to train the model to understand the abstract **role** of a node separately from its specific **name**, allowing for intelligent reconstruction rather than brittle replication.
+
+This will require a modification to the node feature vectors to separate these concepts:
+`[ Node Type | Node Role | Node Name Embedding ]`
+
+#### Level 0: `ast_reconstruction_loss_simple` (Baseline)
+-   **Components:** Node Type Loss (Cross-Entropy) + Edge Existence Loss (BCE).
+-   **Behavior:** Optimizes for basic graph structure, leading to syntactically valid but semantically empty reconstructions.
+
+#### Level 1: `ast_reconstruction_loss_comprehensive` (Proposed)
+This will be a weighted sum of four components, giving us fine-grained control over the training signal.
+
+`Total Loss = w1*TypeLoss + w2*EdgeLoss + w3*RoleLoss + w4*NameLoss`
+
+1.  **Type Loss (High Weight):** Ensures the basic node type (`def`, `send`, etc.) is correct.
+2.  **Edge Loss (High Weight):** Ensures the graph's connectivity is correct.
+3.  **Role Loss (High Weight):** A new, critical component. This uses Cross-Entropy on the "Node Role" part of the feature vector. It forces the model to correctly identify an identifier's function (e.g., `is_method_argument`, `is_local_variable`). This is essential for logical correctness.
+4.  **Name Loss (Low Weight):** A Cosine Embedding Loss on the "Node Name Embedding." By giving this a low weight, we lightly encourage the model to use the original names but do not punish it severely for choosing a different, valid name for a variable.
+
+This composite loss function encourages the model to learn the abstract structure of code, solving the issue where `def a(b); c; end` being reconstructed as `def x(y); z; end` would be incorrectly penalized. We will treat this as a successful reconstruction of the code's essential logic.
+
+### 4. Establish a Baseline
+
+The immediate next step is to execute this evaluation plan on the current `best_decoder.pt` model to establish a clear baseline. This will provide the data needed to measure the impact of all future improvements accurately.
