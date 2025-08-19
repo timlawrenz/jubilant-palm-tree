@@ -94,6 +94,12 @@ def compute_node_type_loss(original_x: torch.Tensor,
         num_recon_nodes = min(num_original_nodes, max_nodes)
         recon_nodes = recon_node_features[batch_idx, :num_recon_nodes, :]  # [num_recon_nodes, feature_dim]
         
+        # Numerical stability: Check for and handle NaN/Inf values in reconstructed logits
+        if torch.isnan(recon_nodes).any() or torch.isinf(recon_nodes).any():
+            # Replace NaN/Inf with safe values to prevent loss explosion
+            recon_nodes = torch.where(torch.isnan(recon_nodes), torch.zeros_like(recon_nodes), recon_nodes)
+            recon_nodes = torch.clamp(recon_nodes, min=-100, max=100)  # Clamp to reasonable range
+        
         # Only use original nodes up to the number of reconstructed nodes
         original_nodes_subset = original_nodes[:num_recon_nodes, :]  # [num_recon_nodes, feature_dim]
         
