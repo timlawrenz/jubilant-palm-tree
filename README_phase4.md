@@ -84,6 +84,16 @@ Phase 4 represents a major advancement from complexity prediction to code genera
 - Added fallback logic for different checkpoint formats
 - **Result**: Working evaluation notebook with proper model loading
 
+#### [Issue #159: Fix NaN Loss in train_autoencoder.py](https://github.com/timlawrenz/jubilant-palm-tree/issues/159)
+- **Problem**: Training script completed but reported NaN for training loss, preventing effective learning
+- **Root Cause**: Model outputs containing NaN or Inf values propagated through cross-entropy loss calculation
+- **Solution**: Added numerical stability checks in loss computation to detect and handle problematic values
+- **Improvements**: 
+  - Added input validation and clamping in `compute_node_type_loss()` to prevent NaN/Inf propagation
+  - Implemented gradient clipping (max_norm=1.0) in training loop for additional stability
+  - NaN/Inf values are replaced with safe values and clamped to reasonable range (-100, 100)
+- **Result**: Training loss remains stable and finite, enabling effective model learning
+
 ## Technical Architecture
 
 ### ASTAutoencoder Architecture
