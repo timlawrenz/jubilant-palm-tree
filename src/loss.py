@@ -23,6 +23,10 @@ def ast_reconstruction_loss_comprehensive(original: Data, reconstructed: Dict[st
     """
     # --- Node Type Loss ---
     recon_node_logits = reconstructed['node_features'].squeeze(0)
+    
+    # Numerical stability: Clamp values to a reasonable range to prevent overflow
+    recon_node_logits = torch.clamp(recon_node_logits, min=-100, max=100)
+    
     true_node_types = original.x.argmax(dim=1)
     
     num_nodes = min(recon_node_logits.size(0), true_node_types.size(0))
@@ -36,6 +40,10 @@ def ast_reconstruction_loss_comprehensive(original: Data, reconstructed: Dict[st
 
     # --- Parent Prediction Loss ---
     recon_parent_logits = reconstructed['parent_logits'].squeeze(0) # [num_nodes, max_nodes]
+    
+    # Numerical stability: Clamp values
+    recon_parent_logits = torch.clamp(recon_parent_logits, min=-100, max=100)
+    
     max_nodes = recon_parent_logits.size(1)
     
     # Create the true parent labels
@@ -55,11 +63,16 @@ def ast_reconstruction_loss_comprehensive(original: Data, reconstructed: Dict[st
     # We only care about the first num_nodes predictions and labels
     num_nodes = min(recon_parent_logits.size(0), true_parents.size(0))
 
-    parent_loss = F.cross_entropy(
-        recon_parent_logits[:num_nodes],
-        true_parents[:num_nodes],
-        ignore_index=ignore_index
-    )
+    # Check if there are any valid parent labels to compute loss on
+    if (true_parents[:num_nodes] != ignore_index).any():
+        parent_loss = F.cross_entropy(
+            recon_parent_logits[:num_nodes],
+            true_parents[:num_nodes],
+            ignore_index=ignore_index
+        )
+    else:
+        # No valid parents to compute loss on (e.g., single-node graph)
+        parent_loss = torch.tensor(0.0, device=original.x.device, requires_grad=True)
 
     # --- Total Loss ---
     total_loss = (node_weight * node_loss) + (parent_weight * parent_loss)
