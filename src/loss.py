@@ -12,6 +12,60 @@ from torch_geometric.data import Data
 from typing import Dict, Any, Union
 
 
+def ast_reconstruction_loss_comprehensive(original: Data, reconstructed: Dict[str, Any], 
+                                        node_weight: float = 1.0, parent_weight: float = 1.0) -> torch.Tensor:
+    """
+    Computes a comprehensive reconstruction loss for an AST.
+
+    This loss combines:
+    1. Node Type Loss: Cross-entropy for predicting the correct node types.
+    2. Parent Prediction Loss: Cross-entropy for predicting the correct parent for each node.
+    """
+    # --- Node Type Loss ---
+    recon_node_logits = reconstructed['node_features'].squeeze(0)
+    true_node_types = original.x.argmax(dim=1)
+    
+    num_nodes = min(recon_node_logits.size(0), true_node_types.size(0))
+    if num_nodes == 0:
+        return torch.tensor(0.0, device=original.x.device, requires_grad=True)
+        
+    node_loss = F.cross_entropy(
+        recon_node_logits[:num_nodes], 
+        true_node_types[:num_nodes]
+    )
+
+    # --- Parent Prediction Loss ---
+    recon_parent_logits = reconstructed['parent_logits'].squeeze(0) # [num_nodes, max_nodes]
+    max_nodes = recon_parent_logits.size(1)
+    
+    # Create the true parent labels
+    num_true_nodes = original.num_nodes
+    # Initialize with an ignore_index
+    ignore_index = -100 
+    true_parents = torch.full((num_true_nodes,), ignore_index, dtype=torch.long, device=original.x.device)
+    
+    # Edge index is [parent, child], so edge_index[0] are parents and edge_index[1] are children
+    children = original.edge_index[1]
+    parents = original.edge_index[0]
+
+    # Clamp parent indices to be within the prediction range [0, max_nodes-1]
+    valid_parents = torch.clamp(parents, 0, max_nodes - 1)
+    true_parents[children] = valid_parents
+
+    # We only care about the first num_nodes predictions and labels
+    num_nodes = min(recon_parent_logits.size(0), true_parents.size(0))
+
+    parent_loss = F.cross_entropy(
+        recon_parent_logits[:num_nodes],
+        true_parents[:num_nodes],
+        ignore_index=ignore_index
+    )
+
+    # --- Total Loss ---
+    total_loss = (node_weight * node_loss) + (parent_weight * parent_loss)
+    return total_loss
+
+
 def ast_reconstruction_loss(original: Data, reconstructed: Dict[str, Any], 
                           node_weight: float = 1.0, edge_weight: float = 0.5) -> torch.Tensor:
     """
