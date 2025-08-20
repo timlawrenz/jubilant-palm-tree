@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
 from data_processing import RubyASTDataset, create_data_loaders
 from models import ASTAutoencoder
-from loss import ast_reconstruction_loss, ast_reconstruction_loss_simple, compute_node_type_loss
+from loss import ast_reconstruction_loss, ast_reconstruction_loss_simple, ast_reconstruction_loss_improved, compute_node_type_loss
 
 
 def test_loss_with_identical_data():
