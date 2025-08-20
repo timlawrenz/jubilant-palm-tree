@@ -300,7 +300,13 @@ class PairedDatasetCreator
         
         # Load the spec file directly - this will execute the RSpec DSL
         # and trigger our formatter events as examples are defined
-        load(File.expand_path(relative_spec_file))
+        begin
+          load(File.expand_path(relative_spec_file))
+        rescue SyntaxError => syntax_error
+          # Handle syntax errors in the spec file gracefully
+          puts "Warning: Skipping spec file with syntax error #{relative_spec_file}: #{syntax_error.message}" if ENV['DEBUG']
+          return []
+        end
         
         # Now we need to extract the example groups and manually trigger formatter events
         # since we're not running the examples, just loading their definitions

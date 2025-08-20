@@ -18,45 +18,30 @@ from torch_geometric.data import Data
 # Add src directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from data_processing import create_data_loaders
 from models import ASTAutoencoder
-from loss import ast_reconstruction_loss_simple
+from loss import ast_reconstruction_loss_improved
 
 
 def train_epoch(model, train_loader, optimizer, device):
-    """
-    Train the autoencoder for one epoch.
-    
-    Args:
-        model: The ASTAutoencoder model
-        train_loader: Training data loader
-        optimizer: Optimizer instance
-        device: Device to run on
-        
-    Returns:
-        Average training loss for the epoch
-    """
     model.train()
     total_loss = 0.0
-    num_batches = 0
+    num_graphs = 0
     
-    for batch in train_loader:
-        # Convert to PyTorch tensors and move to device
-        x = torch.tensor(batch['x'], dtype=torch.float).to(device)
-        edge_index = torch.tensor(batch['edge_index'], dtype=torch.long).to(device)
-        batch_idx = torch.tensor(batch['batch'], dtype=torch.long).to(device)
-        
-        # Create PyTorch Geometric Data object
-        data = Data(x=x, edge_index=edge_index, batch=batch_idx)
-        
-        # Forward pass through autoencoder
+    for graph_dict in train_loader:
+        data = Data(
+            x=torch.tensor(graph_dict['x'], dtype=torch.float),
+            edge_index=torch.tensor(graph_dict['edge_index'], dtype=torch.long)
+        )
+        data.batch = torch.zeros(data.num_nodes, dtype=torch.long)
+        data = data.to(device)
+
+        if data.num_nodes == 0: continue
+
         optimizer.zero_grad()
         result = model(data)
-        
-        # Compute reconstruction loss (input and target are the same AST)
-        loss = ast_reconstruction_loss_simple(data, result['reconstruction'])
-        
-        # Backward pass (only decoder weights will be updated)
+        loss = ast_reconstruction_loss_improved(data, result['reconstruction'])
         loss.backward()
         
         # Gradient clipping for additional numerical stability
@@ -65,45 +50,33 @@ def train_epoch(model, train_loader, optimizer, device):
         optimizer.step()
         
         total_loss += loss.item()
-        num_batches += 1
-    
-    return total_loss / num_batches if num_batches > 0 else 0.0
+        num_graphs += 1
+
+    return total_loss / num_graphs if num_graphs > 0 else 0.0
 
 
 def validate_epoch(model, val_loader, device):
-    """
-    Validate the autoencoder for one epoch.
-    
-    Args:
-        model: The ASTAutoencoder model
-        val_loader: Validation data loader
-        device: Device to run on
-        
-    Returns:
-        Average validation loss for the epoch
-    """
     model.eval()
     total_loss = 0.0
-    num_batches = 0
+    num_graphs = 0
     
     with torch.no_grad():
-        for batch in val_loader:
-            # Convert to PyTorch tensors and move to device
-            x = torch.tensor(batch['x'], dtype=torch.float).to(device)
-            edge_index = torch.tensor(batch['edge_index'], dtype=torch.long).to(device)
-            batch_idx = torch.tensor(batch['batch'], dtype=torch.long).to(device)
-            
-            # Create PyTorch Geometric Data object
-            data = Data(x=x, edge_index=edge_index, batch=batch_idx)
-            
-            # Forward pass
+        for graph_dict in val_loader:
+            data = Data(
+                x=torch.tensor(graph_dict['x'], dtype=torch.float),
+                edge_index=torch.tensor(graph_dict['edge_index'], dtype=torch.long)
+            )
+            data.batch = torch.zeros(data.num_nodes, dtype=torch.long)
+            data = data.to(device)
+
+            if data.num_nodes == 0: continue
+
             result = model(data)
-            loss = ast_reconstruction_loss_simple(data, result['reconstruction'])
-            
+            loss = ast_reconstruction_loss_improved(data, result['reconstruction'])
             total_loss += loss.item()
-            num_batches += 1
-    
-    return total_loss / num_batches if num_batches > 0 else 0.0
+            num_graphs += 1
+
+    return total_loss / num_graphs if num_graphs > 0 else 0.0
 
 
 def save_decoder_weights(model, filepath, epoch, train_loss, val_loss):
@@ -143,8 +116,8 @@ def parse_args():
                         help='Path to save the best decoder model (default: models/best_decoder.pt)')
     parser.add_argument('--encoder_weights_path', type=str, default='models/best_model.pt',
                         help='Path to pre-trained encoder weights (default: models/best_model.pt)')
-    parser.add_argument('--batch_size', type=int, default=32,
-                        help='Batch size for training (default: 32)')
+    parser.add_argument('--batch_size', type=int, default=1,
+                        help='Batch size for training (default: 1)')
     parser.add_argument('--learning_rate', type=float, default=0.001,
                         help='Learning rate (default: 0.001)')
     parser.add_argument('--hidden_dim', type=int, default=64,
@@ -235,50 +208,58 @@ def main():
     print(f"   Frozen parameters: {frozen_params:,} (encoder)")
     print()
     
-    # Setup optimizer (only for decoder parameters)
+    # Setup optimizer and scheduler
     optimizer = torch.optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()), 
         lr=config['learning_rate']
     )
+    scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=5)
     
     print("⚙️  Training setup:")
-    print(f"   Optimizer: Adam (lr={config['learning_rate']}) - decoder only")
-    print(f"   Loss function: AST Reconstruction Loss (simple)")
-    print(f"   Input/Target: Same AST graph (autoencoder)")
+    print(f"   Optimizer: Adam (lr={config['learning_rate']})")
+    print(f"   Scheduler: ReduceLROnPlateau (patience=5)")
+    print(f"   Loss function: Improved Reconstruction Loss")
     print()
     
     # Ensure output directory exists
     os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
     
-    # Training loop
+    # Training loop with Early Stopping
     print("🏋️  Starting training...")
     print("=" * 50)
     
     best_val_loss = float('inf')
+    epochs_no_improve = 0
+    early_stopping_patience = 10
     start_time = time.time()
     
     for epoch in range(config['epochs']):
         epoch_start = time.time()
         
-        # Train for one epoch
         train_loss = train_epoch(model, train_loader, optimizer, device)
-        
-        # Validate
         val_loss = validate_epoch(model, val_loader, device)
         
         epoch_time = time.time() - epoch_start
         
-        # Print results for each epoch (required by Definition of Done)
         print(f"Epoch {epoch+1:2d}/{config['epochs']} | "
               f"Train Loss: {train_loss:.4f} | "
               f"Val Loss: {val_loss:.4f} | "
+              f"LR: {optimizer.param_groups[0]['lr']:.1e} | "
               f"Time: {epoch_time:.2f}s")
         
-        # Save best decoder weights (required by Definition of Done)
+        scheduler.step(val_loss)
+        
         if val_loss < best_val_loss:
             best_val_loss = val_loss
+            epochs_no_improve = 0
             save_decoder_weights(model, args.output_path, epoch, train_loss, val_loss)
             print(f"   💾 New best decoder saved (val_loss: {val_loss:.4f})")
+        else:
+            epochs_no_improve += 1
+
+        if epochs_no_improve >= early_stopping_patience:
+            print(f"   🛑 Early stopping triggered after {early_stopping_patience} epochs with no improvement.")
+            break
     
     total_time = time.time() - start_time
     
