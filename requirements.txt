@@ -17,3 +17,9 @@ ipykernel
 
 # System monitoring for memory optimization
 psutil
+
+# NLP for BLEU score calculation
+nltk
+
+# For pretty-printing dataframes
+tabulate
