@@ -204,6 +204,8 @@ def parse_args():
                         help='Learning rate (default: 1e-3)')
     parser.add_argument('--patience', type=int, default=5,
                         help='Early stopping patience (default: 5)')
+    parser.add_argument('--save_onnx', action='store_true',
+                        help='Save the best model in ONNX format')
     return parser.parse_args()
 
 
@@ -371,6 +373,88 @@ def main():
                 }
                 torch.save(checkpoint, output_path)
                 print(f"✅ Saved best model to {output_path}")
+
+                if args.save_onnx:
+                    try:
+                        onnx_path = os.path.splitext(output_path)[0] + ".onnx"
+                        print(f"📦 Exporting GNN model to ONNX: {onnx_path}")
+
+                        # Define a wrapper for ONNX export that accepts tensors directly
+                        class GNNONNXWrapper(torch.nn.Module):
+                            def __init__(self, gnn):
+                                super().__init__()
+                                self.gnn = gnn
+                            
+                            def forward(self, x, edge_index, batch):
+                                data = Data(x=x, edge_index=edge_index, batch=batch)
+                                return self.gnn(data, return_embedding=True)
+
+                        # Get a sample input for tracing
+                        sample_graphs, _ = next(iter(val_loader))
+                        x = torch.tensor(sample_graphs['x'], dtype=torch.float).to(device)
+                        edge_index = torch.tensor(sample_graphs['edge_index'], dtype=torch.long).to(device)
+                        batch = torch.tensor(sample_graphs['batch'], dtype=torch.long).to(device)
+                        
+                        # Wrap the model and export
+                        wrapper = GNNONNXWrapper(model.code_encoder).to(device)
+                        wrapper.eval()
+                        
+                        torch.onnx.export(
+                            wrapper,
+                            (x, edge_index, batch),
+                            onnx_path,
+                            export_params=True, opset_version=11, do_constant_folding=True,
+                            input_names=['x', 'edge_index', 'batch'],
+                            output_names=['embedding'],
+                            dynamic_axes={
+                                'x': {0: 'num_nodes'}, 'edge_index': {1: 'num_edges'},
+                                'batch': {0: 'num_nodes'}, 'embedding': {0: 'batch_size'}
+                            }
+                        )
+                        print(f"✅ Successfully saved ONNX model to {onnx_path}")
+                    except Exception as e:
+                        print(f"⚠️  Error exporting model to ONNX: {e}")
+
+                if args.save_onnx:
+                    try:
+                        onnx_path = os.path.splitext(output_path)[0] + ".onnx"
+                        print(f"📦 Exporting GNN model to ONNX: {onnx_path}")
+
+                        # Define a wrapper for ONNX export that accepts tensors directly
+                        class GNNONNXWrapper(torch.nn.Module):
+                            def __init__(self, gnn):
+                                super().__init__()
+                                self.gnn = gnn
+                            
+                            def forward(self, x, edge_index, batch):
+                                data = Data(x=x, edge_index=edge_index, batch=batch)
+                                return self.gnn(data, return_embedding=True)
+
+                        # Get a sample input for tracing
+                        sample_graphs, _ = next(iter(val_loader))
+                        x = torch.tensor(sample_graphs['x'], dtype=torch.float).to(device)
+                        edge_index = torch.tensor(sample_graphs['edge_index'], dtype=torch.long).to(device)
+                        batch = torch.tensor(sample_graphs['batch'], dtype=torch.long).to(device)
+                        
+                        # Wrap the model and export
+                        wrapper = GNNONNXWrapper(model.code_encoder).to(device)
+                        wrapper.eval()
+                        
+                        torch.onnx.export(
+                            wrapper,
+                            (x, edge_index, batch),
+                            onnx_path,
+                            export_params=True, opset_version=11, do_constant_folding=True,
+                            input_names=['x', 'edge_index', 'batch'],
+                            output_names=['embedding'],
+                            dynamic_axes={
+                                'x': {0: 'num_nodes'}, 'edge_index': {1: 'num_edges'},
+                                'batch': {0: 'num_nodes'}, 'embedding': {0: 'batch_size'}
+                            }
+                        )
+                        print(f"✅ Successfully saved ONNX model to {onnx_path}")
+                    except Exception as e:
+                        print(f"⚠️  Error exporting model to ONNX: {e}")
                 
             except Exception as e:
                 print(f"⚠️  Error saving model: {e}")
