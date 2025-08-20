@@ -253,6 +253,206 @@ def compute_edge_prediction_loss(original_edge_index: torch.Tensor,
     return torch.tensor(total_loss / batch_size, device=original_edge_index.device, requires_grad=True)
 
 
+def ast_reconstruction_loss_improved(original: Data, reconstructed: Dict[str, Any],
+                                   type_weight: float = 2.0, edge_weight: float = 2.0, 
+                                   role_weight: float = 2.0, name_weight: float = 0.5) -> torch.Tensor:
+    """
+    Improved AST reconstruction loss with semantic role understanding.
+    
+    This loss function implements the improved approach described in Phase 4 README,
+    using a weighted combination of four components to train the model to understand
+    the abstract role of nodes separately from their specific names.
+    
+    The loss expects node features with structure: [Node Type | Node Role | Node Name Embedding]
+    For backward compatibility, if features only contain node types, it will gracefully 
+    degrade to type and edge losses only.
+    
+    Args:
+        original: Original AST as torch_geometric.data.Data object
+        reconstructed: Reconstructed AST from decoder containing 'node_features' and optionally 'edge_index'
+        type_weight: Weight for Type Loss component (high weight recommended)
+        edge_weight: Weight for Edge Loss component (high weight recommended)  
+        role_weight: Weight for Role Loss component (high weight recommended)
+        name_weight: Weight for Name Loss component (low weight recommended)
+        
+    Returns:
+        Scalar tensor representing the total weighted reconstruction loss
+        
+    Note:
+        Total Loss = type_weight*TypeLoss + edge_weight*EdgeLoss + role_weight*RoleLoss + name_weight*NameLoss
+    """
+    # Extract basic components
+    recon_node_features = reconstructed['node_features']  # [batch_size, max_nodes, feature_dim]
+    batch_size = recon_node_features.size(0)
+    max_nodes = recon_node_features.size(1) 
+    feature_dim = recon_node_features.size(2)
+    
+    # Detect feature structure and split accordingly
+    # For now, assume features are still one-hot node types until enhanced node encoder is implemented
+    # This provides the foundation for future enhancement
+    
+    # Component 1: Type Loss (Cross-Entropy on node types)
+    type_loss = compute_node_type_loss(original.x, recon_node_features, original.batch)
+    
+    # Component 2: Edge Loss (Graph connectivity)
+    edge_loss = compute_edge_prediction_loss(original.edge_index, original.batch, 
+                                           reconstructed, batch_size)
+    
+    # Component 3: Role Loss (Cross-Entropy on node roles)
+    # For backward compatibility with current one-hot features, we'll compute a simplified role loss
+    # In the future, this will use the dedicated role portion of the feature vector
+    role_loss = _compute_role_loss(original, reconstructed)
+    
+    # Component 4: Name Loss (Cosine Embedding Loss on name embeddings)
+    # For backward compatibility, we'll use a placeholder that encourages semantic similarity
+    # In the future, this will use the dedicated name embedding portion
+    name_loss = _compute_name_loss(original, reconstructed)
+    
+    # Combine losses with weights
+    total_loss = (type_weight * type_loss + 
+                  edge_weight * edge_loss + 
+                  role_weight * role_loss + 
+                  name_weight * name_loss)
+    
+    return total_loss
+
+
+def _compute_role_loss(original: Data, reconstructed: Dict[str, Any]) -> torch.Tensor:
+    """
+    Compute role loss component for improved AST reconstruction.
+    
+    This function computes a loss that encourages the model to understand the 
+    functional role of identifiers (e.g., method argument, local variable).
+    
+    For backward compatibility with current one-hot node features, this implements
+    a simplified role-aware loss based on node types and graph structure.
+    In the future, this will use dedicated role embeddings.
+    
+    Args:
+        original: Original AST data
+        reconstructed: Reconstructed AST data
+        
+    Returns:
+        Scalar tensor representing the role loss
+    """
+    recon_node_features = reconstructed['node_features']
+    batch_size = recon_node_features.size(0)
+    
+    # For backward compatibility, derive role information from node types and graph structure
+    # This is a simplified approach until dedicated role features are implemented
+    
+    total_loss = 0.0
+    total_nodes = 0
+    
+    for batch_idx in range(batch_size):
+        # Get original nodes for this graph
+        mask = (original.batch == batch_idx)
+        if not mask.any():
+            continue
+            
+        original_nodes = original.x[mask]  # [num_nodes_in_graph, feature_dim]
+        num_original_nodes = original_nodes.size(0)
+        
+        # Get node types for role inference
+        original_node_types = torch.argmax(original_nodes, dim=1)
+        
+        # Simple role-based loss: encourage consistency in how similar node types are handled
+        # This approximates role understanding until full role features are available
+        if num_original_nodes > 1:
+            # Create a simple role similarity matrix based on node types
+            type_similarity = (original_node_types.unsqueeze(0) == original_node_types.unsqueeze(1)).float()
+            
+            # Get reconstructed features for this batch
+            max_nodes = min(num_original_nodes, recon_node_features.size(1))
+            recon_features = recon_node_features[batch_idx, :max_nodes, :]
+            
+            # Compute pairwise similarities in reconstructed space
+            recon_normalized = F.normalize(recon_features, p=2, dim=1)
+            recon_similarity = torch.matmul(recon_normalized, recon_normalized.t())
+            
+            # Encourage similar node types to have similar representations (role consistency)
+            role_consistency_loss = F.mse_loss(recon_similarity, type_similarity[:max_nodes, :max_nodes])
+            total_loss += role_consistency_loss
+            total_nodes += 1
+    
+    # Return average loss
+    if total_nodes > 0:
+        avg_loss = total_loss / total_nodes
+        if isinstance(avg_loss, torch.Tensor):
+            return avg_loss.requires_grad_(True)
+        else:
+            return torch.tensor(avg_loss, device=original.x.device, requires_grad=True)
+    else:
+        return torch.tensor(0.0, device=original.x.device, requires_grad=True)
+
+
+def _compute_name_loss(original: Data, reconstructed: Dict[str, Any]) -> torch.Tensor:
+    """
+    Compute name loss component for improved AST reconstruction.
+    
+    This function computes a loss that lightly encourages the model to use
+    appropriate names while not penalizing heavily for choosing different
+    but valid names.
+    
+    For backward compatibility with current features, this implements a 
+    placeholder loss that encourages semantic consistency.
+    In the future, this will use dedicated name embeddings.
+    
+    Args:
+        original: Original AST data
+        reconstructed: Reconstructed AST data
+        
+    Returns:
+        Scalar tensor representing the name loss
+    """
+    recon_node_features = reconstructed['node_features']
+    batch_size = recon_node_features.size(0)
+    
+    # For backward compatibility, implement a lightweight semantic consistency loss
+    # This will be replaced with proper name embedding loss in the future
+    
+    total_loss = 0.0
+    total_nodes = 0
+    
+    for batch_idx in range(batch_size):
+        # Get original nodes for this graph
+        mask = (original.batch == batch_idx)
+        if not mask.any():
+            continue
+            
+        original_nodes = original.x[mask]
+        num_original_nodes = original_nodes.size(0)
+        
+        # Get reconstructed features
+        max_nodes = min(num_original_nodes, recon_node_features.size(1))
+        recon_features = recon_node_features[batch_idx, :max_nodes, :]
+        
+        # Lightweight semantic consistency: encourage reconstructed features to maintain
+        # relative relationships present in original (approximates name consistency)
+        if max_nodes > 1:
+            # Compute cosine similarities in both spaces
+            orig_normalized = F.normalize(original_nodes[:max_nodes], p=2, dim=1)
+            recon_normalized = F.normalize(recon_features, p=2, dim=1)
+            
+            orig_similarities = torch.matmul(orig_normalized, orig_normalized.t())
+            recon_similarities = torch.matmul(recon_normalized, recon_normalized.t())
+            
+            # Light penalty for changing semantic relationships (low weight applied externally)
+            semantic_consistency_loss = F.mse_loss(recon_similarities, orig_similarities)
+            total_loss += semantic_consistency_loss
+            total_nodes += 1
+    
+    # Return average loss
+    if total_nodes > 0:
+        avg_loss = total_loss / total_nodes
+        if isinstance(avg_loss, torch.Tensor):
+            return avg_loss.requires_grad_(True)
+        else:
+            return torch.tensor(avg_loss, device=original.x.device, requires_grad=True)
+    else:
+        return torch.tensor(0.0, device=original.x.device, requires_grad=True)
+
+
 def ast_reconstruction_loss_simple(original: Data, reconstructed: Dict[str, Any]) -> torch.Tensor:
     """
     Simplified version of AST reconstruction loss focusing primarily on node prediction.

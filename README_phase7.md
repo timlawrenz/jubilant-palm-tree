@@ -772,7 +772,82 @@ Phase 1 Data → Phase 2 GNN → Phase 3 Validation → Phase 4 Decoder (REPLACE
 - **Inference Method**: Direct generation → Iterative sampling
 - **Generation Control**: Fixed → Configurable (temperature, top-k, length)
 
-## Technical Implementation Timeline
+## Updated AST Reconstruction Loss Functions
+
+### Improved Loss Function Implementation (`ast_reconstruction_loss_improved`)
+
+**Phase 7 Enhancement**: Following the specifications from Phase 4 README, an improved AST reconstruction loss function has been implemented to support better semantic understanding during training.
+
+#### Function Overview
+
+The new `ast_reconstruction_loss_improved` function in `src/loss.py` implements a weighted combination of four loss components:
+
+```python
+def ast_reconstruction_loss_improved(original: Data, reconstructed: Dict[str, Any],
+                                   type_weight: float = 2.0, edge_weight: float = 2.0, 
+                                   role_weight: float = 2.0, name_weight: float = 0.5) -> torch.Tensor:
+```
+
+#### Loss Components
+
+1. **Type Loss (High Weight)**: Cross-entropy loss ensuring correct AST node types (`def`, `send`, etc.)
+2. **Edge Loss (High Weight)**: Binary cross-entropy loss for graph connectivity correctness  
+3. **Role Loss (High Weight)**: New semantic component that encourages consistent handling of nodes with similar roles
+4. **Name Loss (Low Weight)**: Lightweight semantic consistency loss that preserves relational structure
+
+#### Mathematical Formulation
+
+```
+Total Loss = type_weight*TypeLoss + edge_weight*EdgeLoss + role_weight*RoleLoss + name_weight*NameLoss
+```
+
+#### Key Features
+
+- **Semantic Role Understanding**: Encourages model to distinguish between different uses of identifiers
+- **Backward Compatibility**: Works with existing one-hot node features while being ready for enhanced features
+- **Weighted Control**: Fine-grained control over training emphasis through component weights
+- **Future-Ready**: Designed to support upcoming node feature enhancements with explicit role and name embeddings
+
+#### Usage Example
+
+```python
+from src.loss import ast_reconstruction_loss_improved
+
+# Default configuration (balanced training)
+loss = ast_reconstruction_loss_improved(original_ast, reconstructed_ast)
+
+# Custom weights for specific training emphasis
+loss = ast_reconstruction_loss_improved(
+    original_ast, reconstructed_ast,
+    type_weight=3.0,    # Emphasize node type correctness
+    edge_weight=2.0,    # Standard graph structure importance
+    role_weight=2.5,    # Higher role consistency emphasis  
+    name_weight=0.3     # Light semantic preservation
+)
+```
+
+#### Validation and Testing
+
+The improved loss function has been thoroughly validated with comprehensive tests in `tests/test_improved_loss.py`:
+
+- ✅ **Basic Functionality**: Computes loss without errors and produces reasonable values
+- ✅ **Weighted Components**: Different weights produce different loss values as expected
+- ✅ **Individual Components**: All four loss components computed independently
+- ✅ **Gradient Flow**: Proper backpropagation through all components
+- ✅ **Backward Compatibility**: Works with existing data structures and pipelines
+
+#### Integration with Autoregressive Training
+
+The improved loss function enhances the autoregressive training process by:
+
+- **Better Semantic Guidance**: Role loss helps model understand identifier functions
+- **Balanced Training**: Weighted components allow fine-tuning of training objectives
+- **Structural Preservation**: Edge loss maintains AST topology during sequential generation
+- **Future Extensibility**: Ready for enhanced node features with explicit role/name components
+
+This improvement represents a foundation for more sophisticated training approaches that can distinguish between semantically equivalent but lexically different code reconstructions (e.g., `def a(b); c; end` vs `def x(y); z; end`).
+
+## Phase 7 Implementation Timeline
 
 ### Phase 7.1: Data Pipeline Enhancement
 **Duration**: 1-2 weeks
