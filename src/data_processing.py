@@ -630,26 +630,154 @@ class PairedDataLoader:
             yield collate_paired_data(batch)
 
 
-def create_data_loaders(train_path: str, val_path: str, batch_size: int = 32, shuffle: bool = True):
+
+class PrecomputedRubyASTDataset:
+    """
+    Dataset class for loading precomputed Ruby AST graph data.
+    
+    This class loads .pt files containing pre-converted PyTorch Geometric
+    Data objects, which significantly speeds up data loading.
+    """
+    
+    def __init__(self, pt_path: str, transform=None):
+        """
+        Initialize the dataset.
+        
+        Args:
+            pt_path: Path to the .pt file containing precomputed graph data
+            transform: Optional transform to apply to each sample
+        """
+        self.pt_path = pt_path
+        self.transform = transform
+        
+        # Load the precomputed data into RAM
+        self.data = torch.load(pt_path, weights_only=False)
+        
+        print(f"Loaded {len(self.data)} precomputed graphs from {pt_path}")
+    
+    def __len__(self) -> int:
+        """Return the number of samples in the dataset."""
+        return len(self.data)
+    
+    def __getitem__(self, idx: int):
+        """
+        Get a sample from the dataset.
+        
+        Args:
+            idx: Index of the sample
+            
+        Returns:
+            PyTorch Geometric Data object
+        """
+        if idx < 0 or idx >= len(self.data):
+            raise IndexError(f"Index {idx} out of range for dataset of size {len(self.data)}")
+        
+        sample = self.data[idx]
+        
+        if self.transform:
+            sample = self.transform(sample)
+            
+        return sample
+
+
+class PreCollatedDataset:
+    """
+    Dataset class for loading pre-collated batches of graph data.
+    
+    This class loads a .pt file where each item is an already-collated
+    `torch_geometric.data.Batch` object. This is the most efficient
+    way to load data as it eliminates all real-time collation overhead.
+    """
+    def __init__(self, pt_path: str):
+        """
+        Initialize the dataset.
+        
+        Args:
+            pt_path: Path to the .pt file containing pre-collated batches.
+        """
+        # Load the list of pre-collated batches into RAM
+        self.batches = torch.load(pt_path, weights_only=False)
+        print(f"Loaded {len(self.batches)} pre-collated batches from {pt_path}")
+
+    def __len__(self):
+        return len(self.batches)
+
+    def __getitem__(self, idx):
+        return self.batches[idx]
+
+
+def create_data_loaders(train_path: str, val_path: str, batch_size: int = 32, shuffle: bool = True, num_workers: Optional[int] = None, pre_collated: bool = False):
     """
     Create train and validation data loaders.
     
+    Supports two modes:
+    1. Standard loading from a dataset of individual graphs (`pre_collated=False`).
+       This uses a PyG DataLoader to perform real-time batching.
+    2. Pre-collated loading from a dataset of pre-batched graphs (`pre_collated=True`).
+       This is the most performant option, as it has near-zero CPU overhead.
+
     Args:
-        train_path: Path to training JSONL file
-        val_path: Path to validation JSONL file
-        batch_size: Batch size for both loaders
-        shuffle: Whether to shuffle training data
+        train_path: Path to training .pt file.
+        val_path: Path to validation .pt file.
+        batch_size: Batch size (used only if `pre_collated=False`).
+        shuffle: Whether to shuffle training data.
+        num_workers: Number of workers for data loading (used only if `pre_collated=False`).
+        pre_collated: Whether the dataset files contain pre-collated batches.
         
     Returns:
         Tuple of (train_loader, val_loader)
     """
-    train_dataset = RubyASTDataset(train_path)
-    val_dataset = RubyASTDataset(val_path)
-    
-    train_loader = SimpleDataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle)
-    val_loader = SimpleDataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    if not TORCH_AVAILABLE:
+        raise ImportError("PyTorch is required to create data loaders.")
+
+    if pre_collated:
+        # --- Pre-collated path (most efficient) ---
+        train_dataset = PreCollatedDataset(train_path)
+        val_dataset = PreCollatedDataset(val_path)
+        
+        # The collate_fn simply returns the already-collated batch.
+        # The input `batch` is a list of size 1 containing our pre-made Batch object.
+        collate_fn = lambda x: x[0]
+        
+        # DataLoader is just a simple iterator here, no real collation work.
+        # num_workers > 0 can actually be slower due to overhead of sending
+        # already-large batches between processes.
+        from torch.utils.data import DataLoader
+        train_loader = DataLoader(train_dataset, batch_size=1, shuffle=shuffle, num_workers=0, collate_fn=collate_fn)
+        val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=0, collate_fn=collate_fn)
+        
+        print("✅ Using pre-collated data loader (maximum performance).")
+
+    else:
+        # --- Standard real-time collation path ---
+        from torch_geometric.loader import DataLoader
+        train_dataset = PrecomputedRubyASTDataset(train_path)
+        val_dataset = PrecomputedRubyASTDataset(val_path)
+
+        if num_workers is None:
+            num_workers = os.cpu_count()
+
+        train_loader = DataLoader(
+            train_dataset, 
+            batch_size=batch_size, 
+            shuffle=shuffle,
+            num_workers=num_workers,
+            pin_memory=torch.cuda.is_available(),
+            persistent_workers=num_workers > 0
+        )
+        val_loader = DataLoader(
+            val_dataset, 
+            batch_size=batch_size, 
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=torch.cuda.is_available(),
+            persistent_workers=num_workers > 0
+        )
+        
+        print(f"✅ Using standard PyG DataLoader with {num_workers} workers.")
     
     return train_loader, val_loader
+
 
 
 def create_paired_data_loaders(paired_data_path: str, batch_size: int = 32, shuffle: bool = True, seed: Optional[int] = None):

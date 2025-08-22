@@ -13,7 +13,7 @@ import time
 import argparse
 import torch
 import torch.nn.functional as F
-from torch_geometric.data import Data
+from torch_geometric.data import Batch
 
 # Add src directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -29,12 +29,7 @@ def train_epoch(model, train_loader, optimizer, device):
     total_loss = 0.0
     num_graphs = 0
     
-    for graph_dict in train_loader:
-        data = Data(
-            x=torch.tensor(graph_dict['x'], dtype=torch.float),
-            edge_index=torch.tensor(graph_dict['edge_index'], dtype=torch.long)
-        )
-        data.batch = torch.zeros(data.num_nodes, dtype=torch.long)
+    for data in train_loader:
         data = data.to(device)
 
         if data.num_nodes == 0: continue
@@ -49,8 +44,8 @@ def train_epoch(model, train_loader, optimizer, device):
         
         optimizer.step()
         
-        total_loss += loss.item()
-        num_graphs += 1
+        total_loss += loss.item() * data.num_graphs
+        num_graphs += data.num_graphs
 
     return total_loss / num_graphs if num_graphs > 0 else 0.0
 
@@ -61,20 +56,15 @@ def validate_epoch(model, val_loader, device):
     num_graphs = 0
     
     with torch.no_grad():
-        for graph_dict in val_loader:
-            data = Data(
-                x=torch.tensor(graph_dict['x'], dtype=torch.float),
-                edge_index=torch.tensor(graph_dict['edge_index'], dtype=torch.long)
-            )
-            data.batch = torch.zeros(data.num_nodes, dtype=torch.long)
+        for data in val_loader:
             data = data.to(device)
 
             if data.num_nodes == 0: continue
 
             result = model(data)
             loss = ast_reconstruction_loss_improved(data, result['reconstruction'])
-            total_loss += loss.item()
-            num_graphs += 1
+            total_loss += loss.item() * data.num_graphs
+            num_graphs += data.num_graphs
 
     return total_loss / num_graphs if num_graphs > 0 else 0.0
 
@@ -128,6 +118,12 @@ def parse_args():
                         help='GNN convolution type (default: GCN)')
     parser.add_argument('--dropout', type=float, default=0.1,
                         help='Dropout rate (default: 0.1)')
+    parser.add_argument('--num_workers', type=int, default=None,
+                        help='Number of workers for data loading (default: all CPU cores)')
+    parser.add_argument('--pre_collation_batch_size', type=int, default=None,
+                        help='Batch size used during the pre-collation step. If set, will use pre-collated data.')
+    parser.add_argument('--profile', action='store_true',
+                        help='Enable profiling for one epoch to identify performance bottlenecks.')
     return parser.parse_args()
 
 
@@ -165,19 +161,28 @@ def main():
     # Create data loaders
     print("📂 Loading datasets...")
     
-    # Handle sample dataset naming convention
-    if args.dataset_path.rstrip('/').endswith('samples'):
-        train_data_path = os.path.join(args.dataset_path, "train_sample.jsonl")
-        val_data_path = os.path.join(args.dataset_path, "validation_sample.jsonl")
-    else:
-        train_data_path = os.path.join(args.dataset_path, "train.jsonl")
-        val_data_path = os.path.join(args.dataset_path, "validation.jsonl")
+    pre_collated = args.pre_collation_batch_size is not None
     
+    if pre_collated:
+        # Using pre-collated data, batch size is determined by the collation script
+        b_size = args.pre_collation_batch_size
+        train_data_path = os.path.join(args.dataset_path, f"train_collated_b{b_size}.pt")
+        val_data_path = os.path.join(args.dataset_path, f"validation_collated_b{b_size}.pt")
+        # Batch size in loader is 1 because each item *is* a batch. num_workers is also handled differently.
+        loader_batch_size = 1
+    else:
+        # Using standard precomputed (but not collated) data
+        train_data_path = os.path.join(args.dataset_path, "train.pt")
+        val_data_path = os.path.join(args.dataset_path, "validation.pt")
+        loader_batch_size = config['batch_size']
+
     train_loader, val_loader = create_data_loaders(
         train_data_path,
         val_data_path,
-        batch_size=config['batch_size'],
-        shuffle=True
+        batch_size=loader_batch_size,
+        shuffle=True,
+        num_workers=args.num_workers,
+        pre_collated=pre_collated
     )
     
     print(f"   Training batches: {len(train_loader)}")
@@ -228,6 +233,12 @@ def main():
     print("🏋️  Starting training...")
     print("=" * 50)
     
+    if args.profile:
+        import cProfile, pstats
+        profiler = cProfile.Profile()
+        print("🔬 PROFILING ENABLED: Running for one epoch...")
+        profiler.enable()
+
     best_val_loss = float('inf')
     epochs_no_improve = 0
     early_stopping_patience = 10
@@ -237,6 +248,15 @@ def main():
         epoch_start = time.time()
         
         train_loss = train_epoch(model, train_loader, optimizer, device)
+        
+        # If profiling, stop after one training epoch and print results
+        if args.profile:
+            profiler.disable()
+            print("📊 Profiling Results (top 20 functions by cumulative time):")
+            stats = pstats.Stats(profiler).sort_stats('cumtime')
+            stats.print_stats(20)
+            break # Exit after profiling
+            
         val_loss = validate_epoch(model, val_loader, device)
         
         epoch_time = time.time() - epoch_start
@@ -261,28 +281,30 @@ def main():
             print(f"   🛑 Early stopping triggered after {early_stopping_patience} epochs with no improvement.")
             break
     
-    total_time = time.time() - start_time
-    
-    print("=" * 50)
-    print("🎉 Training completed successfully!")
-    print(f"   Total time: {total_time:.2f}s")
-    print(f"   Best validation loss: {best_val_loss:.4f}")
-    print(f"   Best decoder weights saved to: {args.output_path}")
-    
-    # Final decoder save (optional, keeping for compatibility)
-    final_path = args.output_path.replace('.pt', '_final.pt')
-    save_decoder_weights(model, final_path, config['epochs']-1, train_loss, val_loss)
-    print(f"   Final decoder weights saved to: {final_path}")
-    
-    # Verify training objectives
-    print("\n✅ Training Objectives Met:")
-    print(f"   ✓ Trained for {config['epochs']} epochs (≥2 required)")
-    print(f"   ✓ Only decoder weights trained (encoder frozen)")
-    print(f"   ✓ Used AST reconstruction loss function")
-    print(f"   ✓ Input and target are same AST graph")
-    print(f"   ✓ Best decoder weights saved to {args.output_path}")
-    if config['epochs'] > 1:
-        print(f"   ✓ Training completed successfully over multiple epochs")
+    # This part will not be reached if profiling is enabled and successful
+    if not args.profile:
+        total_time = time.time() - start_time
+        
+        print("=" * 50)
+        print("🎉 Training completed successfully!")
+        print(f"   Total time: {total_time:.2f}s")
+        print(f"   Best validation loss: {best_val_loss:.4f}")
+        print(f"   Best decoder weights saved to: {args.output_path}")
+        
+        # Final decoder save (optional, keeping for compatibility)
+        final_path = args.output_path.replace('.pt', '_final.pt')
+        save_decoder_weights(model, final_path, config['epochs']-1, train_loss, val_loss)
+        print(f"   Final decoder weights saved to: {final_path}")
+        
+        # Verify training objectives
+        print("\n✅ Training Objectives Met:")
+        print(f"   ✓ Trained for {config['epochs']} epochs (≥2 required)")
+        print(f"   ✓ Only decoder weights trained (encoder frozen)")
+        print(f"   ✓ Used AST reconstruction loss function")
+        print(f"   ✓ Input and target are same AST graph")
+        print(f"   ✓ Best decoder weights saved to {args.output_path}")
+        if config['epochs'] > 1:
+            print(f"   ✓ Training completed successfully over multiple epochs")
 
 
 if __name__ == "__main__":

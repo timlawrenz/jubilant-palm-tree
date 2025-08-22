@@ -96,7 +96,8 @@ def load_model(checkpoint_path, device):
         conv_type=config.get("conv_type", "SAGE"),
         dropout=config.get("dropout", 0.1),
         freeze_encoder=True,
-        encoder_weights_path=None
+        encoder_weights_path=None,
+        max_nodes=config.get("max_nodes", 100)
     ).to(device)
     model.decoder.load_state_dict(checkpoint["decoder_state_dict"])
     model.eval()

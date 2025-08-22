@@ -431,7 +431,8 @@ class ASTAutoencoder(torch.nn.Module):
     def __init__(self, encoder_input_dim: int, node_output_dim: int, 
                  hidden_dim: int = 64, num_layers: int = 3, 
                  conv_type: str = 'GCN', dropout: float = 0.1,
-                 freeze_encoder: bool = False, encoder_weights_path: str = None):
+                 freeze_encoder: bool = False, encoder_weights_path: str = None,
+                 max_nodes: int = 100):
         """
         Initialize the AST autoencoder.
         
@@ -498,7 +499,8 @@ class ASTAutoencoder(torch.nn.Module):
             embedding_dim=hidden_dim,
             output_node_dim=node_output_dim,
             hidden_dim=hidden_dim,
-            num_layers=num_layers
+            num_layers=num_layers,
+            max_nodes=max_nodes
         )
         
         self.hidden_dim = hidden_dim

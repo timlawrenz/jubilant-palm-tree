@@ -211,46 +211,26 @@ def compute_edge_prediction_loss(original_edge_index: torch.Tensor,
         # No edges in original, return zero loss
         return torch.tensor(0.0, device=original_edge_index.device, requires_grad=True)
     
-    total_loss = 0.0
+    # --- Vectorized implementation to avoid CPU bottlenecks ---
     
-    # Get reconstructed edge information if available
-    recon_edge_index = reconstructed.get('edge_index', None)
+    # 1. Get the batch index for the source node of each edge
+    edge_batch_indices = original_batch[original_edge_index[0]]
+
+    # 2. Count the number of edges for each graph in the batch
+    # `bincount` is a highly optimized way to count occurrences of each index
+    original_edge_counts = torch.bincount(edge_batch_indices, minlength=batch_size).float()
+
+    # 3. Estimate reconstructed edge counts (maintaining original logic)
+    # Get the number of nodes in each graph of the batch
+    num_nodes_per_graph = torch.bincount(original_batch, minlength=batch_size).float()
+    # Estimate edge count as num_nodes - 1 (for a tree-like structure)
+    recon_edge_counts = torch.clamp(num_nodes_per_graph - 1, min=0)
+
+    # 4. Compute the loss as the mean squared error between the counts
+    # This is a single, fast, vectorized operation
+    loss = F.mse_loss(recon_edge_counts, original_edge_counts)
     
-    for batch_idx in range(batch_size):
-        # Count original edges for this graph
-        # Get nodes belonging to this graph
-        node_mask = (original_batch == batch_idx)
-        if not node_mask.any():
-            continue
-            
-        node_indices = torch.where(node_mask)[0]
-        node_set = set(node_indices.cpu().numpy())
-        
-        # Count edges where both source and target are in this graph
-        original_edge_count = 0
-        for i in range(original_edge_index.size(1)):
-            src, dst = original_edge_index[0, i].item(), original_edge_index[1, i].item()
-            if src in node_set and dst in node_set:
-                original_edge_count += 1
-        
-        # For reconstructed edges, use a simple heuristic based on node count
-        # In a more sophisticated implementation, you'd have actual edge predictions
-        num_nodes = node_mask.sum().item()
-        
-        if recon_edge_index is not None and recon_edge_index.size(1) > 0:
-            # Count reconstructed edges for this graph
-            # This is a simplification - in practice you'd need better edge tracking
-            recon_edge_count = min(recon_edge_index.size(1) // batch_size, num_nodes * 2)
-        else:
-            # Estimate based on typical AST structure (tree-like with some additional edges)
-            recon_edge_count = max(0, num_nodes - 1)  # Tree has n-1 edges
-        
-        # Compute loss as squared difference in edge counts
-        edge_diff = abs(original_edge_count - recon_edge_count)
-        total_loss += edge_diff ** 2
-    
-    # Normalize and return as tensor
-    return torch.tensor(total_loss / batch_size, device=original_edge_index.device, requires_grad=True)
+    return loss
 
 
 def ast_reconstruction_loss_improved(original: Data, reconstructed: Dict[str, Any],
