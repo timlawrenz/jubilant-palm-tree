@@ -139,6 +139,18 @@ demos/          # Demo scripts showing functionality (demo_*.py, demonstrate_*.p
 examples/       # Usage examples (example_*.py)
 ```
 
+### Debugging Evaluation
+
+When running the evaluation script (`scripts/evaluate_model.py`), a CSV file with detailed results is generated. This file is crucial for debugging, especially in the early stages of training.
+
+The `reconstructed_ast` column shows the raw JSON output of the model's decoder before it's converted back into Ruby code. If you see a flat list of nodes of type `unknown`, like this:
+
+```json
+"[{""type"": ""unknown"", ""children"": []}, {""type"": ""unknown"", ""children"": []}]"
+```
+
+This is a clear indicator that the model is undertrained. It has not yet learned to predict the correct node types or the hierarchical structure of the Abstract Syntax Tree. As a result, all subsequent metrics (like syntactic validity and BLEU score) will be zero because no valid Ruby code can be generated from this malformed AST.
+
 To run the full test suite locally:
 ```bash
 # Run all test files (all files matching tests/test_*.py are executed in CI)
