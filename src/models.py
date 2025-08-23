@@ -122,10 +122,10 @@ class ASTDecoder(torch.nn.Module):
         Args:
             embedding_dim: Dimension of input graph embedding
             output_node_dim: Dimension of output node features
-            hidden_dim: Hidden layer dimension
-            num_layers: Number of decoder layers
-            max_nodes: Maximum number of nodes to generate
-            conv_type: The type of GNN layer to use ('GCN', 'SAGE', 'GAT').
+            hidden_dim: Hidden layer dimension for GNN layers.
+            num_layers: Number of decoder GNN layers.
+            max_nodes: Maximum number of nodes to generate.
+            conv_type: The type of GNN layer to use ('GCN', 'SAGE', 'GAT', 'GIN', 'GraphConv').
         """
         super().__init__()
         
@@ -135,41 +135,36 @@ class ASTDecoder(torch.nn.Module):
         self.num_layers = num_layers
         self.max_nodes = max_nodes
         
-        # Transform embedding to initial hidden state
         self.embedding_transform = torch.nn.Linear(embedding_dim, hidden_dim)
         
-        # Select the GNN layer based on conv_type
-        if conv_type == 'GCN':
-            ConvLayer = GCNConv
-        elif conv_type == 'SAGE':
-            ConvLayer = SAGEConv
-        elif conv_type == 'GAT':
-            # GATConv can have additional options like `heads`
-            ConvLayer = lambda in_channels, out_channels: GATConv(in_channels, out_channels, heads=4)
-            hidden_dim = hidden_dim * 4 # Adjust for multi-head output
-        elif conv_type == 'GIN':
-            # GINConv requires a small MLP as its core component
-            mlp = torch.nn.Sequential(
-                torch.nn.Linear(hidden_dim, hidden_dim),
-                torch.nn.ReLU(),
-                torch.nn.Linear(hidden_dim, hidden_dim)
-            )
-            ConvLayer = lambda in_channels, out_channels: GINConv(mlp)
-        elif conv_type == 'GraphConv':
-            ConvLayer = GraphConv
-        else:
-            raise ValueError(f"Unsupported conv_type: {conv_type}")
-
-        # GNN layers for iterative refinement
         self.convs = torch.nn.ModuleList()
-        self.convs.append(ConvLayer(self.hidden_dim, self.hidden_dim))
-        for _ in range(num_layers - 1):
-            self.convs.append(ConvLayer(hidden_dim, hidden_dim))
-        
-        # Output projections
-        self.node_output = torch.nn.Linear(hidden_dim, output_node_dim)
-        # For each node, predict its parent from the set of existing nodes
-        self.parent_predictor = torch.nn.Linear(hidden_dim, max_nodes)
+        current_dim = hidden_dim
+
+        for i in range(num_layers):
+            if conv_type == 'GAT':
+                heads = 4
+                conv = GATConv(current_dim, hidden_dim, heads=heads)
+                current_dim = hidden_dim * heads
+            elif conv_type == 'GIN':
+                mlp = torch.nn.Sequential(
+                    torch.nn.Linear(current_dim, current_dim),
+                    torch.nn.ReLU(),
+                    torch.nn.Linear(current_dim, current_dim)
+                )
+                conv = GINConv(mlp)
+            elif conv_type == 'SAGE':
+                conv = SAGEConv(current_dim, current_dim)
+            elif conv_type == 'GCN':
+                conv = GCNConv(current_dim, current_dim)
+            elif conv_type == 'GraphConv':
+                conv = GraphConv(current_dim, current_dim)
+            else:
+                raise ValueError(f"Unsupported conv_type: {conv_type}")
+            
+            self.convs.append(conv)
+
+        self.node_output = torch.nn.Linear(current_dim, output_node_dim)
+        self.parent_predictor = torch.nn.Linear(current_dim, max_nodes)
         
     def forward(self, embedding: torch.Tensor, num_nodes_per_graph: torch.Tensor) -> dict:
         """
