@@ -72,28 +72,24 @@ This is a critical result. It demonstrates that the current model architecture, 
 
 This outcome definitively proves that a more sophisticated approach is needed to enforce structural correctness.
 
-## Next Steps: A New Experimental Plan
+## Next Steps: Automated Hyperparameter Optimization
 
-The massive performance gains from the optimization work are now a strategic advantage, enabling rapid experimentation. We will exhaust the potential of the current non-autoregressive approach before considering a shift in architecture.
+Our manual, iterative experiments have been invaluable. We have:
+1.  Achieved a **>2500x speedup** in the training pipeline.
+2.  Confirmed that **explicit parent prediction** provides a much stronger learning signal.
+3.  Discovered that **`GINConv`** is a particularly effective GNN architecture for this task.
+4.  Concluded that the model is still not powerful enough to solve the problem, even with these improvements.
 
-### Experiment 1: Explicit Parent Prediction (Completed)
+The manual process of testing one hypothesis at a time has reached its limit. The interactions between the numerous hyperparameters (`conv_type`, `hidden_dim`, `num_layers`, `learning_rate`, loss weights, etc.) are too complex to explore effectively by hand.
 
-The most critical weakness of the current model was its lack of explicit structural prediction. This experiment addressed that directly by adding a parent prediction head to the decoder and a corresponding loss component.
+To overcome this, we are moving to a more sophisticated and automated approach: **hyperparameter optimization using a genetic algorithm.**
 
--   **Hypothesis:** Forcing the model to predict the parent of each node will provide a much stronger learning signal for AST structure.
--   **Implementation:**
-    1.  Modified `ASTDecoder` to add a `parent_logits` output head.
-    2.  Upgraded the loss function to include a Parent Prediction Loss (cross-entropy).
--   **Result:** The model trained successfully and achieved a lower validation loss of **5.1936**, a significant improvement over the previous baseline of 6.4203. However, a final evaluation showed that the model still scored **zero** on all metrics.
--   **Conclusion:** Explicit parent prediction is a necessary improvement, but it is not sufficient on its own. The model architecture itself is likely not powerful enough to learn the complex rules of AST construction.
+### The Genetic Algorithm Approach
 
-### Experiment 2: Increase Model Capacity and Expressiveness (Current)
+Instead of manually defining experiments, we will use a genetic algorithm to automatically search for the optimal combination of model architecture and training parameters.
 
-Since the improved loss signal was not enough, the next logical step is to increase the model's capacity to see if a larger or more expressive model can succeed where the smaller one failed.
+-   **The "Genome":** Each "individual" in our population will be defined by a chromosome containing all the key hyperparameters we have identified.
+-   **The "Fitness Function":** Each individual will be trained for a fixed number of epochs, and its "fitness" will be its best achieved validation loss.
+-   **"Evolution":** The algorithm will iteratively breed the fittest individuals (those with the lowest validation loss) and introduce mutations, evolving the population over many generations to find a set of elite, high-performing models.
 
--   **Hypothesis:** A larger and more expressive model will be better able to capture the complex patterns of code structure.
--   **Implementation:**
-    -   **Go Deeper & Wider:** Increase the number of GNN layers in the decoder from 3 to 5 and the hidden dimension size from 64 to 256.
--   **Expected Outcome:** A further reduction in validation loss and, hopefully, the first non-zero scores on the `AST Isomorphism` and `Syntactic Validity` metrics. This is the final test for the non-autoregressive architecture.
-
-This structured, iterative approach will allow us to systematically determine if a non-autoregressive model can be made to succeed at this task.
+This approach automates the experimental process, allowing us to explore the vast hyperparameter space and discover non-obvious interactions that could lead to a breakthrough. The initial population of 30 random organisms is currently being evaluated. This marks the final and most comprehensive experiment for the non-autoregressive architecture.

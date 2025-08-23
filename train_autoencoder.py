@@ -24,7 +24,7 @@ from models import ASTAutoencoder
 from loss import ast_reconstruction_loss_improved
 
 
-def train_epoch(model, train_loader, optimizer, device):
+def train_epoch(model, train_loader, optimizer, device, type_weight, parent_weight):
     model.train()
     total_loss = 0.0
     num_graphs = 0
@@ -36,7 +36,12 @@ def train_epoch(model, train_loader, optimizer, device):
 
         optimizer.zero_grad()
         result = model(data)
-        loss = ast_reconstruction_loss_improved(data, result['reconstruction'])
+        loss = ast_reconstruction_loss_improved(
+            data, 
+            result['reconstruction'],
+            type_weight=type_weight,
+            parent_weight=parent_weight
+        )
         loss.backward()
         
         # Gradient clipping for additional numerical stability
@@ -50,7 +55,7 @@ def train_epoch(model, train_loader, optimizer, device):
     return total_loss / num_graphs if num_graphs > 0 else 0.0
 
 
-def validate_epoch(model, val_loader, device):
+def validate_epoch(model, val_loader, device, type_weight, parent_weight):
     model.eval()
     total_loss = 0.0
     num_graphs = 0
@@ -62,7 +67,12 @@ def validate_epoch(model, val_loader, device):
             if data.num_nodes == 0: continue
 
             result = model(data)
-            loss = ast_reconstruction_loss_improved(data, result['reconstruction'])
+            loss = ast_reconstruction_loss_improved(
+                data, 
+                result['reconstruction'],
+                type_weight=type_weight,
+                parent_weight=parent_weight
+            )
             total_loss += loss.item() * data.num_graphs
             num_graphs += data.num_graphs
 
@@ -106,22 +116,24 @@ def parse_args():
                         help='Path to save the best decoder model (default: models/best_decoder.pt)')
     parser.add_argument('--encoder_weights_path', type=str, default='models/best_model.pt',
                         help='Path to pre-trained encoder weights (default: models/best_model.pt)')
-    parser.add_argument('--batch_size', type=int, default=1,
-                        help='Batch size for training (default: 1)')
+    parser.add_argument('--batch_size', type=int, default=4096,
+                        help='Batch size for pre-collation and training (default: 4096)')
     parser.add_argument('--learning_rate', type=float, default=0.001,
                         help='Learning rate (default: 0.001)')
-    parser.add_argument('--hidden_dim', type=int, default=64,
-                        help='Hidden dimension size (default: 64)')
-    parser.add_argument('--num_layers', type=int, default=3,
-                        help='Number of GNN layers (default: 3)')
-    parser.add_argument('--conv_type', type=str, default='GCN', choices=['GCN', 'SAGE'],
-                        help='GNN convolution type (default: GCN)')
+    parser.add_argument('--hidden_dim', type=int, default=256,
+                        help='Hidden dimension size (default: 256)')
+    parser.add_argument('--num_layers', type=int, default=5,
+                        help='Number of GNN layers (default: 5)')
+    parser.add_argument('--conv_type', type=str, default='SAGE', choices=['GCN', 'SAGE'],
+                        help='GNN convolution type for the ENCODER (default: SAGE)')
+    parser.add_argument('--decoder_conv_type', type=str, default='GAT', choices=['GCN', 'SAGE', 'GAT', 'GIN', 'GraphConv'],
+                        help='GNN convolution type for the DECODER (default: GAT)')
     parser.add_argument('--dropout', type=float, default=0.1,
                         help='Dropout rate (default: 0.1)')
-    parser.add_argument('--num_workers', type=int, default=None,
-                        help='Number of workers for data loading (default: all CPU cores)')
-    parser.add_argument('--pre_collation_batch_size', type=int, default=None,
-                        help='Batch size used during the pre-collation step. If set, will use pre-collated data.')
+    parser.add_argument('--type_weight', type=float, default=2.0,
+                        help='Weight for the node type loss component.')
+    parser.add_argument('--parent_weight', type=float, default=1.0,
+                        help='Weight for the parent prediction loss component.')
     parser.add_argument('--profile', action='store_true',
                         help='Enable profiling for one epoch to identify performance bottlenecks.')
     return parser.parse_args()
@@ -161,27 +173,18 @@ def main():
     # Create data loaders
     print("📂 Loading datasets...")
     
-    pre_collated = args.pre_collation_batch_size is not None
+    # Use pre-collated data for maximum performance
+    pre_collated = True
+    b_size = args.batch_size # The script's batch_size now refers to the pre-collation batch size
+    train_data_path = os.path.join(args.dataset_path, f"train_collated_b{b_size}.pt")
+    val_data_path = os.path.join(args.dataset_path, f"validation_collated_b{b_size}.pt")
     
-    if pre_collated:
-        # Using pre-collated data, batch size is determined by the collation script
-        b_size = args.pre_collation_batch_size
-        train_data_path = os.path.join(args.dataset_path, f"train_collated_b{b_size}.pt")
-        val_data_path = os.path.join(args.dataset_path, f"validation_collated_b{b_size}.pt")
-        # Batch size in loader is 1 because each item *is* a batch. num_workers is also handled differently.
-        loader_batch_size = 1
-    else:
-        # Using standard precomputed (but not collated) data
-        train_data_path = os.path.join(args.dataset_path, "train.pt")
-        val_data_path = os.path.join(args.dataset_path, "validation.pt")
-        loader_batch_size = config['batch_size']
-
     train_loader, val_loader = create_data_loaders(
         train_data_path,
         val_data_path,
-        batch_size=loader_batch_size,
+        batch_size=1, # Batch size is 1 because each item *is* a batch
         shuffle=True,
-        num_workers=args.num_workers,
+        num_workers=0, # Workers > 0 can be slower with pre-collated data
         pre_collated=pre_collated
     )
     
@@ -199,7 +202,8 @@ def main():
         conv_type=config['conv_type'],
         dropout=config['dropout'],
         freeze_encoder=config['freeze_encoder'],
-        encoder_weights_path=config['encoder_weights_path']
+        encoder_weights_path=config['encoder_weights_path'],
+        decoder_conv_type=args.decoder_conv_type
     ).to(device)
     
     # Count parameters
@@ -247,7 +251,7 @@ def main():
     for epoch in range(config['epochs']):
         epoch_start = time.time()
         
-        train_loss = train_epoch(model, train_loader, optimizer, device)
+        train_loss = train_epoch(model, train_loader, optimizer, device, args.type_weight, args.parent_weight)
         
         # If profiling, stop after one training epoch and print results
         if args.profile:
@@ -257,7 +261,7 @@ def main():
             stats.print_stats(20)
             break # Exit after profiling
             
-        val_loss = validate_epoch(model, val_loader, device)
+        val_loss = validate_epoch(model, val_loader, device, args.type_weight, args.parent_weight)
         
         epoch_time = time.time() - epoch_start
         

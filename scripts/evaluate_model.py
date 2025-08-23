@@ -178,7 +178,8 @@ def main(args):
                     if parent_idx in node_map:
                         node_map[parent_idx]["children"].append(node_map[i])
 
-            reconstructed_code = run_ruby_script(pretty_print_script, json.dumps(root_nodes))
+            reconstructed_ast_json = root_nodes
+            reconstructed_code = run_ruby_script(pretty_print_script, json.dumps(reconstructed_ast_json))
             
             # --- Calculate Metrics ---
             is_valid_syntax = check_syntax(reconstructed_code, check_syntax_script)
@@ -193,6 +194,7 @@ def main(args):
             results.append({
                 "original_code": original_code,
                 "reconstructed_code": reconstructed_code,
+                "reconstructed_ast_json": reconstructed_ast_json,
                 "syntactic_validity": is_valid_syntax,
                 "ast_isomorphism": is_isomorphic,
                 "standard_bleu": standard_bleu,
@@ -233,6 +235,18 @@ def main(args):
         print("\n--- Sample Reconstructions (Top 5) ---")
         print(comparison_df.head(5))
 
+    # --- Save Reconstructed Graphs ---
+    if args.save_graphs:
+        import time
+        timestamp = int(time.time())
+        output_filename = f"output/reconstructed_graphs_{timestamp}.jsonl"
+        with open(output_filename, "w") as f:
+            for result in results:
+                # Add the reconstructed graph structure to the result dict
+                # The `reconstructed_code` is generated from this structure
+                f.write(json.dumps({"original_code": result["original_code"], "reconstructed_ast": result["reconstructed_ast_json"]}) + "\n")
+        print(f"\n💾 Reconstructed graphs saved to {output_filename}")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate a trained AST Autoencoder model.")
     parser.add_argument(
@@ -257,5 +271,10 @@ if __name__ == "__main__":
         '--no_qualitative',
         action='store_true',
         help="Suppress the qualitative (side-by-side) output."
+    )
+    parser.add_argument(
+        '--save_graphs',
+        action='store_true',
+        help="Save the reconstructed AST graphs to a JSONL file."
     )
     main(parser.parse_args())
