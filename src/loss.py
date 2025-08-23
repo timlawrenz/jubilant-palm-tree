@@ -237,27 +237,27 @@ def ast_reconstruction_loss_improved(original: Data, reconstructed: Dict[str, An
                                    type_weight: float = 1.0, 
                                    parent_weight: float = 1.0) -> torch.Tensor:
     """
-    Improved AST reconstruction loss with explicit parent prediction.
+    Improved AST reconstruction loss with explicit parent prediction for batches.
     
     This loss function provides a strong structural learning signal by combining
-    node type prediction with explicit parent prediction for each node.
+    node type prediction with explicit parent prediction for each node across an
+    entire batch of graphs.
     
     Args:
-        original: Original AST as a single torch_geometric.data.Data object (for one graph).
-        reconstructed: Reconstructed AST from decoder containing 'node_features' and 'parent_logits'.
+        original: A `torch_geometric.data.Batch` object containing a batch of original ASTs.
+        reconstructed: Reconstructed AST from the decoder, containing batched 'node_features' 
+                       and 'parent_logits'.
         type_weight: Weight for the node type prediction loss.
         parent_weight: Weight for the parent prediction loss.
         
     Returns:
-        Scalar tensor representing the total weighted reconstruction loss.
+        Scalar tensor representing the total weighted reconstruction loss for the batch.
     """
-    # --- Component 1: Node Type Loss ---
-    # Squeeze to remove the batch dimension of 1
-    recon_node_logits = reconstructed['node_features'].squeeze(0)
+    # --- Component 1: Node Type Loss (Batched) ---
+    recon_node_logits = reconstructed['node_features'] # Shape: [total_nodes, feature_dim]
     true_node_types = original.x.argmax(dim=1)
     
-    # The decoder might predict a different number of nodes than the original.
-    # We compute the loss only for the minimum number of nodes between the two.
+    # The number of nodes should match between the batched original and reconstruction.
     num_nodes = min(recon_node_logits.size(0), true_node_types.size(0))
     if num_nodes == 0:
         return torch.tensor(0.0, device=original.x.device, requires_grad=True)
@@ -267,37 +267,43 @@ def ast_reconstruction_loss_improved(original: Data, reconstructed: Dict[str, An
         true_node_types[:num_nodes]
     )
 
-    # --- Component 2: Parent Prediction Loss ---
-    recon_parent_logits = reconstructed['parent_logits'].squeeze(0) # Shape: [num_nodes, max_nodes]
+    # --- Component 2: Parent Prediction Loss (Batched) ---
+    recon_parent_logits = reconstructed['parent_logits'] # Shape: [total_nodes, max_nodes]
     max_nodes = recon_parent_logits.size(1)
     
-    # Create the ground truth parent labels for the original graph
+    # Create the ground truth parent labels for the entire batch.
     num_true_nodes = original.num_nodes
-    ignore_index = -100 # A standard ignore index for cross-entropy
+    ignore_index = -100
     true_parents = torch.full((num_true_nodes,), ignore_index, dtype=torch.long, device=original.x.device)
     
-    # The root node has no parent, so it will be ignored in the loss calculation.
-    # For all other nodes, find their parent from the edge index.
-    # original.edge_index is [parent_indices, child_indices]
+    # To correctly handle parent indices in a batch, we need to offset them.
+    # The parent of a node in graph `i` must be one of the nodes *within* graph `i`.
+    # We first create a global offset for each node.
+    num_nodes_per_graph = torch.bincount(original.batch)
+    node_offsets = torch.cumsum(num_nodes_per_graph, dim=0) - num_nodes_per_graph
+    
+    # Offset the parent indices in the edge list.
     children = original.edge_index[1]
     parents = original.edge_index[0]
-
-    # Populate the true_parents tensor, clamping indices to be within the prediction range.
-    valid_parents = torch.clamp(parents, 0, max_nodes - 1)
+    
+    # The parent prediction is local to each graph. The `parent_predictor` outputs logits
+    # where the `j`-th logit corresponds to the `j`-th node *within that graph*.
+    # Therefore, we need to calculate the local parent index.
+    local_parents = parents - node_offsets[original.batch[parents]]
+    
+    # Populate the true_parents tensor with the local parent indices.
+    # Clamp to ensure indices are within the prediction range [0, max_nodes-1].
+    valid_parents = torch.clamp(local_parents, 0, max_nodes - 1)
     true_parents[children] = valid_parents
 
-    # We only compute the loss for the nodes that were actually reconstructed.
-    num_nodes_for_loss = min(recon_parent_logits.size(0), true_parents.size(0))
-
     # Check if there are any valid parent-child relationships to compute loss on.
-    if (true_parents[:num_nodes_for_loss] != ignore_index).any():
+    if (true_parents != ignore_index).any():
         parent_loss = F.cross_entropy(
-            recon_parent_logits[:num_nodes_for_loss],
-            true_parents[:num_nodes_for_loss],
+            recon_parent_logits,
+            true_parents,
             ignore_index=ignore_index
         )
     else:
-        # This case handles single-node graphs (which have no parents).
         parent_loss = torch.tensor(0.0, device=original.x.device)
 
     # --- Total Loss ---

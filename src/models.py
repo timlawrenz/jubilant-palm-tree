@@ -7,8 +7,9 @@ Ruby AST structures.
 
 import torch
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv, SAGEConv, global_mean_pool
+from torch_geometric.nn import GCNConv, SAGEConv, GATConv, GINConv, GraphConv, global_mean_pool
 from torch_geometric.data import Data, Batch
+import torch_geometric
 try:
     from sentence_transformers import SentenceTransformer
     SENTENCE_TRANSFORMERS_AVAILABLE = True
@@ -114,7 +115,7 @@ class ASTDecoder(torch.nn.Module):
     """
     
     def __init__(self, embedding_dim: int, output_node_dim: int, hidden_dim: int = 256, 
-                 num_layers: int = 5, max_nodes: int = 100):
+                 num_layers: int = 5, max_nodes: int = 100, conv_type: str = 'GCN'):
         """
         Initialize the AST decoder.
         
@@ -124,6 +125,7 @@ class ASTDecoder(torch.nn.Module):
             hidden_dim: Hidden layer dimension
             num_layers: Number of decoder layers
             max_nodes: Maximum number of nodes to generate
+            conv_type: The type of GNN layer to use ('GCN', 'SAGE', 'GAT').
         """
         super().__init__()
         
@@ -136,61 +138,96 @@ class ASTDecoder(torch.nn.Module):
         # Transform embedding to initial hidden state
         self.embedding_transform = torch.nn.Linear(embedding_dim, hidden_dim)
         
+        # Select the GNN layer based on conv_type
+        if conv_type == 'GCN':
+            ConvLayer = GCNConv
+        elif conv_type == 'SAGE':
+            ConvLayer = SAGEConv
+        elif conv_type == 'GAT':
+            # GATConv can have additional options like `heads`
+            ConvLayer = lambda in_channels, out_channels: GATConv(in_channels, out_channels, heads=4)
+            hidden_dim = hidden_dim * 4 # Adjust for multi-head output
+        elif conv_type == 'GIN':
+            # GINConv requires a small MLP as its core component
+            mlp = torch.nn.Sequential(
+                torch.nn.Linear(hidden_dim, hidden_dim),
+                torch.nn.ReLU(),
+                torch.nn.Linear(hidden_dim, hidden_dim)
+            )
+            ConvLayer = lambda in_channels, out_channels: GINConv(mlp)
+        elif conv_type == 'GraphConv':
+            ConvLayer = GraphConv
+        else:
+            raise ValueError(f"Unsupported conv_type: {conv_type}")
+
         # GNN layers for iterative refinement
         self.convs = torch.nn.ModuleList()
-        for _ in range(num_layers):
-            self.convs.append(GCNConv(hidden_dim, hidden_dim))
+        self.convs.append(ConvLayer(self.hidden_dim, self.hidden_dim))
+        for _ in range(num_layers - 1):
+            self.convs.append(ConvLayer(hidden_dim, hidden_dim))
         
         # Output projections
         self.node_output = torch.nn.Linear(hidden_dim, output_node_dim)
         # For each node, predict its parent from the set of existing nodes
         self.parent_predictor = torch.nn.Linear(hidden_dim, max_nodes)
         
-    def forward(self, embedding: torch.Tensor, target_num_nodes: int = None) -> dict:
+    def forward(self, embedding: torch.Tensor, num_nodes_per_graph: torch.Tensor) -> dict:
         """
-        Forward pass to decode embedding into AST structure.
+        Forward pass to decode a batch of embeddings into AST structures.
         
         Args:
-            embedding: Graph embedding tensor of shape (batch_size, embedding_dim)
-            target_num_nodes: Target number of nodes to generate (for training)
+            embedding: Graph embedding tensor of shape [batch_size, embedding_dim].
+            num_nodes_per_graph: Tensor of shape [batch_size] with the number of nodes for each graph.
             
         Returns:
-            Dictionary containing generated node features and parent predictions.
+            Dictionary containing batched node features and parent predictions.
         """
         batch_size = embedding.size(0)
         device = embedding.device
         
-        # This decoder is non-autoregressive and processes one graph at a time.
-        # If a batch is passed, we only process the first item's embedding.
-        if batch_size > 1:
-            embedding = embedding[0].unsqueeze(0)
+        # Use torch.repeat_interleave to expand each graph's embedding
+        # to match the number of nodes in that graph.
+        # This is the core of the batch-aware processing.
+        node_features = self.embedding_transform(embedding)
+        node_features = node_features.repeat_interleave(num_nodes_per_graph, dim=0)
 
-        num_nodes = target_num_nodes if target_num_nodes is not None else self.max_nodes
+        # To avoid the massive memory allocation of a fully-connected graph for the
+        # entire batch, we create a more realistic and efficient sequential
+        # placeholder. We connect each node to its predecessor within each graph.
+        edge_index_list = []
+        node_offset = 0
+        for num_nodes in num_nodes_per_graph:
+            if num_nodes > 1:
+                # Create sequential edges (i -> i+1) for each graph
+                graph_edges = torch.stack([
+                    torch.arange(0, num_nodes - 1, device=device),
+                    torch.arange(1, num_nodes, device=device)
+                ], dim=0)
+                # Offset the indices by the number of nodes in previous graphs
+                edge_index_list.append(graph_edges + node_offset)
+            node_offset += num_nodes
         
-        # Project the single graph embedding to create an initial feature vector for each node
-        initial_features = self.embedding_transform(embedding)
-        node_features = initial_features.expand(num_nodes, self.hidden_dim)
-        
-        # In this simplified one-shot decoder, we refine all nodes at once.
-        # We create a placeholder fully connected graph to allow message passing.
-        # This allows the GNN to learn relationships between all potential nodes.
-        adj = torch.ones(num_nodes, num_nodes, device=device)
-        edge_index = adj.nonzero().t().contiguous()
+        if not edge_index_list:
+            # Handle case with no edges (e.g., all single-node graphs)
+            edge_index = torch.empty((2, 0), dtype=torch.long, device=device)
+        else:
+            edge_index = torch.cat(edge_index_list, dim=1)
+
+        # GNNs are typically undirected, so we add reverse edges.
+        edge_index = torch_geometric.utils.to_undirected(edge_index)
 
         x = node_features
         for conv in self.convs:
             x = conv(x, edge_index)
             x = F.relu(x)
         
-        # Predict the final node features (e.g., one-hot type) for each node
+        # Predict the final node features and parent logits for all nodes in the batch.
         output_node_features = self.node_output(x)
-        
-        # For each node, predict a parent from the set of all possible nodes
-        parent_logits = self.parent_predictor(x) # Shape: [num_nodes, max_nodes]
+        parent_logits = self.parent_predictor(x)
         
         return {
-            'node_features': output_node_features.unsqueeze(0), # Shape: [1, num_nodes, feature_dim]
-            'parent_logits': parent_logits.unsqueeze(0) # Shape: [1, num_nodes, max_nodes]
+            'node_features': output_node_features, # Shape: [total_nodes, feature_dim]
+            'parent_logits': parent_logits         # Shape: [total_nodes, max_nodes]
         }
 
 
@@ -436,7 +473,7 @@ class ASTAutoencoder(torch.nn.Module):
                  hidden_dim: int = 64, num_layers: int = 3, 
                  conv_type: str = 'GCN', dropout: float = 0.1,
                  freeze_encoder: bool = False, encoder_weights_path: str = None,
-                 max_nodes: int = 100):
+                 max_nodes: int = 100, decoder_conv_type: str = 'GCN'):
         """
         Initialize the AST autoencoder.
         
@@ -449,6 +486,8 @@ class ASTAutoencoder(torch.nn.Module):
             dropout: Dropout rate for encoder
             freeze_encoder: Whether to freeze encoder weights
             encoder_weights_path: Path to pre-trained encoder weights
+            max_nodes: Maximum number of nodes for the decoder.
+            decoder_conv_type: The GNN layer type for the decoder.
         """
         super().__init__()
         
@@ -504,7 +543,8 @@ class ASTAutoencoder(torch.nn.Module):
             output_node_dim=node_output_dim,
             hidden_dim=hidden_dim,
             num_layers=num_layers,
-            max_nodes=max_nodes
+            max_nodes=max_nodes,
+            conv_type=decoder_conv_type
         )
         
         self.hidden_dim = hidden_dim
@@ -515,26 +555,19 @@ class ASTAutoencoder(torch.nn.Module):
         Forward pass through the autoencoder.
         
         Args:
-            data: PyTorch Geometric Data object containing input AST
+            data: PyTorch Geometric Data object containing a batch of input ASTs.
             
         Returns:
-            Dictionary containing reconstructed AST information
+            Dictionary containing reconstructed AST information for the batch.
         """
-        # Encode: AST -> embedding
+        # Encode: Batch of ASTs -> Batch of embeddings
         embedding = self.encoder(data, return_embedding=True)
         
-        # Determine target number of nodes from input data
-        batch_size = embedding.size(0)
-        if hasattr(data, 'batch'):
-            # Count nodes per graph in batch
-            unique_batch, counts = torch.unique(data.batch, return_counts=True)
-            target_nodes = int(counts[0].item())  # Use first graph's size as target
-        else:
-            # Single graph case
-            target_nodes = data.x.size(0)
+        # Get the number of nodes in each graph of the batch
+        num_nodes_per_graph = torch.bincount(data.batch)
         
-        # Decode: embedding -> AST
-        reconstruction = self.decoder(embedding, target_num_nodes=target_nodes)
+        # Decode: Batch of embeddings -> Batch of reconstructed ASTs
+        reconstruction = self.decoder(embedding, num_nodes_per_graph)
         
         return {
             'embedding': embedding,
