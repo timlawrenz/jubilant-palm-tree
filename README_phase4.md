@@ -76,25 +76,24 @@ This outcome definitively proves that a more sophisticated approach is needed to
 
 The massive performance gains from the optimization work are now a strategic advantage, enabling rapid experimentation. We will exhaust the potential of the current non-autoregressive approach before considering a shift in architecture.
 
-### Experiment 1: Explicit Parent Prediction (High-Impact)
+### Experiment 1: Explicit Parent Prediction (Completed)
 
-The most critical weakness of the current model is its lack of explicit structural prediction. This experiment will address that directly.
+The most critical weakness of the current model was its lack of explicit structural prediction. This experiment addressed that directly by adding a parent prediction head to the decoder and a corresponding loss component.
 
--   **Hypothesis:** Forcing the model to predict the parent of each node will provide a much stronger learning signal for AST structure than the current edge-counting heuristic.
+-   **Hypothesis:** Forcing the model to predict the parent of each node will provide a much stronger learning signal for AST structure.
 -   **Implementation:**
-    1.  **Modify `ASTDecoder`:** Add a new output head to predict `parent_logits` for each node.
-    2.  **Upgrade Loss Function:** Add a **Parent Prediction Loss** component (cross-entropy) to `ast_reconstruction_loss_improved`.
--   **Expected Outcome:** A significant improvement in the `AST Isomorphism` score, hopefully bringing it above zero for the first time.
+    1.  Modified `ASTDecoder` to add a `parent_logits` output head.
+    2.  Upgraded the loss function to include a Parent Prediction Loss (cross-entropy).
+-   **Result:** The model trained successfully and achieved a lower validation loss of **5.1936**, a significant improvement over the previous baseline of 6.4203. However, a final evaluation showed that the model still scored **zero** on all metrics.
+-   **Conclusion:** Explicit parent prediction is a necessary improvement, but it is not sufficient on its own. The model architecture itself is likely not powerful enough to learn the complex rules of AST construction.
 
-### Experiment 2: Increase Model Capacity and Expressiveness
+### Experiment 2: Increase Model Capacity and Expressiveness (Current)
 
-If the parent prediction model still struggles, we can leverage our fast training times to increase the model's power.
+Since the improved loss signal was not enough, the next logical step is to increase the model's capacity to see if a larger or more expressive model can succeed where the smaller one failed.
 
--   **Hypothesis:** A larger or more expressive model will be better able to capture the complex patterns of code structure.
--   **Implementation (choose one or more):**
-    -   **Go Deeper:** Increase the number of GNN layers in the decoder (e.g., from 3 to 5).
-    -   **Go Wider:** Increase the hidden dimension size (e.g., from 64 to 128 or 256).
-    -   **Use a More Powerful GNN Layer:** Replace `SAGEConv` with a **Graph Attention Network (GAT)** to allow the model to learn the relative importance of different nodes.
--   **Expected Outcome:** An improvement in the overall loss and evaluation metrics, assuming the model is not already overfitting.
+-   **Hypothesis:** A larger and more expressive model will be better able to capture the complex patterns of code structure.
+-   **Implementation:**
+    -   **Go Deeper & Wider:** Increase the number of GNN layers in the decoder from 3 to 5 and the hidden dimension size from 64 to 256.
+-   **Expected Outcome:** A further reduction in validation loss and, hopefully, the first non-zero scores on the `AST Isomorphism` and `Syntactic Validity` metrics. This is the final test for the non-autoregressive architecture.
 
 This structured, iterative approach will allow us to systematically determine if a non-autoregressive model can be made to succeed at this task.
