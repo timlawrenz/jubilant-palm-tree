@@ -23,21 +23,37 @@ from data_processing import create_data_loaders
 from models import ASTAutoencoder
 from loss import ast_reconstruction_loss_improved
 
+# Performance optimization: Cache CUDA availability
+CUDA_AVAILABLE = torch.cuda.is_available()
+
 
 def train_epoch(model, train_loader, optimizer, device, type_weight, parent_weight, scaler):
     model.train()
     total_loss = 0.0
     num_graphs = 0
     
+    # Pre-compute autocast context for efficiency
+    autocast_ctx = torch.autocast(device_type=device.type, dtype=torch.float16, enabled=CUDA_AVAILABLE)
+    
+    # Memory optimization: Enable memory efficient attention if available
+    if hasattr(torch.backends.cuda, 'enable_math_sdp'):
+        torch.backends.cuda.enable_math_sdp(True)
+    
     for data in train_loader:
-        data = data.to(device)
+        # Early skip for empty batches
+        if data.num_nodes == 0: 
+            continue
 
-        if data.num_nodes == 0: continue
-
+        data = data.to(device, non_blocking=True)
+        
+        # Clear cache periodically to prevent OOM
+        if CUDA_AVAILABLE and num_graphs % 100 == 0:
+            torch.cuda.empty_cache()
+            
         optimizer.zero_grad()
         
-        # Use autocast for mixed precision
-        with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=torch.cuda.is_available()):
+        # Use pre-computed autocast context
+        with autocast_ctx:
             result = model(data)
             loss = ast_reconstruction_loss_improved(
                 data, 
@@ -68,13 +84,18 @@ def validate_epoch(model, val_loader, device, type_weight, parent_weight):
     total_loss = 0.0
     num_graphs = 0
     
+    # Pre-compute autocast context for efficiency
+    autocast_ctx = torch.autocast(device_type=device.type, dtype=torch.float16, enabled=CUDA_AVAILABLE)
+    
     with torch.no_grad():
         for data in val_loader:
-            data = data.to(device)
+            # Early skip for empty batches
+            if data.num_nodes == 0: 
+                continue
+                
+            data = data.to(device, non_blocking=True)
 
-            if data.num_nodes == 0: continue
-
-            with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=torch.cuda.is_available()):
+            with autocast_ctx:
                 result = model(data)
                 loss = ast_reconstruction_loss_improved(
                     data, 
@@ -204,7 +225,7 @@ def main():
     print(f"   Validation batches: {len(val_loader)}")
     print()
     
-    # Initialize autoencoder model
+    # Initialize autoencoder model with performance optimizations
     print("🧠 Initializing AST Autoencoder...")
     model = ASTAutoencoder(
         encoder_input_dim=74,  # AST node feature dimension
@@ -215,7 +236,8 @@ def main():
         dropout=config['dropout'],
         freeze_encoder=config['freeze_encoder'],
         encoder_weights_path=config['encoder_weights_path'],
-        decoder_conv_type=args.decoder_conv_type
+        decoder_conv_type=args.decoder_conv_type,
+        gradient_checkpointing=True  # Enable for memory efficiency
     ).to(device)
     
     # Count parameters
@@ -237,13 +259,13 @@ def main():
     scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=5)
     
     # Initialize GradScaler for Automatic Mixed Precision (AMP)
-    scaler = torch.amp.GradScaler('cuda', enabled=torch.cuda.is_available())
+    scaler = torch.amp.GradScaler('cuda', enabled=CUDA_AVAILABLE)
     
     print("⚙️  Training setup:")
     print(f"   Optimizer: Adam (lr={config['learning_rate']})")
     print(f"   Scheduler: ReduceLROnPlateau (patience=5)")
     print(f"   Loss function: Improved Reconstruction Loss")
-    print(f"   AMP Enabled: {torch.cuda.is_available()}")
+    print(f"   AMP Enabled: {CUDA_AVAILABLE}")
     print()
     
     # Ensure output directory exists
@@ -261,6 +283,10 @@ def main():
 
     best_val_loss = float('inf')
     epochs_no_improve = 0
+    
+    # Performance optimization: Enable optimized attention if available
+    if CUDA_AVAILABLE and hasattr(torch.backends.cuda, 'enable_flash_sdp'):
+        torch.backends.cuda.enable_flash_sdp(True)
     early_stopping_patience = 10
     start_time = time.time()
     
