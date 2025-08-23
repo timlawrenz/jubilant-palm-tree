@@ -211,109 +211,103 @@ def compute_edge_prediction_loss(original_edge_index: torch.Tensor,
         # No edges in original, return zero loss
         return torch.tensor(0.0, device=original_edge_index.device, requires_grad=True)
     
-    total_loss = 0.0
+    # --- Vectorized implementation to avoid CPU bottlenecks ---
     
-    # Get reconstructed edge information if available
-    recon_edge_index = reconstructed.get('edge_index', None)
+    # 1. Get the batch index for the source node of each edge
+    edge_batch_indices = original_batch[original_edge_index[0]]
+
+    # 2. Count the number of edges for each graph in the batch
+    # `bincount` is a highly optimized way to count occurrences of each index
+    original_edge_counts = torch.bincount(edge_batch_indices, minlength=batch_size).float()
+
+    # 3. Estimate reconstructed edge counts (maintaining original logic)
+    # Get the number of nodes in each graph of the batch
+    num_nodes_per_graph = torch.bincount(original_batch, minlength=batch_size).float()
+    # Estimate edge count as num_nodes - 1 (for a tree-like structure)
+    recon_edge_counts = torch.clamp(num_nodes_per_graph - 1, min=0)
+
+    # 4. Compute the loss as the mean squared error between the counts
+    # This is a single, fast, vectorized operation
+    loss = F.mse_loss(recon_edge_counts, original_edge_counts)
     
-    for batch_idx in range(batch_size):
-        # Count original edges for this graph
-        # Get nodes belonging to this graph
-        node_mask = (original_batch == batch_idx)
-        if not node_mask.any():
-            continue
-            
-        node_indices = torch.where(node_mask)[0]
-        node_set = set(node_indices.cpu().numpy())
-        
-        # Count edges where both source and target are in this graph
-        original_edge_count = 0
-        for i in range(original_edge_index.size(1)):
-            src, dst = original_edge_index[0, i].item(), original_edge_index[1, i].item()
-            if src in node_set and dst in node_set:
-                original_edge_count += 1
-        
-        # For reconstructed edges, use a simple heuristic based on node count
-        # In a more sophisticated implementation, you'd have actual edge predictions
-        num_nodes = node_mask.sum().item()
-        
-        if recon_edge_index is not None and recon_edge_index.size(1) > 0:
-            # Count reconstructed edges for this graph
-            # This is a simplification - in practice you'd need better edge tracking
-            recon_edge_count = min(recon_edge_index.size(1) // batch_size, num_nodes * 2)
-        else:
-            # Estimate based on typical AST structure (tree-like with some additional edges)
-            recon_edge_count = max(0, num_nodes - 1)  # Tree has n-1 edges
-        
-        # Compute loss as squared difference in edge counts
-        edge_diff = abs(original_edge_count - recon_edge_count)
-        total_loss += edge_diff ** 2
-    
-    # Normalize and return as tensor
-    return torch.tensor(total_loss / batch_size, device=original_edge_index.device, requires_grad=True)
+    return loss
 
 
 def ast_reconstruction_loss_improved(original: Data, reconstructed: Dict[str, Any],
-                                   type_weight: float = 2.0, edge_weight: float = 2.0, 
-                                   role_weight: float = 2.0, name_weight: float = 0.5) -> torch.Tensor:
+                                   type_weight: float = 1.0, 
+                                   parent_weight: float = 1.0) -> torch.Tensor:
     """
-    Improved AST reconstruction loss with semantic role understanding.
+    Improved AST reconstruction loss with explicit parent prediction for batches.
     
-    This loss function implements the improved approach described in Phase 4 README,
-    using a weighted combination of four components to train the model to understand
-    the abstract role of nodes separately from their specific names.
-    
-    The loss expects node features with structure: [Node Type | Node Role | Node Name Embedding]
-    For backward compatibility, if features only contain node types, it will gracefully 
-    degrade to type and edge losses only.
+    This loss function provides a strong structural learning signal by combining
+    node type prediction with explicit parent prediction for each node across an
+    entire batch of graphs.
     
     Args:
-        original: Original AST as torch_geometric.data.Data object
-        reconstructed: Reconstructed AST from decoder containing 'node_features' and optionally 'edge_index'
-        type_weight: Weight for Type Loss component (high weight recommended)
-        edge_weight: Weight for Edge Loss component (high weight recommended)  
-        role_weight: Weight for Role Loss component (high weight recommended)
-        name_weight: Weight for Name Loss component (low weight recommended)
+        original: A `torch_geometric.data.Batch` object containing a batch of original ASTs.
+        reconstructed: Reconstructed AST from the decoder, containing batched 'node_features' 
+                       and 'parent_logits'.
+        type_weight: Weight for the node type prediction loss.
+        parent_weight: Weight for the parent prediction loss.
         
     Returns:
-        Scalar tensor representing the total weighted reconstruction loss
-        
-    Note:
-        Total Loss = type_weight*TypeLoss + edge_weight*EdgeLoss + role_weight*RoleLoss + name_weight*NameLoss
+        Scalar tensor representing the total weighted reconstruction loss for the batch.
     """
-    # Extract basic components
-    recon_node_features = reconstructed['node_features']  # [batch_size, max_nodes, feature_dim]
-    batch_size = recon_node_features.size(0)
-    max_nodes = recon_node_features.size(1) 
-    feature_dim = recon_node_features.size(2)
+    # --- Component 1: Node Type Loss (Batched) ---
+    recon_node_logits = reconstructed['node_features'] # Shape: [total_nodes, feature_dim]
+    true_node_types = original.x.argmax(dim=1)
     
-    # Detect feature structure and split accordingly
-    # For now, assume features are still one-hot node types until enhanced node encoder is implemented
-    # This provides the foundation for future enhancement
+    # The number of nodes should match between the batched original and reconstruction.
+    num_nodes = min(recon_node_logits.size(0), true_node_types.size(0))
+    if num_nodes == 0:
+        return torch.tensor(0.0, device=original.x.device, requires_grad=True)
+        
+    type_loss = F.cross_entropy(
+        recon_node_logits[:num_nodes], 
+        true_node_types[:num_nodes]
+    )
+
+    # --- Component 2: Parent Prediction Loss (Batched) ---
+    recon_parent_logits = reconstructed['parent_logits'] # Shape: [total_nodes, max_nodes]
+    max_nodes = recon_parent_logits.size(1)
     
-    # Component 1: Type Loss (Cross-Entropy on node types)
-    type_loss = compute_node_type_loss(original.x, recon_node_features, original.batch)
+    # Create the ground truth parent labels for the entire batch.
+    num_true_nodes = original.num_nodes
+    ignore_index = -100
+    true_parents = torch.full((num_true_nodes,), ignore_index, dtype=torch.long, device=original.x.device)
     
-    # Component 2: Edge Loss (Graph connectivity)
-    edge_loss = compute_edge_prediction_loss(original.edge_index, original.batch, 
-                                           reconstructed, batch_size)
+    # To correctly handle parent indices in a batch, we need to offset them.
+    # The parent of a node in graph `i` must be one of the nodes *within* graph `i`.
+    # We first create a global offset for each node.
+    num_nodes_per_graph = torch.bincount(original.batch)
+    node_offsets = torch.cumsum(num_nodes_per_graph, dim=0) - num_nodes_per_graph
     
-    # Component 3: Role Loss (Cross-Entropy on node roles)
-    # For backward compatibility with current one-hot features, we'll compute a simplified role loss
-    # In the future, this will use the dedicated role portion of the feature vector
-    role_loss = _compute_role_loss(original, reconstructed)
+    # Offset the parent indices in the edge list.
+    children = original.edge_index[1]
+    parents = original.edge_index[0]
     
-    # Component 4: Name Loss (Cosine Embedding Loss on name embeddings)
-    # For backward compatibility, we'll use a placeholder that encourages semantic similarity
-    # In the future, this will use the dedicated name embedding portion
-    name_loss = _compute_name_loss(original, reconstructed)
+    # The parent prediction is local to each graph. The `parent_predictor` outputs logits
+    # where the `j`-th logit corresponds to the `j`-th node *within that graph*.
+    # Therefore, we need to calculate the local parent index.
+    local_parents = parents - node_offsets[original.batch[parents]]
     
-    # Combine losses with weights
-    total_loss = (type_weight * type_loss + 
-                  edge_weight * edge_loss + 
-                  role_weight * role_loss + 
-                  name_weight * name_loss)
-    
+    # Populate the true_parents tensor with the local parent indices.
+    # Clamp to ensure indices are within the prediction range [0, max_nodes-1].
+    valid_parents = torch.clamp(local_parents, 0, max_nodes - 1)
+    true_parents[children] = valid_parents
+
+    # Check if there are any valid parent-child relationships to compute loss on.
+    if (true_parents != ignore_index).any():
+        parent_loss = F.cross_entropy(
+            recon_parent_logits,
+            true_parents,
+            ignore_index=ignore_index
+        )
+    else:
+        parent_loss = torch.tensor(0.0, device=original.x.device)
+
+    # --- Total Loss ---
+    total_loss = (type_weight * type_loss) + (parent_weight * parent_loss)
     return total_loss
 
 

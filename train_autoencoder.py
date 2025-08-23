@@ -13,7 +13,7 @@ import time
 import argparse
 import torch
 import torch.nn.functional as F
-from torch_geometric.data import Data
+from torch_geometric.data import Batch
 
 # Add src directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -24,57 +24,66 @@ from models import ASTAutoencoder
 from loss import ast_reconstruction_loss_improved
 
 
-def train_epoch(model, train_loader, optimizer, device):
+def train_epoch(model, train_loader, optimizer, device, type_weight, parent_weight, scaler):
     model.train()
     total_loss = 0.0
     num_graphs = 0
     
-    for graph_dict in train_loader:
-        data = Data(
-            x=torch.tensor(graph_dict['x'], dtype=torch.float),
-            edge_index=torch.tensor(graph_dict['edge_index'], dtype=torch.long)
-        )
-        data.batch = torch.zeros(data.num_nodes, dtype=torch.long)
+    for data in train_loader:
         data = data.to(device)
 
         if data.num_nodes == 0: continue
 
         optimizer.zero_grad()
-        result = model(data)
-        loss = ast_reconstruction_loss_improved(data, result['reconstruction'])
-        loss.backward()
         
-        # Gradient clipping for additional numerical stability
+        # Use autocast for mixed precision
+        with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=torch.cuda.is_available()):
+            result = model(data)
+            loss = ast_reconstruction_loss_improved(
+                data, 
+                result['reconstruction'],
+                type_weight=type_weight,
+                parent_weight=parent_weight
+            )
+        
+        # Scale the loss and backpropagate
+        scaler.scale(loss).backward()
+        
+        # Gradient clipping (unscale gradients first)
+        scaler.unscale_(optimizer)
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         
-        optimizer.step()
+        # Update weights
+        scaler.step(optimizer)
+        scaler.update()
         
-        total_loss += loss.item()
-        num_graphs += 1
+        total_loss += loss.item() * data.num_graphs
+        num_graphs += data.num_graphs
 
     return total_loss / num_graphs if num_graphs > 0 else 0.0
 
 
-def validate_epoch(model, val_loader, device):
+def validate_epoch(model, val_loader, device, type_weight, parent_weight):
     model.eval()
     total_loss = 0.0
     num_graphs = 0
     
     with torch.no_grad():
-        for graph_dict in val_loader:
-            data = Data(
-                x=torch.tensor(graph_dict['x'], dtype=torch.float),
-                edge_index=torch.tensor(graph_dict['edge_index'], dtype=torch.long)
-            )
-            data.batch = torch.zeros(data.num_nodes, dtype=torch.long)
+        for data in val_loader:
             data = data.to(device)
 
             if data.num_nodes == 0: continue
 
-            result = model(data)
-            loss = ast_reconstruction_loss_improved(data, result['reconstruction'])
-            total_loss += loss.item()
-            num_graphs += 1
+            with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=torch.cuda.is_available()):
+                result = model(data)
+                loss = ast_reconstruction_loss_improved(
+                    data, 
+                    result['reconstruction'],
+                    type_weight=type_weight,
+                    parent_weight=parent_weight
+                )
+            total_loss += loss.item() * data.num_graphs
+            num_graphs += data.num_graphs
 
     return total_loss / num_graphs if num_graphs > 0 else 0.0
 
@@ -116,18 +125,26 @@ def parse_args():
                         help='Path to save the best decoder model (default: models/best_decoder.pt)')
     parser.add_argument('--encoder_weights_path', type=str, default='models/best_model.pt',
                         help='Path to pre-trained encoder weights (default: models/best_model.pt)')
-    parser.add_argument('--batch_size', type=int, default=1,
-                        help='Batch size for training (default: 1)')
+    parser.add_argument('--batch_size', type=int, default=4096,
+                        help='Batch size for pre-collation and training (default: 4096)')
     parser.add_argument('--learning_rate', type=float, default=0.001,
                         help='Learning rate (default: 0.001)')
-    parser.add_argument('--hidden_dim', type=int, default=64,
-                        help='Hidden dimension size (default: 64)')
-    parser.add_argument('--num_layers', type=int, default=3,
-                        help='Number of GNN layers (default: 3)')
-    parser.add_argument('--conv_type', type=str, default='GCN', choices=['GCN', 'SAGE'],
-                        help='GNN convolution type (default: GCN)')
+    parser.add_argument('--hidden_dim', type=int, default=256,
+                        help='Hidden dimension size (default: 256)')
+    parser.add_argument('--num_layers', type=int, default=5,
+                        help='Number of GNN layers (default: 5)')
+    parser.add_argument('--conv_type', type=str, default='SAGE', choices=['GCN', 'SAGE'],
+                        help='GNN convolution type for the ENCODER (default: SAGE)')
+    parser.add_argument('--decoder_conv_type', type=str, default='GAT', choices=['GCN', 'SAGE', 'GAT', 'GIN', 'GraphConv'],
+                        help='GNN convolution type for the DECODER (default: GAT)')
     parser.add_argument('--dropout', type=float, default=0.1,
                         help='Dropout rate (default: 0.1)')
+    parser.add_argument('--type_weight', type=float, default=2.0,
+                        help='Weight for the node type loss component.')
+    parser.add_argument('--parent_weight', type=float, default=1.0,
+                        help='Weight for the parent prediction loss component.')
+    parser.add_argument('--profile', action='store_true',
+                        help='Enable profiling for one epoch to identify performance bottlenecks.')
     return parser.parse_args()
 
 
@@ -154,6 +171,9 @@ def main():
     print("📋 Training Configuration:")
     for key, value in config.items():
         print(f"   {key}: {value}")
+    print(f"   decoder_conv_type: {args.decoder_conv_type}")
+    print(f"   type_weight: {args.type_weight}")
+    print(f"   parent_weight: {args.parent_weight}")
     print(f"   dataset_path: {args.dataset_path}")
     print(f"   output_path: {args.output_path}")
     print()
@@ -165,19 +185,19 @@ def main():
     # Create data loaders
     print("📂 Loading datasets...")
     
-    # Handle sample dataset naming convention
-    if args.dataset_path.rstrip('/').endswith('samples'):
-        train_data_path = os.path.join(args.dataset_path, "train_sample.jsonl")
-        val_data_path = os.path.join(args.dataset_path, "validation_sample.jsonl")
-    else:
-        train_data_path = os.path.join(args.dataset_path, "train.jsonl")
-        val_data_path = os.path.join(args.dataset_path, "validation.jsonl")
+    # Use pre-collated data for maximum performance
+    pre_collated = True
+    b_size = args.batch_size # The script's batch_size now refers to the pre-collation batch size
+    train_data_path = os.path.join(args.dataset_path, f"train_collated_b{b_size}.pt")
+    val_data_path = os.path.join(args.dataset_path, f"validation_collated_b{b_size}.pt")
     
     train_loader, val_loader = create_data_loaders(
         train_data_path,
         val_data_path,
-        batch_size=config['batch_size'],
-        shuffle=True
+        batch_size=1, # Batch size is 1 because each item *is* a batch
+        shuffle=True,
+        num_workers=0, # Workers > 0 can be slower with pre-collated data
+        pre_collated=pre_collated
     )
     
     print(f"   Training batches: {len(train_loader)}")
@@ -194,7 +214,8 @@ def main():
         conv_type=config['conv_type'],
         dropout=config['dropout'],
         freeze_encoder=config['freeze_encoder'],
-        encoder_weights_path=config['encoder_weights_path']
+        encoder_weights_path=config['encoder_weights_path'],
+        decoder_conv_type=args.decoder_conv_type
     ).to(device)
     
     # Count parameters
@@ -215,10 +236,14 @@ def main():
     )
     scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=5)
     
+    # Initialize GradScaler for Automatic Mixed Precision (AMP)
+    scaler = torch.amp.GradScaler('cuda', enabled=torch.cuda.is_available())
+    
     print("⚙️  Training setup:")
     print(f"   Optimizer: Adam (lr={config['learning_rate']})")
     print(f"   Scheduler: ReduceLROnPlateau (patience=5)")
     print(f"   Loss function: Improved Reconstruction Loss")
+    print(f"   AMP Enabled: {torch.cuda.is_available()}")
     print()
     
     # Ensure output directory exists
@@ -228,6 +253,12 @@ def main():
     print("🏋️  Starting training...")
     print("=" * 50)
     
+    if args.profile:
+        import cProfile, pstats
+        profiler = cProfile.Profile()
+        print("🔬 PROFILING ENABLED: Running for one epoch...")
+        profiler.enable()
+
     best_val_loss = float('inf')
     epochs_no_improve = 0
     early_stopping_patience = 10
@@ -236,8 +267,17 @@ def main():
     for epoch in range(config['epochs']):
         epoch_start = time.time()
         
-        train_loss = train_epoch(model, train_loader, optimizer, device)
-        val_loss = validate_epoch(model, val_loader, device)
+        train_loss = train_epoch(model, train_loader, optimizer, device, args.type_weight, args.parent_weight, scaler)
+        
+        # If profiling, stop after one training epoch and print results
+        if args.profile:
+            profiler.disable()
+            print("📊 Profiling Results (top 20 functions by cumulative time):")
+            stats = pstats.Stats(profiler).sort_stats('cumtime')
+            stats.print_stats(20)
+            break # Exit after profiling
+            
+        val_loss = validate_epoch(model, val_loader, device, args.type_weight, args.parent_weight)
         
         epoch_time = time.time() - epoch_start
         
@@ -261,28 +301,30 @@ def main():
             print(f"   🛑 Early stopping triggered after {early_stopping_patience} epochs with no improvement.")
             break
     
-    total_time = time.time() - start_time
-    
-    print("=" * 50)
-    print("🎉 Training completed successfully!")
-    print(f"   Total time: {total_time:.2f}s")
-    print(f"   Best validation loss: {best_val_loss:.4f}")
-    print(f"   Best decoder weights saved to: {args.output_path}")
-    
-    # Final decoder save (optional, keeping for compatibility)
-    final_path = args.output_path.replace('.pt', '_final.pt')
-    save_decoder_weights(model, final_path, config['epochs']-1, train_loss, val_loss)
-    print(f"   Final decoder weights saved to: {final_path}")
-    
-    # Verify training objectives
-    print("\n✅ Training Objectives Met:")
-    print(f"   ✓ Trained for {config['epochs']} epochs (≥2 required)")
-    print(f"   ✓ Only decoder weights trained (encoder frozen)")
-    print(f"   ✓ Used AST reconstruction loss function")
-    print(f"   ✓ Input and target are same AST graph")
-    print(f"   ✓ Best decoder weights saved to {args.output_path}")
-    if config['epochs'] > 1:
-        print(f"   ✓ Training completed successfully over multiple epochs")
+    # This part will not be reached if profiling is enabled and successful
+    if not args.profile:
+        total_time = time.time() - start_time
+        
+        print("=" * 50)
+        print("🎉 Training completed successfully!")
+        print(f"   Total time: {total_time:.2f}s")
+        print(f"   Best validation loss: {best_val_loss:.4f}")
+        print(f"   Best decoder weights saved to: {args.output_path}")
+        
+        # Final decoder save (optional, keeping for compatibility)
+        final_path = args.output_path.replace('.pt', '_final.pt')
+        save_decoder_weights(model, final_path, config['epochs']-1, train_loss, val_loss)
+        print(f"   Final decoder weights saved to: {final_path}")
+        
+        # Verify training objectives
+        print("\n✅ Training Objectives Met:")
+        print(f"   ✓ Trained for {config['epochs']} epochs (≥2 required)")
+        print(f"   ✓ Only decoder weights trained (encoder frozen)")
+        print(f"   ✓ Used AST reconstruction loss function")
+        print(f"   ✓ Input and target are same AST graph")
+        print(f"   ✓ Best decoder weights saved to {args.output_path}")
+        if config['epochs'] > 1:
+            print(f"   ✓ Training completed successfully over multiple epochs")
 
 
 if __name__ == "__main__":
