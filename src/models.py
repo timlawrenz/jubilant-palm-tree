@@ -26,10 +26,12 @@ class RubyComplexityGNN(torch.nn.Module):
     
     This model uses Graph Convolutional Networks (GCN) or GraphSAGE layers
     to learn from Abstract Syntax Tree representations of Ruby methods.
+    
+    Optimized with performance improvements for training efficiency.
     """
     
     def __init__(self, input_dim: int, hidden_dim: int = 64, num_layers: int = 3, 
-                 conv_type: str = 'GCN', dropout: float = 0.1):
+                 conv_type: str = 'GCN', dropout: float = 0.1, enable_compile: bool = True):
         """
         Initialize the GNN model.
         
@@ -39,6 +41,7 @@ class RubyComplexityGNN(torch.nn.Module):
             num_layers: Number of convolutional layers
             conv_type: Type of convolution ('GCN' or 'SAGE')
             dropout: Dropout probability for regularization
+            enable_compile: Whether to enable torch.compile for acceleration (PyTorch 2.0+)
         """
         super().__init__()
         
@@ -48,6 +51,7 @@ class RubyComplexityGNN(torch.nn.Module):
         self.num_layers = num_layers
         self.conv_type = conv_type
         self.dropout = dropout
+        self.enable_compile = enable_compile
         self.convs = torch.nn.ModuleList()
         
         # Select convolution layer type
@@ -67,6 +71,29 @@ class RubyComplexityGNN(torch.nn.Module):
         # Output layer for complexity prediction
         self.predictor = torch.nn.Linear(hidden_dim, 1)
         
+        # Apply torch.compile for acceleration if supported and enabled
+        if self.enable_compile and hasattr(torch, 'compile'):
+            try:
+                self._compiled_forward = torch.compile(self._forward_impl, mode="reduce-overhead")
+                self._use_compiled = True
+            except Exception:
+                self._use_compiled = False
+        else:
+            self._use_compiled = False
+        
+    def _forward_impl(self, x, edge_index, batch):
+        """Internal forward implementation for compilation."""
+        # Apply convolution layers with ReLU activation and dropout
+        # Use in-place operations for memory efficiency where safe  
+        for i, conv in enumerate(self.convs):
+            x = conv(x, edge_index)
+            if i < len(self.convs) - 1:  # No activation after last layer
+                x = F.relu(x, inplace=True)  # In-place for memory efficiency
+                x = F.dropout(x, p=self.dropout, training=self.training, inplace=True)
+        
+        # Global pooling to get graph-level representation
+        return global_mean_pool(x, batch)
+    
     def forward(self, data: Data, return_embedding: bool = False) -> torch.Tensor:
         """
         Forward pass through the network.
@@ -81,16 +108,11 @@ class RubyComplexityGNN(torch.nn.Module):
         """
         x, edge_index, batch = data.x, data.edge_index, data.batch
         
-        # Apply convolution layers with ReLU activation and dropout
-        # Use in-place operations for memory efficiency where safe  
-        for i, conv in enumerate(self.convs):
-            x = conv(x, edge_index)
-            if i < len(self.convs) - 1:  # No activation after last layer
-                x = F.relu(x, inplace=True)  # In-place for memory efficiency
-                x = F.dropout(x, p=self.dropout, training=self.training, inplace=True)
-        
-        # Global pooling to get graph-level representation
-        embedding = global_mean_pool(x, batch)
+        # Use compiled version if available for better performance
+        if self._use_compiled:
+            embedding = self._compiled_forward(x, edge_index, batch)
+        else:
+            embedding = self._forward_impl(x, edge_index, batch)
         
         if return_embedding:
             return embedding
@@ -232,10 +254,25 @@ class ASTDecoder(torch.nn.Module):
         # GNNs are typically undirected, so we add reverse edges.
         edge_index = torch_geometric.utils.to_undirected(edge_index)
 
+        # Apply GNN layers with optional gradient checkpointing
         x = node_features
-        for conv in self.convs:
-            x = conv(x, edge_index)
-            x = F.relu(x, inplace=True)  # In-place for memory efficiency
+        if self.gradient_checkpointing and self.training:
+            # Use gradient checkpointing for memory efficiency during training
+            def create_custom_forward(module):
+                def custom_forward(*inputs):
+                    return module(*inputs)
+                return custom_forward
+            
+            for conv in self.convs:
+                x = torch.utils.checkpoint.checkpoint(
+                    create_custom_forward(conv), x, edge_index, use_reentrant=False
+                )
+                x = F.relu(x, inplace=True)
+        else:
+            # Standard forward pass
+            for conv in self.convs:
+                x = conv(x, edge_index)
+                x = F.relu(x, inplace=True)  # In-place for memory efficiency
         
         # Predict the final node features and parent logits for all nodes in the batch.
         output_node_features = self.node_output(x)
@@ -489,7 +526,8 @@ class ASTAutoencoder(torch.nn.Module):
                  hidden_dim: int = 64, num_layers: int = 3, 
                  conv_type: str = 'GCN', dropout: float = 0.1,
                  freeze_encoder: bool = False, encoder_weights_path: str = None,
-                 max_nodes: int = 100, decoder_conv_type: str = 'GCN'):
+                 max_nodes: int = 100, decoder_conv_type: str = 'GCN',
+                 gradient_checkpointing: bool = False):
         """
         Initialize the AST autoencoder.
         
@@ -504,6 +542,7 @@ class ASTAutoencoder(torch.nn.Module):
             encoder_weights_path: Path to pre-trained encoder weights
             max_nodes: Maximum number of nodes for the decoder.
             decoder_conv_type: The GNN layer type for the decoder.
+            gradient_checkpointing: Whether to enable gradient checkpointing for memory efficiency.
         """
         super().__init__()
         
@@ -560,7 +599,8 @@ class ASTAutoencoder(torch.nn.Module):
             hidden_dim=hidden_dim,
             num_layers=num_layers,
             max_nodes=max_nodes,
-            conv_type=decoder_conv_type
+            conv_type=decoder_conv_type,
+            gradient_checkpointing=gradient_checkpointing
         )
         
         self.hidden_dim = hidden_dim
