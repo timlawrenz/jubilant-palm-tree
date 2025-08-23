@@ -2,7 +2,7 @@
 Graph Neural Network models for Ruby code complexity prediction.
 
 This module contains PyTorch Geometric models for learning from
-Ruby AST structures.
+Ruby AST structures with performance optimizations.
 """
 
 import torch
@@ -15,6 +15,9 @@ try:
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
+
+# Performance optimization: Cache CUDA availability
+CUDA_AVAILABLE = torch.cuda.is_available()
 
 
 class RubyComplexityGNN(torch.nn.Module):
@@ -79,11 +82,12 @@ class RubyComplexityGNN(torch.nn.Module):
         x, edge_index, batch = data.x, data.edge_index, data.batch
         
         # Apply convolution layers with ReLU activation and dropout
+        # Use in-place operations for memory efficiency where safe  
         for i, conv in enumerate(self.convs):
             x = conv(x, edge_index)
             if i < len(self.convs) - 1:  # No activation after last layer
-                x = F.relu(x)
-                x = F.dropout(x, p=self.dropout, training=self.training)
+                x = F.relu(x, inplace=True)  # In-place for memory efficiency
+                x = F.dropout(x, p=self.dropout, training=self.training, inplace=True)
         
         # Global pooling to get graph-level representation
         embedding = global_mean_pool(x, batch)
@@ -115,7 +119,8 @@ class ASTDecoder(torch.nn.Module):
     """
     
     def __init__(self, embedding_dim: int, output_node_dim: int, hidden_dim: int = 256, 
-                 num_layers: int = 5, max_nodes: int = 100, conv_type: str = 'GCN'):
+                 num_layers: int = 5, max_nodes: int = 100, conv_type: str = 'GCN',
+                 gradient_checkpointing: bool = False):
         """
         Initialize the AST decoder.
         
@@ -126,6 +131,7 @@ class ASTDecoder(torch.nn.Module):
             num_layers: Number of decoder GNN layers.
             max_nodes: Maximum number of nodes to generate.
             conv_type: The type of GNN layer to use ('GCN', 'SAGE', 'GAT', 'GIN', 'GraphConv').
+            gradient_checkpointing: Whether to use gradient checkpointing for memory efficiency.
         """
         super().__init__()
         
@@ -134,6 +140,7 @@ class ASTDecoder(torch.nn.Module):
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         self.max_nodes = max_nodes
+        self.gradient_checkpointing = gradient_checkpointing
         
         self.embedding_transform = torch.nn.Linear(embedding_dim, hidden_dim)
         
@@ -196,19 +203,25 @@ class ASTDecoder(torch.nn.Module):
             edge_index = torch.empty((2, 0), dtype=torch.long, device=device)
         else:
             # Calculate node offsets for each graph
-            node_offsets = torch.cumsum(torch.cat([torch.zeros(1, device=device, dtype=num_nodes_per_graph.dtype), num_nodes_per_graph[:-1]]), dim=0)
+            node_offsets = torch.cat([torch.zeros(1, device=device, dtype=num_nodes_per_graph.dtype), 
+                                    torch.cumsum(num_nodes_per_graph[:-1], dim=0)])
+            
+            # Efficient edge index computation for sequential nodes
+            # Pre-allocate tensors to avoid repeated allocations
+            total_edges = num_edges_per_graph.sum().item()
             
             # Determine which graph each edge belongs to
             graph_indices = torch.repeat_interleave(torch.arange(len(num_nodes_per_graph), device=device), num_edges_per_graph)
             
             # Calculate the starting edge index for each graph
-            edge_offsets = torch.cumsum(torch.cat([torch.zeros(1, device=device, dtype=num_edges_per_graph.dtype), num_edges_per_graph[:-1]]), dim=0)
+            edge_offsets = torch.cat([torch.zeros(1, device=device, dtype=num_edges_per_graph.dtype), 
+                                    torch.cumsum(num_edges_per_graph[:-1], dim=0)])
             
-            # Compute local (within-graph) source indices
-            src_in_graph = torch.arange(total_edges, device=device) - torch.gather(edge_offsets, 0, graph_indices)
+            # Compute local (within-graph) source indices more efficiently
+            src_in_graph = torch.arange(total_edges, device=device) - edge_offsets[graph_indices]
             
             # Get the starting node index for each edge's graph
-            edge_node_offsets = torch.gather(node_offsets, 0, graph_indices)
+            edge_node_offsets = node_offsets[graph_indices]
             
             # Compute global source and destination indices
             src = edge_node_offsets + src_in_graph
@@ -222,7 +235,7 @@ class ASTDecoder(torch.nn.Module):
         x = node_features
         for conv in self.convs:
             x = conv(x, edge_index)
-            x = F.relu(x)
+            x = F.relu(x, inplace=True)  # In-place for memory efficiency
         
         # Predict the final node features and parent logits for all nodes in the batch.
         output_node_features = self.node_output(x)

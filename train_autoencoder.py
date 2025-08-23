@@ -23,21 +23,28 @@ from data_processing import create_data_loaders
 from models import ASTAutoencoder
 from loss import ast_reconstruction_loss_improved
 
+# Performance optimization: Cache CUDA availability
+CUDA_AVAILABLE = torch.cuda.is_available()
+
 
 def train_epoch(model, train_loader, optimizer, device, type_weight, parent_weight, scaler):
     model.train()
     total_loss = 0.0
     num_graphs = 0
     
+    # Pre-compute autocast context for efficiency
+    autocast_ctx = torch.autocast(device_type=device.type, dtype=torch.float16, enabled=CUDA_AVAILABLE)
+    
     for data in train_loader:
-        data = data.to(device)
+        # Early skip for empty batches
+        if data.num_nodes == 0: 
+            continue
 
-        if data.num_nodes == 0: continue
-
+        data = data.to(device, non_blocking=True)
         optimizer.zero_grad()
         
-        # Use autocast for mixed precision
-        with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=torch.cuda.is_available()):
+        # Use pre-computed autocast context
+        with autocast_ctx:
             result = model(data)
             loss = ast_reconstruction_loss_improved(
                 data, 
@@ -68,13 +75,18 @@ def validate_epoch(model, val_loader, device, type_weight, parent_weight):
     total_loss = 0.0
     num_graphs = 0
     
+    # Pre-compute autocast context for efficiency
+    autocast_ctx = torch.autocast(device_type=device.type, dtype=torch.float16, enabled=CUDA_AVAILABLE)
+    
     with torch.no_grad():
         for data in val_loader:
-            data = data.to(device)
+            # Early skip for empty batches
+            if data.num_nodes == 0: 
+                continue
+                
+            data = data.to(device, non_blocking=True)
 
-            if data.num_nodes == 0: continue
-
-            with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=torch.cuda.is_available()):
+            with autocast_ctx:
                 result = model(data)
                 loss = ast_reconstruction_loss_improved(
                     data, 
@@ -237,13 +249,13 @@ def main():
     scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=5)
     
     # Initialize GradScaler for Automatic Mixed Precision (AMP)
-    scaler = torch.amp.GradScaler('cuda', enabled=torch.cuda.is_available())
+    scaler = torch.amp.GradScaler('cuda', enabled=CUDA_AVAILABLE)
     
     print("⚙️  Training setup:")
     print(f"   Optimizer: Adam (lr={config['learning_rate']})")
     print(f"   Scheduler: ReduceLROnPlateau (patience=5)")
     print(f"   Loss function: Improved Reconstruction Loss")
-    print(f"   AMP Enabled: {torch.cuda.is_available()}")
+    print(f"   AMP Enabled: {CUDA_AVAILABLE}")
     print()
     
     # Ensure output directory exists
