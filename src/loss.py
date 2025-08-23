@@ -234,66 +234,74 @@ def compute_edge_prediction_loss(original_edge_index: torch.Tensor,
 
 
 def ast_reconstruction_loss_improved(original: Data, reconstructed: Dict[str, Any],
-                                   type_weight: float = 2.0, edge_weight: float = 2.0, 
-                                   role_weight: float = 2.0, name_weight: float = 0.5) -> torch.Tensor:
+                                   type_weight: float = 1.0, 
+                                   parent_weight: float = 1.0) -> torch.Tensor:
     """
-    Improved AST reconstruction loss with semantic role understanding.
+    Improved AST reconstruction loss with explicit parent prediction.
     
-    This loss function implements the improved approach described in Phase 4 README,
-    using a weighted combination of four components to train the model to understand
-    the abstract role of nodes separately from their specific names.
-    
-    The loss expects node features with structure: [Node Type | Node Role | Node Name Embedding]
-    For backward compatibility, if features only contain node types, it will gracefully 
-    degrade to type and edge losses only.
+    This loss function provides a strong structural learning signal by combining
+    node type prediction with explicit parent prediction for each node.
     
     Args:
-        original: Original AST as torch_geometric.data.Data object
-        reconstructed: Reconstructed AST from decoder containing 'node_features' and optionally 'edge_index'
-        type_weight: Weight for Type Loss component (high weight recommended)
-        edge_weight: Weight for Edge Loss component (high weight recommended)  
-        role_weight: Weight for Role Loss component (high weight recommended)
-        name_weight: Weight for Name Loss component (low weight recommended)
+        original: Original AST as a single torch_geometric.data.Data object (for one graph).
+        reconstructed: Reconstructed AST from decoder containing 'node_features' and 'parent_logits'.
+        type_weight: Weight for the node type prediction loss.
+        parent_weight: Weight for the parent prediction loss.
         
     Returns:
-        Scalar tensor representing the total weighted reconstruction loss
-        
-    Note:
-        Total Loss = type_weight*TypeLoss + edge_weight*EdgeLoss + role_weight*RoleLoss + name_weight*NameLoss
+        Scalar tensor representing the total weighted reconstruction loss.
     """
-    # Extract basic components
-    recon_node_features = reconstructed['node_features']  # [batch_size, max_nodes, feature_dim]
-    batch_size = recon_node_features.size(0)
-    max_nodes = recon_node_features.size(1) 
-    feature_dim = recon_node_features.size(2)
+    # --- Component 1: Node Type Loss ---
+    # Squeeze to remove the batch dimension of 1
+    recon_node_logits = reconstructed['node_features'].squeeze(0)
+    true_node_types = original.x.argmax(dim=1)
     
-    # Detect feature structure and split accordingly
-    # For now, assume features are still one-hot node types until enhanced node encoder is implemented
-    # This provides the foundation for future enhancement
+    # The decoder might predict a different number of nodes than the original.
+    # We compute the loss only for the minimum number of nodes between the two.
+    num_nodes = min(recon_node_logits.size(0), true_node_types.size(0))
+    if num_nodes == 0:
+        return torch.tensor(0.0, device=original.x.device, requires_grad=True)
+        
+    type_loss = F.cross_entropy(
+        recon_node_logits[:num_nodes], 
+        true_node_types[:num_nodes]
+    )
+
+    # --- Component 2: Parent Prediction Loss ---
+    recon_parent_logits = reconstructed['parent_logits'].squeeze(0) # Shape: [num_nodes, max_nodes]
+    max_nodes = recon_parent_logits.size(1)
     
-    # Component 1: Type Loss (Cross-Entropy on node types)
-    type_loss = compute_node_type_loss(original.x, recon_node_features, original.batch)
+    # Create the ground truth parent labels for the original graph
+    num_true_nodes = original.num_nodes
+    ignore_index = -100 # A standard ignore index for cross-entropy
+    true_parents = torch.full((num_true_nodes,), ignore_index, dtype=torch.long, device=original.x.device)
     
-    # Component 2: Edge Loss (Graph connectivity)
-    edge_loss = compute_edge_prediction_loss(original.edge_index, original.batch, 
-                                           reconstructed, batch_size)
-    
-    # Component 3: Role Loss (Cross-Entropy on node roles)
-    # For backward compatibility with current one-hot features, we'll compute a simplified role loss
-    # In the future, this will use the dedicated role portion of the feature vector
-    role_loss = _compute_role_loss(original, reconstructed)
-    
-    # Component 4: Name Loss (Cosine Embedding Loss on name embeddings)
-    # For backward compatibility, we'll use a placeholder that encourages semantic similarity
-    # In the future, this will use the dedicated name embedding portion
-    name_loss = _compute_name_loss(original, reconstructed)
-    
-    # Combine losses with weights
-    total_loss = (type_weight * type_loss + 
-                  edge_weight * edge_loss + 
-                  role_weight * role_loss + 
-                  name_weight * name_loss)
-    
+    # The root node has no parent, so it will be ignored in the loss calculation.
+    # For all other nodes, find their parent from the edge index.
+    # original.edge_index is [parent_indices, child_indices]
+    children = original.edge_index[1]
+    parents = original.edge_index[0]
+
+    # Populate the true_parents tensor, clamping indices to be within the prediction range.
+    valid_parents = torch.clamp(parents, 0, max_nodes - 1)
+    true_parents[children] = valid_parents
+
+    # We only compute the loss for the nodes that were actually reconstructed.
+    num_nodes_for_loss = min(recon_parent_logits.size(0), true_parents.size(0))
+
+    # Check if there are any valid parent-child relationships to compute loss on.
+    if (true_parents[:num_nodes_for_loss] != ignore_index).any():
+        parent_loss = F.cross_entropy(
+            recon_parent_logits[:num_nodes_for_loss],
+            true_parents[:num_nodes_for_loss],
+            ignore_index=ignore_index
+        )
+    else:
+        # This case handles single-node graphs (which have no parents).
+        parent_loss = torch.tensor(0.0, device=original.x.device)
+
+    # --- Total Loss ---
+    total_loss = (type_weight * type_loss) + (parent_weight * parent_loss)
     return total_loss
 
 

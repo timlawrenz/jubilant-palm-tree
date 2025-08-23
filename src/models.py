@@ -113,8 +113,8 @@ class ASTDecoder(torch.nn.Module):
     and edge structure to reconstruct an AST.
     """
     
-    def __init__(self, embedding_dim: int, output_node_dim: int, hidden_dim: int = 64, 
-                 num_layers: int = 3, max_nodes: int = 100):
+    def __init__(self, embedding_dim: int, output_node_dim: int, hidden_dim: int = 256, 
+                 num_layers: int = 5, max_nodes: int = 100):
         """
         Initialize the AST decoder.
         
@@ -160,17 +160,20 @@ class ASTDecoder(torch.nn.Module):
         batch_size = embedding.size(0)
         device = embedding.device
         
+        # This decoder is non-autoregressive and processes one graph at a time.
+        # If a batch is passed, we only process the first item's embedding.
         if batch_size > 1:
             embedding = embedding[0].unsqueeze(0)
 
         num_nodes = target_num_nodes if target_num_nodes is not None else self.max_nodes
         
+        # Project the single graph embedding to create an initial feature vector for each node
         initial_features = self.embedding_transform(embedding)
         node_features = initial_features.expand(num_nodes, self.hidden_dim)
         
-        # In a true autoregressive model, we would build the graph step-by-step.
         # In this simplified one-shot decoder, we refine all nodes at once.
         # We create a placeholder fully connected graph to allow message passing.
+        # This allows the GNN to learn relationships between all potential nodes.
         adj = torch.ones(num_nodes, num_nodes, device=device)
         edge_index = adj.nonzero().t().contiguous()
 
@@ -179,13 +182,14 @@ class ASTDecoder(torch.nn.Module):
             x = conv(x, edge_index)
             x = F.relu(x)
         
+        # Predict the final node features (e.g., one-hot type) for each node
         output_node_features = self.node_output(x)
         
-        # For each node, predict a parent from the existing nodes
+        # For each node, predict a parent from the set of all possible nodes
         parent_logits = self.parent_predictor(x) # Shape: [num_nodes, max_nodes]
         
         return {
-            'node_features': output_node_features.unsqueeze(0),
+            'node_features': output_node_features.unsqueeze(0), # Shape: [1, num_nodes, feature_dim]
             'parent_logits': parent_logits.unsqueeze(0) # Shape: [1, num_nodes, max_nodes]
         }
 
