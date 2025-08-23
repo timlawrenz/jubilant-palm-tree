@@ -35,12 +35,21 @@ def train_epoch(model, train_loader, optimizer, device, type_weight, parent_weig
     # Pre-compute autocast context for efficiency
     autocast_ctx = torch.autocast(device_type=device.type, dtype=torch.float16, enabled=CUDA_AVAILABLE)
     
+    # Memory optimization: Enable memory efficient attention if available
+    if hasattr(torch.backends.cuda, 'enable_math_sdp'):
+        torch.backends.cuda.enable_math_sdp(True)
+    
     for data in train_loader:
         # Early skip for empty batches
         if data.num_nodes == 0: 
             continue
 
         data = data.to(device, non_blocking=True)
+        
+        # Clear cache periodically to prevent OOM
+        if CUDA_AVAILABLE and num_graphs % 100 == 0:
+            torch.cuda.empty_cache()
+            
         optimizer.zero_grad()
         
         # Use pre-computed autocast context
@@ -216,7 +225,7 @@ def main():
     print(f"   Validation batches: {len(val_loader)}")
     print()
     
-    # Initialize autoencoder model
+    # Initialize autoencoder model with performance optimizations
     print("🧠 Initializing AST Autoencoder...")
     model = ASTAutoencoder(
         encoder_input_dim=74,  # AST node feature dimension
@@ -227,7 +236,8 @@ def main():
         dropout=config['dropout'],
         freeze_encoder=config['freeze_encoder'],
         encoder_weights_path=config['encoder_weights_path'],
-        decoder_conv_type=args.decoder_conv_type
+        decoder_conv_type=args.decoder_conv_type,
+        gradient_checkpointing=True  # Enable for memory efficiency
     ).to(device)
     
     # Count parameters
@@ -273,6 +283,10 @@ def main():
 
     best_val_loss = float('inf')
     epochs_no_improve = 0
+    
+    # Performance optimization: Enable optimized attention if available
+    if CUDA_AVAILABLE and hasattr(torch.backends.cuda, 'enable_flash_sdp'):
+        torch.backends.cuda.enable_flash_sdp(True)
     early_stopping_patience = 10
     start_time = time.time()
     
