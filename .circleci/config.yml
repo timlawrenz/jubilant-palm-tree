@@ -34,10 +34,7 @@ jobs:
           # and sample models from models/samples/ for fast CI execution
           command: |
             . .venv/bin/activate
-            for test_file in tests/test_*.py; do
-              echo "Running $test_file"
-              python "$test_file"
-            done
+            pytest tests/
 
   test_ruby:
     executor: ruby/default
