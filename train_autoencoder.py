@@ -24,7 +24,7 @@ from models import ASTAutoencoder
 from loss import ast_reconstruction_loss_improved
 
 
-def train_epoch(model, train_loader, optimizer, device, type_weight, parent_weight):
+def train_epoch(model, train_loader, optimizer, device, type_weight, parent_weight, scaler):
     model.train()
     total_loss = 0.0
     num_graphs = 0
@@ -35,19 +35,27 @@ def train_epoch(model, train_loader, optimizer, device, type_weight, parent_weig
         if data.num_nodes == 0: continue
 
         optimizer.zero_grad()
-        result = model(data)
-        loss = ast_reconstruction_loss_improved(
-            data, 
-            result['reconstruction'],
-            type_weight=type_weight,
-            parent_weight=parent_weight
-        )
-        loss.backward()
         
-        # Gradient clipping for additional numerical stability
+        # Use autocast for mixed precision
+        with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=torch.cuda.is_available()):
+            result = model(data)
+            loss = ast_reconstruction_loss_improved(
+                data, 
+                result['reconstruction'],
+                type_weight=type_weight,
+                parent_weight=parent_weight
+            )
+        
+        # Scale the loss and backpropagate
+        scaler.scale(loss).backward()
+        
+        # Gradient clipping (unscale gradients first)
+        scaler.unscale_(optimizer)
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         
-        optimizer.step()
+        # Update weights
+        scaler.step(optimizer)
+        scaler.update()
         
         total_loss += loss.item() * data.num_graphs
         num_graphs += data.num_graphs
@@ -66,13 +74,14 @@ def validate_epoch(model, val_loader, device, type_weight, parent_weight):
 
             if data.num_nodes == 0: continue
 
-            result = model(data)
-            loss = ast_reconstruction_loss_improved(
-                data, 
-                result['reconstruction'],
-                type_weight=type_weight,
-                parent_weight=parent_weight
-            )
+            with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=torch.cuda.is_available()):
+                result = model(data)
+                loss = ast_reconstruction_loss_improved(
+                    data, 
+                    result['reconstruction'],
+                    type_weight=type_weight,
+                    parent_weight=parent_weight
+                )
             total_loss += loss.item() * data.num_graphs
             num_graphs += data.num_graphs
 
@@ -227,10 +236,14 @@ def main():
     )
     scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=5)
     
+    # Initialize GradScaler for Automatic Mixed Precision (AMP)
+    scaler = torch.amp.GradScaler('cuda', enabled=torch.cuda.is_available())
+    
     print("⚙️  Training setup:")
     print(f"   Optimizer: Adam (lr={config['learning_rate']})")
     print(f"   Scheduler: ReduceLROnPlateau (patience=5)")
     print(f"   Loss function: Improved Reconstruction Loss")
+    print(f"   AMP Enabled: {torch.cuda.is_available()}")
     print()
     
     # Ensure output directory exists
@@ -254,7 +267,7 @@ def main():
     for epoch in range(config['epochs']):
         epoch_start = time.time()
         
-        train_loss = train_epoch(model, train_loader, optimizer, device, args.type_weight, args.parent_weight)
+        train_loss = train_epoch(model, train_loader, optimizer, device, args.type_weight, args.parent_weight, scaler)
         
         # If profiling, stop after one training epoch and print results
         if args.profile:
