@@ -124,7 +124,7 @@ def main():
     try:
         os.chdir('notebooks')  # Change to notebooks directory for relative paths
         
-        test_dataset = RubyASTDataset("../dataset/test.jsonl")
+        test_dataset = RubyASTDataset("dataset/test.jsonl")
         autoencoder = ASTAutoencoder(
             encoder_input_dim=74,
             node_output_dim=74,

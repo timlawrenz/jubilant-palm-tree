@@ -110,17 +110,13 @@ def test_decoder_device_consistency():
         print(f"   Input embedding device: {embedding.device}")
         
         with torch.no_grad():
-            result = decoder(embedding, target_num_nodes=10)
+            result = decoder(embedding, num_nodes_per_graph=torch.tensor([10, 10], device=device))
         
         print(f"   ✅ Node features device: {result['node_features'].device}")
-        print(f"   ✅ Edge index device: {result['edge_index'].device}")
-        print(f"   ✅ Batch tensor device: {result['batch'].device}")
         
         # Verify all tensors are on the same device
         try:
             assert result['node_features'].device == device
-            assert result['edge_index'].device == device
-            assert result['batch'].device == device
             print(f"   ✅ All decoder outputs on correct device ({device})!")
         except AssertionError:
             print(f"   ❌ Device mismatch in decoder outputs on {device}")

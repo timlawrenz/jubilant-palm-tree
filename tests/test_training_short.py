@@ -67,8 +67,8 @@ def test_short_training():
     # Create data loaders
     print("📂 Loading datasets...")
     train_loader, val_loader = create_data_loaders(
-        "../dataset/train.jsonl",
-        "../dataset/validation.jsonl", 
+        "dataset/train.jsonl",
+        "dataset/validation.jsonl", 
         batch_size=4,  # Small batch size for speed
         shuffle=True
     )

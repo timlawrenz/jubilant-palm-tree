@@ -19,8 +19,7 @@ from data_processing import RubyASTDataset, collate_graphs, ASTGraphConverter
 # Helper function to get dataset paths relative to this script
 def get_dataset_path(relative_path):
     """Get dataset path relative to this script location."""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(script_dir, relative_path)
+    return relative_path
 
 
 def test_ast_converter():
@@ -50,7 +49,7 @@ def test_dataset_loading():
     print("\nTesting dataset loading...")
     
     # Find dataset path relative to this script
-    dataset_path = get_dataset_path("../dataset/samples/train_sample.jsonl")
+    dataset_path = get_dataset_path("dataset/samples/train_sample.jsonl")
     if not os.path.exists(dataset_path):
         print(f"❌ Dataset file not found: {dataset_path}")
         return False
@@ -72,7 +71,7 @@ def test_dataset_getitem():
     print("\nTesting dataset item access...")
     
     try:
-        dataset = RubyASTDataset(get_dataset_path("../dataset/samples/train_sample.jsonl"))
+        dataset = RubyASTDataset(get_dataset_path("dataset/samples/train_sample.jsonl"))
         
         # Test getting first item
         sample = dataset[0]
@@ -96,7 +95,7 @@ def test_batch_collation():
     print("\nTesting batch collation...")
     
     try:
-        dataset = RubyASTDataset(get_dataset_path("../dataset/samples/train_sample.jsonl"))
+        dataset = RubyASTDataset(get_dataset_path("dataset/samples/train_sample.jsonl"))
         
         # Get a few samples
         batch = [dataset[i] for i in range(min(3, len(dataset)))]
@@ -124,7 +123,7 @@ def test_dataloader_simulation():
     print("\nTesting DataLoader simulation...")
     
     try:
-        dataset = RubyASTDataset(get_dataset_path("../dataset/samples/train_sample.jsonl"))
+        dataset = RubyASTDataset(get_dataset_path("dataset/samples/train_sample.jsonl"))
         batch_size = 4
         num_batches = 3
         
@@ -162,7 +161,7 @@ def test_dataloader_functionality():
         from data_processing import SimpleDataLoader, create_data_loaders
         
         # Test individual DataLoader
-        dataset = RubyASTDataset(get_dataset_path("../dataset/samples/train_sample.jsonl"))
+        dataset = RubyASTDataset(get_dataset_path("dataset/samples/train_sample.jsonl"))
         loader = SimpleDataLoader(dataset, batch_size=8, shuffle=False)
         
         print(f"   DataLoader created with {len(loader)} batches")
@@ -179,8 +178,8 @@ def test_dataloader_functionality():
         
         # Test create_data_loaders function
         train_loader, val_loader = create_data_loaders(
-            get_dataset_path("../dataset/samples/train_sample.jsonl"), 
-            get_dataset_path("../dataset/samples/validation_sample.jsonl"), 
+            get_dataset_path("dataset/samples/train_sample.jsonl"), 
+            get_dataset_path("dataset/samples/validation_sample.jsonl"), 
             batch_size=16
         )
         print(f"   Created train loader: {len(train_loader)} batches")
@@ -199,7 +198,7 @@ def test_validation_dataset():
     """Test loading validation dataset."""
     print("\nTesting validation dataset...")
     
-    validation_path = get_dataset_path("../dataset/samples/validation_sample.jsonl")
+    validation_path = get_dataset_path("dataset/samples/validation_sample.jsonl")
     if not os.path.exists(validation_path):
         print(f"❌ Validation file not found: {validation_path}")
         return False
@@ -235,7 +234,6 @@ def main():
         test_validation_dataset
     ]
     
-    passed = 0
     total = len(tests)
     
     for test_func in tests:

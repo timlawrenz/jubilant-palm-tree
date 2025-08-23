@@ -28,8 +28,8 @@ def test_training_step():
     # Create small data loaders for quick testing
     try:
         train_loader, _ = create_data_loaders(
-            "../dataset/train.jsonl",
-            "../dataset/validation.jsonl", 
+            "dataset/train.jsonl",
+            "dataset/validation.jsonl", 
             batch_size=2,  # Small batch size
             shuffle=True
         )

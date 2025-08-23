@@ -20,8 +20,7 @@ from models import RubyComplexityGNN, ASTDecoder, ASTAutoencoder
 # Helper function to get dataset paths relative to this script
 def get_dataset_path(relative_path):
     """Get dataset path relative to this script location."""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(script_dir, relative_path)
+    return relative_path
 
 
 def test_encoder_embedding_extraction():
@@ -30,7 +29,7 @@ def test_encoder_embedding_extraction():
     print("-" * 40)
     
     # Load a sample
-    dataset = RubyASTDataset(get_dataset_path("../dataset/samples/train_sample.jsonl"))
+    dataset = RubyASTDataset(get_dataset_path("dataset/samples/train_sample.jsonl"))
     sample = dataset[0]
     
     # Convert to PyTorch format
@@ -78,16 +77,13 @@ def test_ast_decoder():
     embedding = torch.randn(batch_size, 64)
     
     with torch.no_grad():
-        output = decoder(embedding, target_num_nodes=20)
+        output = decoder(embedding, num_nodes_per_graph=torch.tensor([20] * batch_size))
     
     print(f"✅ Decoder output keys: {list(output.keys())}")
     print(f"✅ Node features shape: {output['node_features'].shape}")
-    print(f"✅ Edge index shape: {output['edge_index'].shape}")
-    print(f"✅ Batch tensor shape: {output['batch'].shape}")
-    print(f"✅ Nodes per graph: {output['num_nodes_per_graph']}")
     
     # Verify output shapes
-    expected_node_shape = (batch_size, 20, 74)
+    expected_node_shape = (batch_size * 20, 74)
     assert output['node_features'].shape == expected_node_shape, \
         f"Expected node features shape {expected_node_shape}, got {output['node_features'].shape}"
     
@@ -100,7 +96,7 @@ def test_ast_autoencoder():
     print("-" * 40)
     
     # Load a sample
-    dataset = RubyASTDataset(get_dataset_path("../dataset/samples/train_sample.jsonl"))
+    dataset = RubyASTDataset(get_dataset_path("dataset/samples/train_sample.jsonl"))
     sample = dataset[0]
     
     # Convert to PyTorch format
@@ -169,8 +165,8 @@ def test_batch_processing():
     
     # Create data loaders
     train_loader, _ = create_data_loaders(
-        get_dataset_path("../dataset/samples/train_sample.jsonl"), 
-        get_dataset_path("../dataset/samples/validation_sample.jsonl"), 
+        get_dataset_path("dataset/samples/train_sample.jsonl"), 
+        get_dataset_path("dataset/samples/validation_sample.jsonl"), 
         batch_size=3
     )
     

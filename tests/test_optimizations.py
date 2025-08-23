@@ -27,7 +27,7 @@ def test_optimized_training():
     print("\n1. Testing optimized data loader...")
     try:
         loader = create_autoregressive_data_loader(
-            "../dataset/train_paired_data.jsonl",
+            "dataset/train_paired_data.jsonl",
             batch_size=2,
             shuffle=False,
             max_sequence_length=5,

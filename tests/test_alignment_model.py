@@ -18,8 +18,7 @@ from data_processing import create_data_loaders
 # Helper function to get dataset paths relative to this script
 def get_dataset_path(relative_path):
     """Get dataset path relative to this script location."""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(script_dir, relative_path)
+    return relative_path
 
 def create_sample_graph():
     """Create a sample graph for testing."""
@@ -225,8 +224,8 @@ def test_with_real_data():
         # Try to load real data
         try:
             train_loader, _ = create_data_loaders(
-                train_path=get_dataset_path("../dataset/samples/train_sample.jsonl"),
-                val_path=get_dataset_path("../dataset/samples/validation_sample.jsonl"),
+                train_path=get_dataset_path("dataset/samples/train_sample.jsonl"),
+                val_path=get_dataset_path("dataset/samples/validation_sample.jsonl"),
                 batch_size=2,
                 shuffle=False
             )
@@ -291,7 +290,6 @@ def main():
         test_with_real_data
     ]
     
-    passed = 0
     total = len(tests)
     
     for test in tests:

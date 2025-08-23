@@ -20,8 +20,7 @@ from loss import info_nce_loss
 # Helper function to get dataset paths relative to this script
 def get_dataset_path(relative_path):
     """Get dataset path relative to this script location."""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(script_dir, relative_path)
+    return relative_path
 
 
 def test_alignment_training():
@@ -31,7 +30,7 @@ def test_alignment_training():
     
     # Test configuration
     batch_size = 2  # Very small batch for testing
-    paired_data_path = get_dataset_path("../dataset/samples/train_paired_data_sample.jsonl")
+    paired_data_path = get_dataset_path("dataset/samples/train_paired_data_sample.jsonl")
     code_encoder_weights_path = "models/best_model.pt"
     
     # Device configuration
