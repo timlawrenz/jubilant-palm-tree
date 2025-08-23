@@ -30,6 +30,12 @@ python scripts/split_paired_dataset.py
 echo "\nStep 1.7: Pre-computing text embeddings for performance..."
 python scripts/precompute_embeddings.py
 
+echo "\nStep 1.8: Pre-computing graph datasets for performance..."
+python scripts/precompute_graphs.py
+
+echo "\nStep 1.9: Pre-collating batches for maximum training performance..."
+python scripts/pre_collate_batches.py --batch_size 4096
+
 echo "✅ STAGE 1 COMPLETE: All datasets have been prepared."
 
 # --- Stage 2: Production Model Training ---
