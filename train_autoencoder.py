@@ -162,6 +162,9 @@ def main():
     print("📋 Training Configuration:")
     for key, value in config.items():
         print(f"   {key}: {value}")
+    print(f"   decoder_conv_type: {args.decoder_conv_type}")
+    print(f"   type_weight: {args.type_weight}")
+    print(f"   parent_weight: {args.parent_weight}")
     print(f"   dataset_path: {args.dataset_path}")
     print(f"   output_path: {args.output_path}")
     print()
