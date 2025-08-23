@@ -186,27 +186,35 @@ class ASTDecoder(torch.nn.Module):
         node_features = self.embedding_transform(embedding)
         node_features = node_features.repeat_interleave(num_nodes_per_graph, dim=0)
 
-        # To avoid the massive memory allocation of a fully-connected graph for the
-        # entire batch, we create a more realistic and efficient sequential
-        # placeholder. We connect each node to its predecessor within each graph.
-        edge_index_list = []
-        node_offset = 0
-        for num_nodes in num_nodes_per_graph:
-            if num_nodes > 1:
-                # Create sequential edges (i -> i+1) for each graph
-                graph_edges = torch.stack([
-                    torch.arange(0, num_nodes - 1, device=device),
-                    torch.arange(1, num_nodes, device=device)
-                ], dim=0)
-                # Offset the indices by the number of nodes in previous graphs
-                edge_index_list.append(graph_edges + node_offset)
-            node_offset += num_nodes
-        
-        if not edge_index_list:
-            # Handle case with no edges (e.g., all single-node graphs)
+        # Vectorized edge construction for sequential edges within each graph.
+        # This approach avoids loops over graphs in the batch, creating all edges
+        # at once for efficiency.
+        num_edges_per_graph = torch.clamp(num_nodes_per_graph - 1, min=0)
+        total_edges = torch.sum(num_edges_per_graph).item()
+
+        if total_edges == 0:
             edge_index = torch.empty((2, 0), dtype=torch.long, device=device)
         else:
-            edge_index = torch.cat(edge_index_list, dim=1)
+            # Calculate node offsets for each graph
+            node_offsets = torch.cumsum(torch.cat([torch.zeros(1, device=device, dtype=num_nodes_per_graph.dtype), num_nodes_per_graph[:-1]]), dim=0)
+            
+            # Determine which graph each edge belongs to
+            graph_indices = torch.repeat_interleave(torch.arange(len(num_nodes_per_graph), device=device), num_edges_per_graph)
+            
+            # Calculate the starting edge index for each graph
+            edge_offsets = torch.cumsum(torch.cat([torch.zeros(1, device=device, dtype=num_edges_per_graph.dtype), num_edges_per_graph[:-1]]), dim=0)
+            
+            # Compute local (within-graph) source indices
+            src_in_graph = torch.arange(total_edges, device=device) - torch.gather(edge_offsets, 0, graph_indices)
+            
+            # Get the starting node index for each edge's graph
+            edge_node_offsets = torch.gather(node_offsets, 0, graph_indices)
+            
+            # Compute global source and destination indices
+            src = edge_node_offsets + src_in_graph
+            dst = src + 1
+            
+            edge_index = torch.stack([src, dst], dim=0)
 
         # GNNs are typically undirected, so we add reverse edges.
         edge_index = torch_geometric.utils.to_undirected(edge_index)
