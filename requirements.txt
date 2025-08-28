@@ -23,3 +23,6 @@ nltk
 
 # For pretty-printing dataframes
 tabulate
+
+# Testing
+pytest

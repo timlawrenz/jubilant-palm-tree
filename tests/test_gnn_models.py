@@ -73,7 +73,7 @@ def test_batch_processing():
     data = Data(x=x, edge_index=edge_index, batch=batch_idx)
     
     print(f"Batch info:")
-    print(f"  Graphs: {batch['num_graphs']}")
+    print(f"  Graphs: {batch.num_graphs}")
     print(f"  Total nodes: {x.size(0)}")
     print(f"  Total edges: {edge_index.size(1)}")
     print(f"  Target values: {y.tolist()}")

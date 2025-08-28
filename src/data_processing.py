@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Union
 try:
     import torch
+    from torch_geometric.data import Data
     TORCH_AVAILABLE = True
 except ImportError:
     TORCH_AVAILABLE = False
@@ -634,26 +635,46 @@ class PairedDataLoader:
 class PrecomputedRubyASTDataset:
     """
     Dataset class for loading precomputed Ruby AST graph data.
-    
-    This class loads .pt files containing pre-converted PyTorch Geometric
-    Data objects, which significantly speeds up data loading.
+
+    This class can load .pt files containing pre-converted PyTorch Geometric
+    Data objects for speed, but also supports processing .jsonl files as a fallback.
     """
-    
-    def __init__(self, pt_path: str, transform=None):
+
+    def __init__(self, path: str, transform=None):
         """
         Initialize the dataset.
-        
+
         Args:
-            pt_path: Path to the .pt file containing precomputed graph data
-            transform: Optional transform to apply to each sample
+            path: Path to the .pt or .jsonl file containing graph data.
+            transform: Optional transform to apply to each sample.
         """
-        self.pt_path = pt_path
+        self.path = path
         self.transform = transform
-        
-        # Load the precomputed data into RAM
-        self.data = torch.load(pt_path, weights_only=False)
-        
-        print(f"Loaded {len(self.data)} precomputed graphs from {pt_path}")
+
+        if not TORCH_AVAILABLE:
+            raise ImportError("PyTorch and PyG are required for this dataset.")
+
+        if path.endswith('.pt'):
+            # Load the precomputed data into RAM
+            self.data = torch.load(path, weights_only=False)
+            print(f"Loaded {len(self.data)} precomputed graphs from {path}")
+        elif path.endswith('.jsonl'):
+            print(f"Processing JSONL file into graphs: {path}")
+            jsonl_data = load_jsonl_file(path)
+            converter = ASTGraphConverter()
+            self.data = []
+            for sample in jsonl_data:
+                graph_data = converter.parse_ast_json(sample['ast_json'])
+
+                x = torch.tensor(graph_data['x'], dtype=torch.float)
+                edge_index = torch.tensor(graph_data['edge_index'], dtype=torch.long)
+                y = torch.tensor([sample.get('complexity_score', 5.0)], dtype=torch.float)
+
+                data_obj = Data(x=x, edge_index=edge_index, y=y)
+                self.data.append(data_obj)
+            print(f"Converted {len(self.data)} graphs from {path}")
+        else:
+            raise ValueError(f"Unsupported file type: {path}. Please provide a .pt or .jsonl file.")
     
     def __len__(self) -> int:
         """Return the number of samples in the dataset."""

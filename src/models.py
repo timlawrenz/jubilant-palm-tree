@@ -26,12 +26,10 @@ class RubyComplexityGNN(torch.nn.Module):
     
     This model uses Graph Convolutional Networks (GCN) or GraphSAGE layers
     to learn from Abstract Syntax Tree representations of Ruby methods.
-    
-    Optimized with performance improvements for training efficiency.
     """
     
     def __init__(self, input_dim: int, hidden_dim: int = 64, num_layers: int = 3, 
-                 conv_type: str = 'GCN', dropout: float = 0.1, enable_compile: bool = True):
+                 conv_type: str = 'GCN', dropout: float = 0.1):
         """
         Initialize the GNN model.
         
@@ -41,7 +39,6 @@ class RubyComplexityGNN(torch.nn.Module):
             num_layers: Number of convolutional layers
             conv_type: Type of convolution ('GCN' or 'SAGE')
             dropout: Dropout probability for regularization
-            enable_compile: Whether to enable torch.compile for acceleration (PyTorch 2.0+)
         """
         super().__init__()
         
@@ -51,7 +48,6 @@ class RubyComplexityGNN(torch.nn.Module):
         self.num_layers = num_layers
         self.conv_type = conv_type
         self.dropout = dropout
-        self.enable_compile = enable_compile
         self.convs = torch.nn.ModuleList()
         
         # Select convolution layer type
@@ -71,29 +67,6 @@ class RubyComplexityGNN(torch.nn.Module):
         # Output layer for complexity prediction
         self.predictor = torch.nn.Linear(hidden_dim, 1)
         
-        # Apply torch.compile for acceleration if supported and enabled
-        if self.enable_compile and hasattr(torch, 'compile'):
-            try:
-                self._compiled_forward = torch.compile(self._forward_impl, mode="reduce-overhead")
-                self._use_compiled = True
-            except Exception:
-                self._use_compiled = False
-        else:
-            self._use_compiled = False
-        
-    def _forward_impl(self, x, edge_index, batch):
-        """Internal forward implementation for compilation."""
-        # Apply convolution layers with ReLU activation and dropout
-        # Use in-place operations for memory efficiency where safe  
-        for i, conv in enumerate(self.convs):
-            x = conv(x, edge_index)
-            if i < len(self.convs) - 1:  # No activation after last layer
-                x = F.relu(x, inplace=True)  # In-place for memory efficiency
-                x = F.dropout(x, p=self.dropout, training=self.training, inplace=True)
-        
-        # Global pooling to get graph-level representation
-        return global_mean_pool(x, batch)
-    
     def forward(self, data: Data, return_embedding: bool = False) -> torch.Tensor:
         """
         Forward pass through the network.
@@ -108,11 +81,15 @@ class RubyComplexityGNN(torch.nn.Module):
         """
         x, edge_index, batch = data.x, data.edge_index, data.batch
         
-        # Use compiled version if available for better performance
-        if self._use_compiled:
-            embedding = self._compiled_forward(x, edge_index, batch)
-        else:
-            embedding = self._forward_impl(x, edge_index, batch)
+        # Apply convolution layers with ReLU activation and dropout
+        for i, conv in enumerate(self.convs):
+            x = conv(x, edge_index)
+            if i < len(self.convs) - 1:  # No activation after last layer
+                x = F.relu(x)
+                x = F.dropout(x, p=self.dropout, training=self.training)
+        
+        # Global pooling to get graph-level representation
+        embedding = global_mean_pool(x, batch)
         
         if return_embedding:
             return embedding
@@ -267,12 +244,12 @@ class ASTDecoder(torch.nn.Module):
                 x = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(conv), x, edge_index, use_reentrant=False
                 )
-                x = F.relu(x, inplace=True)
+                x = F.relu(x)
         else:
             # Standard forward pass
             for conv in self.convs:
                 x = conv(x, edge_index)
-                x = F.relu(x, inplace=True)  # In-place for memory efficiency
+                x = F.relu(x)  # In-place for memory efficiency
         
         # Predict the final node features and parent logits for all nodes in the batch.
         output_node_features = self.node_output(x)
@@ -451,8 +428,7 @@ class AutoregressiveASTDecoder(torch.nn.Module):
                         batch_indices = batch_indices.to(device)
                     
                     # Use global_mean_pool for proper batched pooling
-                    from torch_geometric.nn import global_mean_pool
-                    graph_encoded = global_mean_pool(x, batch_indices)
+                    graph_encoded = global_mean_pool(x, batch_indices, size=batch_size)
                     
                     # Ensure we have the right batch size
                     if graph_encoded.size(0) < batch_size:

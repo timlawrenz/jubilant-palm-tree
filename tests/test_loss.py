@@ -187,7 +187,7 @@ def test_batch_loss():
     batch_idx = torch.tensor(batch_data['batch'], dtype=torch.long)
     original = Data(x=x, edge_index=edge_index, batch=batch_idx)
     
-    print(f"Batch - Graphs: {batch_data['num_graphs']}, Total nodes: {x.size(0)}")
+    print(f"Batch - Graphs: {batch_data.num_graphs}, Total nodes: {x.size(0)}")
     
     # Create autoencoder and get reconstruction
     autoencoder = ASTAutoencoder(

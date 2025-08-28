@@ -107,7 +107,10 @@ def ast_reconstruction_loss(original: Data, reconstructed: Dict[str, Any],
     original_batch = original.batch  # [total_nodes]
     
     # Extract reconstructed data
-    recon_node_features = reconstructed['node_features']  # [batch_size, max_nodes, feature_dim]
+    recon_node_features = reconstructed['node_features']
+    if recon_node_features.dim() == 2:
+        recon_node_features = recon_node_features.unsqueeze(0)
+        
     batch_size = recon_node_features.size(0)
     max_nodes = recon_node_features.size(1)
     feature_dim = recon_node_features.size(2)
@@ -139,6 +142,9 @@ def compute_node_type_loss(original_x: torch.Tensor,
     Returns:
         Average cross-entropy loss across all nodes
     """
+    if recon_node_features.dim() == 2:
+        recon_node_features = recon_node_features.unsqueeze(0)
+
     batch_size = recon_node_features.size(0)
     max_nodes = recon_node_features.size(1)
     feature_dim = recon_node_features.size(2)

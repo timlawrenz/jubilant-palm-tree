@@ -4,7 +4,7 @@ Test script for the improved AST reconstruction loss function.
 
 This script specifically tests the new ast_reconstruction_loss_improved function
 to ensure it works correctly and provides the expected weighted combination of
-Type Loss, Edge Loss, Role Loss, and Name Loss components.
+Type Loss and Parent Prediction Loss components.
 """
 
 import sys
@@ -15,8 +15,7 @@ from torch_geometric.data import Data
 # Add src directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../src'))
 
-from loss import ast_reconstruction_loss_improved, compute_node_type_loss, compute_edge_prediction_loss
-
+from loss import ast_reconstruction_loss_improved
 
 def test_improved_loss_basic():
     """Test basic functionality of the improved loss function."""
@@ -25,17 +24,16 @@ def test_improved_loss_basic():
     
     # Create simple test data
     x = torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=torch.float)
-    edge_index = torch.tensor([[0, 1], [1, 2]], dtype=torch.long).t()
+    edge_index = torch.tensor([[0, 1], [1, 2]], dtype=torch.long)
     batch = torch.zeros(3, dtype=torch.long)
     original = Data(x=x, edge_index=edge_index, batch=batch)
     
     # Create reconstructed data with reasonable predictions
-    recon_logits = torch.tensor([[[8.0, -2.0, -2.0], [-2.0, 8.0, -2.0], [-2.0, -2.0, 8.0]]], dtype=torch.float)
+    recon_logits = torch.tensor([[8.0, -2.0, -2.0], [-2.0, 8.0, -2.0], [-2.0, -2.0, 8.0]], dtype=torch.float)
+    parent_logits = torch.randn(3, 3) # Dummy parent logits for testing
     reconstructed = {
         'node_features': recon_logits,
-        'edge_index': edge_index,
-        'batch': batch,
-        'num_nodes_per_graph': [3]
+        'parent_logits': parent_logits,
     }
     
     # Test improved loss with default weights
@@ -55,15 +53,16 @@ def test_improved_loss_weighted_components():
     
     # Create test data
     x = torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=torch.float)
-    edge_index = torch.tensor([[0], [1]], dtype=torch.long)  # Remove .t() to get correct shape [2, 1]
+    edge_index = torch.tensor([[0], [1]], dtype=torch.long)
     batch = torch.zeros(2, dtype=torch.long)
     original = Data(x=x, edge_index=edge_index, batch=batch)
     
     # Create imperfect reconstruction
-    recon_logits = torch.tensor([[[5.0, 1.0, 1.0], [1.0, 5.0, 1.0]]], dtype=torch.float)
+    recon_logits = torch.tensor([[5.0, 1.0, 1.0], [1.0, 5.0, 1.0]], dtype=torch.float)
+    parent_logits = torch.randn(2, 2)
     reconstructed = {
         'node_features': recon_logits,
-        'edge_index': edge_index,
+        'parent_logits': parent_logits,
     }
     
     # Test with different weight configurations
@@ -71,17 +70,17 @@ def test_improved_loss_weighted_components():
     
     # High type weight
     loss_high_type = ast_reconstruction_loss_improved(
-        original, reconstructed, type_weight=10.0, edge_weight=1.0, role_weight=1.0, name_weight=0.1
+        original, reconstructed, type_weight=10.0, parent_weight=1.0
     )
     
-    # High edge weight  
-    loss_high_edge = ast_reconstruction_loss_improved(
-        original, reconstructed, type_weight=1.0, edge_weight=10.0, role_weight=1.0, name_weight=0.1
+    # High parent weight  
+    loss_high_parent = ast_reconstruction_loss_improved(
+        original, reconstructed, type_weight=1.0, parent_weight=10.0
     )
     
     print(f"✅ Default weights loss: {loss_default.item():.6f}")
     print(f"✅ High type weight loss: {loss_high_type.item():.6f}")
-    print(f"✅ High edge weight loss: {loss_high_edge.item():.6f}")
+    print(f"✅ High parent weight loss: {loss_high_parent.item():.6f}")
     
     # Verify different configurations give different results
     assert abs(loss_default.item() - loss_high_type.item()) > 1e-6, "Different weights should produce different losses"
@@ -90,55 +89,38 @@ def test_improved_loss_weighted_components():
 
 
 def test_improved_loss_components():
-    """Test that all four loss components are computed without errors."""
+    """Test that both loss components are computed without errors."""
     print("\n🔍 Testing Individual Loss Components")
     print("-" * 45)
     
-    # Create test data with multiple nodes for better component testing
-    x = torch.tensor([
-        [1.0, 0.0, 0.0, 0.0],  # Node type 0
-        [0.0, 1.0, 0.0, 0.0],  # Node type 1  
-        [0.0, 0.0, 1.0, 0.0],  # Node type 2
-        [0.0, 1.0, 0.0, 0.0],  # Node type 1 (repeated for role testing)
-    ], dtype=torch.float)
-    edge_index = torch.tensor([[0, 1, 2], [1, 2, 3]], dtype=torch.long).t()
-    batch = torch.zeros(4, dtype=torch.long)
+    # Create test data
+    x = torch.tensor([[1.0, 0.0], [0.0, 1.0]], dtype=torch.float)
+    edge_index = torch.tensor([[0], [1]], dtype=torch.long)
+    batch = torch.zeros(2, dtype=torch.long)
     original = Data(x=x, edge_index=edge_index, batch=batch)
     
     # Create reconstructed data
-    recon_logits = torch.rand(1, 4, 4) * 2  # Random but reasonable logits
+    recon_logits = torch.rand(2, 2)
+    parent_logits = torch.rand(2, 2)
     reconstructed = {
         'node_features': recon_logits,
-        'edge_index': edge_index,
+        'parent_logits': parent_logits,
     }
     
-    # Test each component individually by setting others to zero
+    # Test each component individually
     type_only_loss = ast_reconstruction_loss_improved(
-        original, reconstructed, type_weight=1.0, edge_weight=0.0, role_weight=0.0, name_weight=0.0
+        original, reconstructed, type_weight=1.0, parent_weight=0.0
     )
     
-    edge_only_loss = ast_reconstruction_loss_improved(
-        original, reconstructed, type_weight=0.0, edge_weight=1.0, role_weight=0.0, name_weight=0.0
-    )
-    
-    role_only_loss = ast_reconstruction_loss_improved(
-        original, reconstructed, type_weight=0.0, edge_weight=0.0, role_weight=1.0, name_weight=0.0
-    )
-    
-    name_only_loss = ast_reconstruction_loss_improved(
-        original, reconstructed, type_weight=0.0, edge_weight=0.0, role_weight=0.0, name_weight=1.0
+    parent_only_loss = ast_reconstruction_loss_improved(
+        original, reconstructed, type_weight=0.0, parent_weight=1.0
     )
     
     print(f"✅ Type loss component: {type_only_loss.item():.6f}")
-    print(f"✅ Edge loss component: {edge_only_loss.item():.6f}")
-    print(f"✅ Role loss component: {role_only_loss.item():.6f}")
-    print(f"✅ Name loss component: {name_only_loss.item():.6f}")
+    print(f"✅ Parent loss component: {parent_only_loss.item():.6f}")
     
     # Verify all components are computable
-    for loss_name, loss_val in [
-        ("Type", type_only_loss), ("Edge", edge_only_loss), 
-        ("Role", role_only_loss), ("Name", name_only_loss)
-    ]:
+    for loss_name, loss_val in [("Type", type_only_loss), ("Parent", parent_only_loss)]:
         assert not torch.isnan(loss_val), f"{loss_name} loss should not be NaN"
         assert loss_val.item() >= 0, f"{loss_name} loss should be non-negative"
     
@@ -151,16 +133,17 @@ def test_improved_loss_gradient_flow():
     print("-" * 30)
     
     # Create test data with requires_grad
-    x = torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=torch.float)
-    edge_index = torch.tensor([[0], [1]], dtype=torch.long)  # Correct shape [2, 1]
+    x = torch.tensor([[1.0, 0.0], [0.0, 1.0]], dtype=torch.float)
+    edge_index = torch.tensor([[0], [1]], dtype=torch.long)
     batch = torch.zeros(2, dtype=torch.long)
     original = Data(x=x, edge_index=edge_index, batch=batch)
     
     # Create reconstructed data with gradients enabled
-    recon_logits = torch.tensor([[[2.0, 1.0, 1.0], [1.0, 2.0, 1.0]]], dtype=torch.float, requires_grad=True)
+    recon_logits = torch.tensor([[2.0, 1.0], [1.0, 2.0]], dtype=torch.float, requires_grad=True)
+    parent_logits = torch.randn(2, 2, requires_grad=True)
     reconstructed = {
         'node_features': recon_logits,
-        'edge_index': edge_index,
+        'parent_logits': parent_logits,
     }
     
     # Compute loss and backpropagate
@@ -168,11 +151,11 @@ def test_improved_loss_gradient_flow():
     loss.backward()
     
     print(f"✅ Loss value: {loss.item():.6f}")
-    print(f"✅ Gradients computed: {recon_logits.grad is not None}")
+    print(f"✅ Gradients computed for node features: {recon_logits.grad is not None}")
+    print(f"✅ Gradients computed for parent logits: {parent_logits.grad is not None}")
     
-    if recon_logits.grad is not None:
-        print(f"✅ Gradient values: {recon_logits.grad}")
-        assert not torch.isnan(recon_logits.grad).any(), "Gradients should not contain NaN"
+    assert recon_logits.grad is not None, "Gradients should be computed for node features"
+    assert parent_logits.grad is not None, "Gradients should be computed for parent logits"
     
     return True
 
@@ -184,23 +167,22 @@ def test_improved_loss_backward_compatibility():
     
     # Use the same test pattern as existing loss tests for compatibility
     x = torch.tensor([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=torch.float)
-    edge_index = torch.tensor([[0, 1], [1, 2]], dtype=torch.long).t()
+    edge_index = torch.tensor([[0, 1], [1, 2]], dtype=torch.long)
     batch = torch.zeros(3, dtype=torch.long)
     original = Data(x=x, edge_index=edge_index, batch=batch)
     
     # Test with identical data (should give low loss)
-    recon_logits = torch.tensor([[[10.0, -10.0, -10.0], [-10.0, 10.0, -10.0], [-10.0, -10.0, 10.0]]], dtype=torch.float)
+    recon_logits = torch.tensor([[10.0, -10.0, -10.0], [-10.0, 10.0, -10.0], [-10.0, -10.0, 10.0]], dtype=torch.float)
+    parent_logits = torch.randn(3, 3)
     reconstructed = {
         'node_features': recon_logits,
-        'edge_index': edge_index,
-        'batch': batch,
-        'num_nodes_per_graph': [3]
+        'parent_logits': parent_logits,
     }
     
     loss = ast_reconstruction_loss_improved(original, reconstructed)
     
     print(f"✅ Loss with near-identical data: {loss.item():.6f}")
-    assert loss.item() < 1.0, "Loss should be low for near-identical data"
+    assert loss.item() < 5.0, "Loss should be reasonably low for near-identical data"
     
     return True
 

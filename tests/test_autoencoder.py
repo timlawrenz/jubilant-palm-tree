@@ -179,7 +179,7 @@ def test_batch_processing():
     batch_idx = torch.tensor(batch['batch'], dtype=torch.long)
     data = Data(x=x, edge_index=edge_index, batch=batch_idx)
     
-    print(f"Batch - Graphs: {batch['num_graphs']}, Total nodes: {x.size(0)}, Edges: {edge_index.size(1)}")
+    print(f"Batch - Graphs: {batch.num_graphs}, Total nodes: {x.size(0)}, Edges: {edge_index.size(1)}")
     
     # Test autoencoder
     autoencoder = ASTAutoencoder(
@@ -193,10 +193,10 @@ def test_batch_processing():
         result = autoencoder(data)
     
     print(f"✅ Batch embedding shape: {result['embedding'].shape}")
-    print(f"✅ Expected batch size: {batch['num_graphs']}")
+    print(f"✅ Expected batch size: {batch.num_graphs}")
     
-    assert result['embedding'].shape[0] == batch['num_graphs'], \
-        f"Embedding batch size {result['embedding'].shape[0]} != expected {batch['num_graphs']}"
+    assert result['embedding'].shape[0] == batch.num_graphs, \
+        f"Embedding batch size {result['embedding'].shape[0]} != expected {batch.num_graphs}"
     
     return True
 

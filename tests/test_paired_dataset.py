@@ -101,7 +101,7 @@ def test_paired_batch_collation():
         print(f"   Batched graph keys: {list(batched_graphs.keys())}")
         print(f"   Batched node features shape: ({len(batched_graphs['x'])}, {len(batched_graphs['x'][0]) if batched_graphs['x'] else 0})")
         print(f"   Batched edge index shape: ({len(batched_graphs['edge_index'])}, {len(batched_graphs['edge_index'][0])})")
-        print(f"   Number of graphs in batch: {batched_graphs['num_graphs']}")
+        print(f"   Number of graphs in batch: {batched_graphs.num_graphs}")
         print(f"   Text batch length: {len(text_batch)}")
         print(f"   Text descriptions: {text_batch}")
         
@@ -132,7 +132,7 @@ def test_paired_data_loader():
         for batched_graphs, text_batch in loader:
             batch_count += 1
             if batch_count <= 2:  # Only test first 2 batches
-                print(f"   Batch {batch_count}: {batched_graphs['num_graphs']} graphs, {len(batched_graphs['x'])} nodes, {len(batched_graphs['edge_index'][0])} edges")
+                print(f"   Batch {batch_count}: {batched_graphs.num_graphs} graphs, {len(batched_graphs['x'])} nodes, {len(batched_graphs['edge_index'][0])} edges")
                 print(f"   Text batch size: {len(text_batch)}")
                 print(f"   Sample text: '{text_batch[0]}'")
             if batch_count >= 2:

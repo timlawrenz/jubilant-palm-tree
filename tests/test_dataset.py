@@ -109,7 +109,7 @@ def test_batch_collation():
         print(f"   Batched edge index shape: ({len(batched_data['edge_index'])}, {len(batched_data['edge_index'][0])})")
         print(f"   Batched targets shape: ({len(batched_data['y'])},)")
         print(f"   Batch indices shape: ({len(batched_data['batch'])},)")
-        print(f"   Number of graphs in batch: {batched_data['num_graphs']}")
+        print(f"   Number of graphs in batch: {batched_data.num_graphs}")
         
         return True
     except Exception as e:
@@ -171,7 +171,7 @@ def test_dataloader_functionality():
         for batch in loader:
             batch_count += 1
             if batch_count <= 2:  # Only test first 2 batches
-                print(f"   Batch {batch_count}: {batch['num_graphs']} graphs, "
+                print(f"   Batch {batch_count}: {batch.num_graphs} graphs, "
                       f"{len(batch['x'])} nodes, {len(batch['edge_index'][0])} edges")
             if batch_count >= 2:
                 break
