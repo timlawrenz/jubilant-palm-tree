@@ -1295,3 +1295,118 @@ def create_autoregressive_data_loader(paired_data_path: str, batch_size: int = 8
     print("ℹ️  Using custom AutoregressiveDataLoader")
     
     return loader
+
+
+class HierarchicalASTDataset(RubyASTDataset):
+    """
+    Dataset for loading a single level of a hierarchical AST dataset.
+
+    This class inherits from RubyASTDataset to reuse the same AST-to-graph
+    conversion logic. It is used to load one of the `_level_N.jsonl` files.
+    """
+    def __init__(self, jsonl_path: str, transform=None):
+        """
+        Initialize the dataset for a specific AST level.
+
+        Args:
+            jsonl_path: Path to the JSONL file for a specific level.
+            transform: Optional transform to apply to each sample.
+        """
+        super().__init__(jsonl_path, transform)
+
+
+def create_hierarchical_data_loader(dataset_path: str, batch_size: int, shuffle: bool, num_workers: Optional[int] = None):
+    """
+    Creates a data loader for a specific level of the hierarchical dataset.
+
+    Args:
+        dataset_path: The full path to the `_level_N.jsonl` file.
+        batch_size: The batch size for the data loader.
+        shuffle: Whether to shuffle the data.
+        num_workers: The number of worker processes for data loading.
+
+    Returns:
+        A DataLoader instance for the specified dataset level.
+    """
+    dataset = HierarchicalASTDataset(dataset_path)
+
+    if TORCH_AVAILABLE:
+        try:
+            from torch_geometric.loader import DataLoader
+            if num_workers is None:
+                num_workers = os.cpu_count()
+            
+            loader = DataLoader(
+                dataset,
+                batch_size=batch_size,
+                shuffle=shuffle,
+                num_workers=num_workers,
+                pin_memory=torch.cuda.is_available(),
+                persistent_workers=num_workers > 0,
+                collate_fn=collate_graphs # Reusing the existing collate function
+            )
+            logging.info(f"Created PyG DataLoader for {dataset_path} with {num_workers} workers.")
+            return loader
+        except ImportError:
+            logging.warning("PyTorch Geometric not found. Falling back to SimpleDataLoader.")
+    
+    # Fallback to SimpleDataLoader
+    return SimpleDataLoader(dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=collate_graphs)
+
+
+class HierarchicalPairedDataset(PairedDataset):
+    """
+    Dataset for loading a single level of a hierarchical dataset with paired text.
+
+    This class inherits from PairedDataset to reuse the same logic for
+    processing graph data and randomly sampling text descriptions.
+    """
+    def __init__(self, jsonl_path: str, transform=None, seed: Optional[int] = None):
+        """
+        Initialize the dataset for a specific AST level.
+
+        Args:
+            jsonl_path: Path to the JSONL file for a specific level (e.g., train_paired_data_level_0.jsonl).
+            transform: Optional transform to apply to each sample.
+            seed: Random seed for consistent description sampling.
+        """
+        super().__init__(jsonl_path, transform, seed)
+
+
+def create_hierarchical_paired_data_loader(dataset_path: str, batch_size: int, shuffle: bool, num_workers: Optional[int] = None):
+    """
+    Creates a data loader for a specific level of the hierarchical paired dataset.
+
+    Args:
+        dataset_path: The full path to the `_level_N.jsonl` file.
+        batch_size: The batch size for the data loader.
+        shuffle: Whether to shuffle the data.
+        num_workers: The number of worker processes for data loading.
+
+    Returns:
+        A DataLoader instance for the specified dataset level.
+    """
+    dataset = HierarchicalPairedDataset(dataset_path)
+
+    if TORCH_AVAILABLE:
+        try:
+            from torch.utils.data import DataLoader
+            if num_workers is None:
+                num_workers = os.cpu_count()
+            
+            loader = DataLoader(
+                dataset,
+                batch_size=batch_size,
+                shuffle=shuffle,
+                num_workers=num_workers,
+                pin_memory=torch.cuda.is_available(),
+                persistent_workers=num_workers > 0,
+                collate_fn=collate_paired_data
+            )
+            logging.info(f"Created PyTorch DataLoader for {dataset_path} with {num_workers} workers.")
+            return loader
+        except (ImportError, Exception) as e:
+            logging.warning(f"PyTorch DataLoader creation failed ({e}). Falling back to PairedDataLoader.")
+
+    # Fallback to custom PairedDataLoader
+    return PairedDataLoader(dataset, batch_size=batch_size, shuffle=shuffle)

@@ -63,3 +63,4 @@ models/samples/
 # Bundler local configuration (user-specific)
 .bundle/
 vendor/
+dataset/hierarchical/

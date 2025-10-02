@@ -889,3 +889,65 @@ class AlignmentModel(torch.nn.Module):
                 f"  text_encoder: {text_info}\n"
                 f"  projection: {projection_info}\n"
                 f")")
+
+
+class HierarchicalASTDecoder(torch.nn.Module):
+    """
+    Hierarchical, coarse-to-fine decoder for generating ASTs level by level.
+
+    This model takes a text embedding and progressively generates an AST from the
+    root down, with each stage adding one level of depth to the tree. This
+    approach is designed to handle complex and nested code structures more
+    robustly than a one-shot decoder.
+    """
+
+    def __init__(self, embedding_dim: int, hidden_dim: int, num_levels: int, conv_type: str = 'GCN'):
+        """
+        Initialize the HierarchicalASTDecoder.
+
+        Args:
+            embedding_dim: Dimension of the input text embedding.
+            hidden_dim: Hidden dimension for the GNN layers.
+            num_levels: The maximum depth of the AST to generate (number of stages).
+            conv_type: The type of GNN convolution to use (e.g., 'GCN').
+        """
+        super().__init__()
+        self.embedding_dim = embedding_dim
+        self.hidden_dim = hidden_dim
+        self.num_levels = num_levels
+
+        # A ModuleList to hold the GNN generator for each level of the AST.
+        self.level_generators = torch.nn.ModuleList()
+
+        # For now, we use simple linear layers as placeholders for each level's generator.
+        # In a full implementation, these would be more complex GNNs.
+        for i in range(num_levels):
+            # The input to each level's generator will be the hidden state from the previous level.
+            input_dim = embedding_dim if i == 0 else hidden_dim
+            self.level_generators.append(
+                torch.nn.Linear(input_dim, hidden_dim) # Placeholder for a GNN block
+            )
+
+    def forward(self, embedding: torch.Tensor, target_level: int) -> torch.Tensor:
+        """
+        Placeholder forward pass for a single level of generation.
+
+        This will be expanded to a full hierarchical generation loop.
+
+        Args:
+            embedding: The input embedding for the generation process.
+            target_level: The specific AST level to generate.
+
+        Returns:
+            A tensor representing the hidden state or prediction for the target level.
+        """
+        if target_level >= self.num_levels:
+            raise ValueError(f"Target level {target_level} is out of bounds for {self.num_levels} levels.")
+
+        # In a real implementation, we would pass the output of level i-1
+        # to the generator for level i.
+        # For this placeholder, we just process the initial embedding.
+        generator = self.level_generators[target_level]
+        level_output = generator(embedding)
+
+        return level_output
