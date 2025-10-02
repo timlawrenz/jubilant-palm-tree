@@ -83,7 +83,7 @@ def calculate_bleu(reference, candidate):
     chencherry = SmoothingFunction()
     return sentence_bleu([ref_tokens], can_tokens, smoothing_function=chencherry.method1)
 
-def load_model(checkpoint_path, device):
+def load_model(checkpoint_path, device, decoder_conv_type):
     """Loads the autoencoder model from a checkpoint."""
     print(f"🧠 Loading model from {checkpoint_path}...")
     checkpoint = torch.load(checkpoint_path, map_location=device)
@@ -97,7 +97,8 @@ def load_model(checkpoint_path, device):
         dropout=config.get("dropout", 0.1),
         freeze_encoder=True,
         encoder_weights_path=None,
-        max_nodes=config.get("max_nodes", 100)
+        max_nodes=config.get("max_nodes", 100),
+        decoder_conv_type=decoder_conv_type
     ).to(device)
     model.decoder.load_state_dict(checkpoint["decoder_state_dict"])
     model.eval()
@@ -116,7 +117,7 @@ def main(args):
     normalize_code_script = os.path.join(scripts_dir, "normalize_code.rb")
 
     # --- Load Model and Data ---
-    model = load_model(args.model_path, device)
+    model = load_model(args.model_path, device, args.decoder_conv_type)
     
     print(f"📂 Loading dataset from {args.dataset_path}...")
     with open(args.dataset_path, "r") as f:
@@ -266,6 +267,12 @@ if __name__ == "__main__":
         type=int,
         default=DEFAULT_NUM_SAMPLES,
         help=f"Number of samples to evaluate from the test set (default: {DEFAULT_NUM_SAMPLES})"
+    )
+    parser.add_argument(
+        '--decoder_conv_type',
+        type=str,
+        default='SAGE',
+        help="The GNN layer type for the decoder (e.g., 'SAGE', 'GCN', 'GraphConv')."
     )
     parser.add_argument(
         '--no_qualitative',

@@ -8,18 +8,14 @@ This project explores the potential of Graph Neural Networks (GNNs) to understan
 
 ## Project Results Summary
 
-✅ **Complete Success**: Successfully demonstrated that GNNs can both predict Ruby code complexity and reconstruct AST structures from learned embeddings.
+✅ **Foundational Success, Generative Models In Progress**: The project has successfully demonstrated that a GNN can significantly outperform heuristic benchmarks for code complexity prediction. However, the generative models for AST reconstruction and text-to-code generation are not yet functional and require further development.
 
-### Key Achievements
-- **Superior Performance**: GNN model achieved MAE of 4.27 vs heuristic baseline of 4.46 (4.3% improvement)
-- **Perfect Reconstruction**: 100% structural preservation in AST reconstruction across all test samples
-- **Meaningful Embeddings**: 64-dimensional representations cluster methods by complexity and enable full code reconstruction
-- **Comprehensive Dataset**: 1,896 Ruby methods from 8 high-quality open-source projects
-- **Complete Pipeline**: End-to-end system from Ruby source code to embeddings to reconstructed code
-- **Text-Code Alignment**: Contrastive learning aligns natural language descriptions with code embeddings
-- **Multimodal Learning**: Successful dual-encoder architecture with 43.5% loss improvement over training
-- **Text-to-Code Generation**: Complete pipeline from natural language to executable Ruby code
-- **Semantic Understanding**: Excellent performance for arithmetic operations and array methods
+### Key Achievements & Status
+- **Superior Performance**: GNN model achieved a **Mean Absolute Error of 4.77**, a **~26.6% improvement** over the verified heuristic baseline of 6.50.
+- **Large-Scale Dataset**: The data pipeline successfully processed over **218,000 Ruby methods** from **42 open-source projects**.
+- **AST Reconstruction**: 🚧 **(In Progress)** The current autoencoder is non-functional, with **0% syntactic validity** on reconstruction tasks.
+- **Text-Code Alignment**: 🚧 **(In Progress)** The alignment model is non-functional, with retrieval metrics (**Recall@10 of ~2-3%**) indicating performance is near random chance.
+- **Text-to-Code Generation**: 🚧 **(In Progress)** The end-to-end pipeline is non-functional and unable to generate meaningful code from prompts.
 
 ## Project Phases
 
@@ -46,7 +42,7 @@ This project has been developed through 7 phases, with Phase 7 representing the 
 - [Embedding Visualization](https://github.com/timlawrenz/jubilant-palm-tree/issues/23)
 - [Final Report Generation](https://github.com/timlawrenz/jubilant-palm-tree/issues/24)
 
-### [Phase 4 - AST Autoencoder for Code Generation](README_phase4.md) ✅ **COMPLETED**
+### [Phase 4 - AST Autoencoder for Code Generation](README_phase4.md) 🚧 **IN PROGRESS**
 **Goal**: To build and train a GNN-based decoder that can reconstruct a Ruby method's AST from its learned embedding, validating the generative potential of the embeddings.
 - [Autoencoder Model Definition](https://github.com/timlawrenz/jubilant-palm-tree/issues/34)
 - [AST Reconstruction Loss Function](https://github.com/timlawrenz/jubilant-palm-tree/issues/35)
@@ -54,11 +50,11 @@ This project has been developed through 7 phases, with Phase 7 representing the 
 - [Evaluation with Pretty-Printing](https://github.com/timlawrenz/jubilant-palm-tree/issues/37)
 - [And 8 additional issues for robust implementation and evaluation](README_phase4.md)
 
-### [Phase 5 - Aligning Text and Code Embeddings](README_phase5.md) ✅ **COMPLETED**
+### [Phase 5 - Aligning Text and Code Embeddings](README_phase5.md) 🚧 **IN PROGRESS**
 **Goal**: Train a text-encoder so that the embedding it produces for a method's description is located at the same point in the 64-dimensional space as the embedding our GNN produces for the method's AST.
 - [Alignment Training Loop](https://github.com/timlawrenz/jubilant-palm-tree/issues/77)
 
-### [Phase 6 - Text-to-Code Generation](README_phase6.md) ✅ **COMPLETED**
+### [Phase 6 - Text-to-Code Generation](README_phase6.md) 🚧 **IN PROGRESS**
 **Goal**: Complete the end-to-end text-to-code generation pipeline by combining aligned text-code embeddings with AST reconstruction to generate Ruby code from natural language descriptions.
 - Complete integration of all phases into working text-to-code system
 - Demonstrated successful generation for arithmetic and array operations
@@ -236,30 +232,26 @@ print(ruby_code)
 ## Project Results
 
 ### Complexity Prediction (Phases 1-3)
-- **GNN Model Performance**: MAE of 4.27 vs baseline of 4.46 (4.3% improvement)
-- **Embedding Quality**: 64-dimensional representations cluster methods by complexity
-- **Dataset Scale**: 1,896 Ruby methods from 8 open-source projects
-- **Training Stability**: 100 epochs with robust convergence
+- **GNN Model Performance**: Verified MAE of **4.77** vs. heuristic baseline of **6.50** (**~26.6% improvement**).
+- **Embedding Quality**: 64-dimensional representations effectively cluster methods by complexity.
+- **Dataset Scale**: Over **218,000 Ruby methods** from **42 open-source projects**.
+- **Training Stability**: 100 epochs with robust convergence on the full dataset.
 
 ### AST Reconstruction (Phase 4)
-- **Perfect Preservation**: 100% structural fidelity across all test samples
-- **Scalable Evaluation**: Tested from 25 to 1,000+ samples consistently
-- **Code Generation**: Complete Ruby source → AST → embedding → AST → Ruby pipeline
-- **Model Architecture**: 47,692 parameters (21,579 trainable decoder + 26,113 frozen encoder)
+- **Current Status**: The AST autoencoder is **non-functional**.
+- **Performance**: The model achieves **0% syntactic validity** and **0% AST isomorphism**. It is incapable of reconstructing a valid AST from an embedding.
+- **Conclusion**: The initial one-shot decoder architecture is flawed or was severely undertrained. The "100% structural preservation" claim was inaccurate.
 
 ### Text-Code Alignment (Phase 5)
-- **Dual-encoder Architecture**: Frozen GNN code encoder + trainable text projection head
-- **Contrastive Learning**: InfoNCE loss aligns text descriptions with code embeddings  
-- **Successful Training**: 43.5% loss improvement demonstrating effective alignment learning
-- **Shared Embedding Space**: 64-dimensional space enables text-to-code and code-to-text tasks
+- **Current Status**: The alignment model is **non-functional**.
+- **Performance**: Retrieval metrics are near random chance (**Recall@10 of ~2-3%**), indicating the model cannot align text and code embeddings.
+- **Conclusion**: The previously reported "43.5% loss improvement" was a misleading vanity metric that did not correlate with functional performance.
 
 ### Text-to-Code Generation (Phase 6)
-- **End-to-End Pipeline**: Complete system from natural language to executable Ruby code
-- **Semantic Understanding**: Excellent performance for arithmetic operations and array methods
-- **Stable Architecture**: Consistent 64D embeddings and 15-node AST generation
-- **Successful Examples**: Perfect generation for "adds two numbers" and "finds largest in array"
-- **Current Limitations**: Decoder bottleneck identified for complex control flow (conditionals, loops)
-- **Future Direction**: Phase 7 autoregressive architecture planned to address complex code generation
+- **Current Status**: The end-to-end pipeline is **non-functional**.
+- **Performance**: The system fails to generate meaningful or syntactically correct code for even simple prompts like "a method that adds two numbers".
+- **Conclusion**: As the upstream autoencoder and alignment models are non-functional, the generation pipeline fails as expected.
+- **Future Direction**: The planned autoregressive architecture in Phase 7 is not an enhancement but a necessary first step toward building a functional code generator.
 
 ### Advanced Decoder Architectures (Phase 7) - Planned
 - **Autoregressive Generation**: Sequential AST building to handle complex control structures

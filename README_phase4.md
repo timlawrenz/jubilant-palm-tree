@@ -58,7 +58,7 @@ ASTAutoencoder(
 ### Initial State: Failure to Generate
 Initial evaluations of the model trained with the `comprehensive` loss function yielded scores of zero across all metrics. Investigation revealed the model was not producing "garbage" output, but **no output at all**, because the decoder was generating invalid ASTs.
 
-### Post-Optimization Results: Still Zero
+### Final Evaluation Results
 After a massive effort to optimize the training pipeline—achieving a **~2500x speedup** in epoch time—the model was trained to full convergence. The final validation loss was **6.4203**. However, a full evaluation on the test set revealed that the model is still unable to generate syntactically valid code.
 
 | Metric                     | Score |
@@ -72,24 +72,8 @@ This is a critical result. It demonstrates that the current model architecture, 
 
 This outcome definitively proves that a more sophisticated approach is needed to enforce structural correctness.
 
-## Next Steps: Automated Hyperparameter Optimization
+## Final Assessment
 
-Our manual, iterative experiments have been invaluable. We have:
-1.  Achieved a **>2500x speedup** in the training pipeline.
-2.  Confirmed that **explicit parent prediction** provides a much stronger learning signal.
-3.  Discovered that **`GINConv`** is a particularly effective GNN architecture for this task.
-4.  Concluded that the model is still not powerful enough to solve the problem, even with these improvements.
+The AST autoencoder is **completely non-functional**. The best-performing model, even after extensive training and optimization, is unable to reconstruct a single valid AST, resulting in zero scores across all evaluation metrics.
 
-The manual process of testing one hypothesis at a time has reached its limit. The interactions between the numerous hyperparameters (`conv_type`, `hidden_dim`, `num_layers`, `learning_rate`, loss weights, etc.) are too complex to explore effectively by hand.
-
-To overcome this, we are moving to a more sophisticated and automated approach: **hyperparameter optimization using a genetic algorithm.**
-
-### The Genetic Algorithm Approach
-
-Instead of manually defining experiments, we will use a genetic algorithm to automatically search for the optimal combination of model architecture and training parameters.
-
--   **The "Genome":** Each "individual" in our population will be defined by a chromosome containing all the key hyperparameters we have identified.
--   **The "Fitness Function":** Each individual will be trained for a fixed number of epochs, and its "fitness" will be its best achieved validation loss.
--   **"Evolution":** The algorithm will iteratively breed the fittest individuals (those with the lowest validation loss) and introduce mutations, evolving the population over many generations to find a set of elite, high-performing models.
-
-This approach automates the experimental process, allowing us to explore the vast hyperparameter space and discover non-obvious interactions that could lead to a breakthrough. The initial population of 30 random organisms is currently being evaluated. This marks the final and most comprehensive experiment for the non-autoregressive architecture.
+The "100% structural preservation" claim in the main `README.md` was entirely false. The model is either severely undertrained or the one-shot decoder architecture is fundamentally flawed for this task. This phase of the project did not achieve its goal, and the generative capabilities of the embeddings were not validated.
