@@ -21,14 +21,14 @@ This project explores the potential of Graph Neural Networks (GNNs) to understan
 
 This project has been developed through 7 phases, with Phase 7 representing the next major advancement:
 
-### [Phase 1 - Data Generation & Preprocessing](README_phase1.md) ✅ **COMPLETED**
+### [Phase 1 - Data Generation & Preprocessing](docs/README_phase1.md) ✅ **COMPLETED**
 **Goal**: To produce a clean, structured dataset from raw source code, ready for model training.
 - [Source Code Aggregation](https://github.com/timlawrenz/jubilant-palm-tree/issues/1)
 - [Method Extraction](https://github.com/timlawrenz/jubilant-palm-tree/issues/2)
 - [Feature & Label Generation](https://github.com/timlawrenz/jubilant-palm-tree/issues/3)
 - [Dataset Assembly & Cleaning](https://github.com/timlawrenz/jubilant-palm-tree/issues/4)
 
-### [Phase 2 - Model Setup & Training](README_phase2.md) ✅ **COMPLETED**
+### [Phase 2 - Model Setup & Training](docs/README_phase2.md) ✅ **COMPLETED**
 **Goal**: To build, train, and benchmark the GNN model for complexity prediction.
 - [Python Environment Setup](https://github.com/timlawrenz/jubilant-palm-tree/issues/5)
 - [Data Ingestion & Graph Conversion](https://github.com/timlawrenz/jubilant-palm-tree/issues/9)
@@ -36,31 +36,31 @@ This project has been developed through 7 phases, with Phase 7 representing the 
 - [Training & Validation Loop](https://github.com/timlawrenz/jubilant-palm-tree/issues/11)
 - [Heuristic Benchmark Implementation](https://github.com/timlawrenz/jubilant-palm-tree/issues/12)
 
-### [Phase 3 - Evaluation & Analysis](README_phase3.md) ✅ **COMPLETED**
+### [Phase 3 - Evaluation & Analysis](docs/README_phase3.md) ✅ **COMPLETED**
 **Goal**: To evaluate the trained model's performance and analyze its learned representations.
 - [Model Evaluation Script](https://github.com/timlawrenz/jubilant-palm-tree/issues/22)
 - [Embedding Visualization](https://github.com/timlawrenz/jubilant-palm-tree/issues/23)
 - [Final Report Generation](https://github.com/timlawrenz/jubilant-palm-tree/issues/24)
 
-### [Phase 4 - AST Autoencoder for Code Generation](README_phase4.md) 🚧 **IN PROGRESS**
+### [Phase 4 - AST Autoencoder for Code Generation](docs/README_phase4.md) 🚧 **IN PROGRESS**
 **Goal**: To build and train a GNN-based decoder that can reconstruct a Ruby method's AST from its learned embedding, validating the generative potential of the embeddings.
 - [Autoencoder Model Definition](https://github.com/timlawrenz/jubilant-palm-tree/issues/34)
 - [AST Reconstruction Loss Function](https://github.com/timlawrenz/jubilant-palm-tree/issues/35)
 - [Autoencoder Training Loop](https://github.com/timlawrenz/jubilant-palm-tree/issues/36)
 - [Evaluation with Pretty-Printing](https://github.com/timlawrenz/jubilant-palm-tree/issues/37)
-- [And 8 additional issues for robust implementation and evaluation](README_phase4.md)
+- [And 8 additional issues for robust implementation and evaluation](docs/README_phase4.md)
 
-### [Phase 5 - Aligning Text and Code Embeddings](README_phase5.md) 🚧 **IN PROGRESS**
+### [Phase 5 - Aligning Text and Code Embeddings](docs/README_phase5.md) 🚧 **IN PROGRESS**
 **Goal**: Train a text-encoder so that the embedding it produces for a method's description is located at the same point in the 64-dimensional space as the embedding our GNN produces for the method's AST.
 - [Alignment Training Loop](https://github.com/timlawrenz/jubilant-palm-tree/issues/77)
 
-### [Phase 6 - Text-to-Code Generation](README_phase6.md) 🚧 **IN PROGRESS**
+### [Phase 6 - Text-to-Code Generation](docs/README_phase6.md) 🚧 **IN PROGRESS**
 **Goal**: Complete the end-to-end text-to-code generation pipeline by combining aligned text-code embeddings with AST reconstruction to generate Ruby code from natural language descriptions.
 - Complete integration of all phases into working text-to-code system
 - Demonstrated successful generation for arithmetic and array operations
 - Identified decoder limitations for complex control flow structures
 
-### [Phase 7 - Advanced Decoder Architectures](README_phase7.md) 🚧 **PLANNED**
+### [Phase 7 - Advanced Decoder Architectures](docs/README_phase7.md) 🚧 **PLANNED**
 **Goal**: To overcome the limitations of the simple, one-shot decoder by implementing a more powerful, autoregressive model that can generate complex, nested code structures.
 - [Update Data Loader for Autoregressive Training](https://github.com/timlawrenz/jubilant-palm-tree/issues/27)
 - [Implement Autoregressive AST Decoder Model](https://github.com/timlawrenz/jubilant-palm-tree/issues/28)
