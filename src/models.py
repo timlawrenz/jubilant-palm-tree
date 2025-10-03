@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, SAGEConv, GATConv, GINConv, GraphConv, global_mean_pool
 from torch_geometric.data import Data, Batch
 import torch_geometric
+from typing import Dict
 try:
     from sentence_transformers import SentenceTransformer
     SENTENCE_TRANSFORMERS_AVAILABLE = True
@@ -901,7 +902,7 @@ class HierarchicalASTDecoder(torch.nn.Module):
     robustly than a one-shot decoder.
     """
 
-    def __init__(self, embedding_dim: int, hidden_dim: int, num_levels: int, conv_type: str = 'GCN'):
+    def __init__(self, embedding_dim: int, hidden_dim: int, num_levels: int, node_feature_dim: int, conv_type: str = 'GCN'):
         """
         Initialize the HierarchicalASTDecoder.
 
@@ -909,45 +910,73 @@ class HierarchicalASTDecoder(torch.nn.Module):
             embedding_dim: Dimension of the input text embedding.
             hidden_dim: Hidden dimension for the GNN layers.
             num_levels: The maximum depth of the AST to generate (number of stages).
+            node_feature_dim: The dimension of the node features to be predicted.
             conv_type: The type of GNN convolution to use (e.g., 'GCN').
         """
         super().__init__()
         self.embedding_dim = embedding_dim
         self.hidden_dim = hidden_dim
         self.num_levels = num_levels
+        self.node_feature_dim = node_feature_dim
+        self.register_buffer('device_indicator', torch.empty(0))
 
-        # A ModuleList to hold the GNN generator for each level of the AST.
+        # A ModuleList to hold the generator for each level of the AST.
         self.level_generators = torch.nn.ModuleList()
 
-        # For now, we use simple linear layers as placeholders for each level's generator.
-        # In a full implementation, these would be more complex GNNs.
         for i in range(num_levels):
-            # The input to each level's generator will be the hidden state from the previous level.
-            input_dim = embedding_dim if i == 0 else hidden_dim
-            self.level_generators.append(
-                torch.nn.Linear(input_dim, hidden_dim) # Placeholder for a GNN block
-            )
+            input_dim = self.embedding_dim
+            
+            # Each level generator is a module with a core layer and two prediction heads.
+            level_gnn = torch.nn.Linear(input_dim, self.hidden_dim) # Placeholder for a real GNN
+            node_predictor = torch.nn.Linear(self.hidden_dim, node_feature_dim)
+            adjacency_predictor = torch.nn.Linear(self.hidden_dim, self.hidden_dim) # To be used for adjacency matrix
 
-    def forward(self, embedding: torch.Tensor, target_level: int) -> torch.Tensor:
+            self.level_generators.append(torch.nn.ModuleDict({
+                'gnn': level_gnn,
+                'node_predictor': node_predictor,
+                'adjacency_predictor': adjacency_predictor,
+            }))
+
+    @property
+    def device(self):
+        """Returns the device the model is on."""
+        return self.device_indicator.device
+
+    def forward(self, input_tensor: torch.Tensor, target_level: int) -> Dict[str, torch.Tensor]:
         """
-        Placeholder forward pass for a single level of generation.
-
-        This will be expanded to a full hierarchical generation loop.
+        Performs a forward pass for a single level of generation for a batch of graphs.
 
         Args:
-            embedding: The input embedding for the generation process.
+            input_tensor: The input tensor for the current generation level.
+                          For level 0, this is the text embedding. For subsequent levels,
+                          it's the hidden state from the previous level.
             target_level: The specific AST level to generate.
 
         Returns:
-            A tensor representing the hidden state or prediction for the target level.
+            A dictionary containing the predicted node features and a representation
+            for predicting the adjacency matrix.
         """
         if target_level >= self.num_levels:
             raise ValueError(f"Target level {target_level} is out of bounds for {self.num_levels} levels.")
 
-        # In a real implementation, we would pass the output of level i-1
-        # to the generator for level i.
-        # For this placeholder, we just process the initial embedding.
         generator = self.level_generators[target_level]
-        level_output = generator(embedding)
+        
+        # Process the input tensor through the core GNN/Linear layer
+        hidden_state = F.relu(generator['gnn'](input_tensor))
+        
+        # Predict node features and adjacency representation from the new hidden state
+        pred_features = generator['node_predictor'](hidden_state)
+        
+        # Adjacency prediction: produce a representation for each node for adjacency matrix
+        adjacency_repr = generator['adjacency_predictor'](hidden_state)
+        
+        # For a batch of nodes, compute the outer product to get a similarity matrix,
+        # which serves as the predicted adjacency matrix.
+        # This creates a matrix of shape [num_nodes, num_nodes]
+        pred_adjacency = torch.matmul(adjacency_repr, adjacency_repr.t())
 
-        return level_output
+        return {
+            'hidden_state': hidden_state,
+            'pred_features': pred_features,
+            'pred_adjacency': pred_adjacency
+        }

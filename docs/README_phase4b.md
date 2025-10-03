@@ -2,7 +2,7 @@
 
 **Goal**: To build and train a functional generative model that can construct a Ruby method's AST from a learned embedding using a hierarchical, top-down approach. This phase replaces the failed "one-shot" autoencoder from the original Phase 4.
 
-**Status**: 🚧 **PLANNED**
+**Status**: 🚧 **IN PROGRESS**
 
 ## 1. Core Concept & Inspiration
 
@@ -55,7 +55,7 @@ The generation process will be a sequence of stages, where each stage is respons
 
 ## 3. Execution Plan
 
-### Task 1: Data Preparation - Create the "AST Pyramid" Dataset
+### Task 1: Data Preparation - Create the "AST Pyramid" Dataset ✅ **COMPLETED**
 
 -   **Objective**: Process the existing dataset to create the multi-level ground-truth data needed for training.
 -   **Action**: Create a new script, `scripts/create_ast_level_dataset.py`.
@@ -67,7 +67,7 @@ The generation process will be a sequence of stages, where each stage is respons
     5.  ...and so on, up to the maximum depth of the ASTs in our dataset.
 -   **Output**: A new directory, `dataset/hierarchical`, containing the training data for each level of the AST generation process.
 
-### Task 2: Model Implementation - The Hierarchical Decoder
+### Task 2: Model Implementation - The Hierarchical Decoder ✅ **COMPLETED**
 
 -   **Objective**: Implement the new staged decoder architecture.
 -   **Action**: Define a new model, `HierarchicalASTDecoder`, in `src/models.py`.
@@ -75,7 +75,7 @@ The generation process will be a sequence of stages, where each stage is respons
     -   The model will be a container for a sequence of smaller GNN blocks (e.g., `GNN_Level_0`, `GNN_Level_1`, etc.).
     -   The `forward` pass will iteratively call each GNN block, taking the graph from the previous stage as input and predicting the nodes/edges for the next level.
 
-### Task 3: Training Pipeline
+### Task 3: Training Pipeline ✅ **COMPLETED**
 
 -   **Objective**: Create a training script for the new hierarchical model.
 -   **Action**: Create a new script, `train_hierarchical.py`.
@@ -85,7 +85,7 @@ The generation process will be a sequence of stages, where each stage is respons
     3.  The loss will be calculated by comparing the predicted `AST_Level_i` to the ground-truth `level_i.json` data.
     4.  The total loss will be a sum of the losses from each generation stage.
 
-### Task 4: Inference and Evaluation
+### Task 4: Inference and Evaluation 🚧 **PLANNED**
 
 -   **Objective**: Build a script to generate code and evaluate the new model's performance.
 -   **Action**: Create a new generation script, `generate_hierarchical.py`.

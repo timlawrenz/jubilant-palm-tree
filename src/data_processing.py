@@ -8,6 +8,7 @@ data for GNN training. Includes custom Dataset class for AST to graph conversion
 import json
 import random
 import os
+import logging
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional, Union
 try:
@@ -258,19 +259,22 @@ class ASTGraphConverter:
             return -1
 
 
-def load_jsonl_file(filepath: str) -> List[Dict[str, Any]]:
+def load_jsonl_file(filepath: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
     """
     Load data from a JSONL file.
     
     Args:
         filepath: Path to the JSONL file
+        limit: Optional maximum number of lines to load.
         
     Returns:
         List of dictionaries from the JSONL file
     """
     data = []
     with open(filepath, 'r', encoding='utf-8') as f:
-        for line in f:
+        for i, line in enumerate(f):
+            if limit is not None and i >= limit:
+                break
             line = line.strip()
             if line:
                 try:
@@ -288,20 +292,21 @@ class RubyASTDataset:
     the AST representations to graph objects suitable for GNN training.
     """
     
-    def __init__(self, jsonl_path: str, transform=None):
+    def __init__(self, jsonl_path: str, transform=None, limit: Optional[int] = None):
         """
         Initialize the dataset.
         
         Args:
             jsonl_path: Path to the JSONL file containing method data
             transform: Optional transform to apply to each sample
+            limit: Optional maximum number of samples to load.
         """
         self.jsonl_path = jsonl_path
         self.transform = transform
         self.converter = ASTGraphConverter()
         
         # Load the data
-        self.data = load_jsonl_file(jsonl_path)
+        self.data = load_jsonl_file(jsonl_path, limit=limit)
         
         print(f"Loaded {len(self.data)} samples from {jsonl_path}")
     
@@ -460,7 +465,7 @@ class PairedDataset:
     For each method, it randomly samples one description from the available descriptions.
     """
     
-    def __init__(self, jsonl_path: str, transform=None, seed: Optional[int] = None):
+    def __init__(self, jsonl_path: str, transform=None, seed: Optional[int] = None, limit: Optional[int] = None):
         """
         Initialize the paired dataset.
         
@@ -468,6 +473,7 @@ class PairedDataset:
             jsonl_path: Path to the paired_data.jsonl file
             transform: Optional transform to apply to each sample
             seed: Random seed for consistent description sampling
+            limit: Optional maximum number of samples to load.
         """
         self.jsonl_path = jsonl_path
         self.transform = transform
@@ -477,7 +483,7 @@ class PairedDataset:
             random.seed(seed)
         
         # Load the data
-        self.data = load_jsonl_file(jsonl_path)
+        self.data = load_jsonl_file(jsonl_path, limit=limit)
         
         print(f"Loaded {len(self.data)} samples from {jsonl_path}")
     
@@ -1361,7 +1367,7 @@ class HierarchicalPairedDataset(PairedDataset):
     This class inherits from PairedDataset to reuse the same logic for
     processing graph data and randomly sampling text descriptions.
     """
-    def __init__(self, jsonl_path: str, transform=None, seed: Optional[int] = None):
+    def __init__(self, jsonl_path: str, transform=None, seed: Optional[int] = None, limit: Optional[int] = None):
         """
         Initialize the dataset for a specific AST level.
 
@@ -1369,11 +1375,12 @@ class HierarchicalPairedDataset(PairedDataset):
             jsonl_path: Path to the JSONL file for a specific level (e.g., train_paired_data_level_0.jsonl).
             transform: Optional transform to apply to each sample.
             seed: Random seed for consistent description sampling.
+            limit: Optional maximum number of samples to load.
         """
-        super().__init__(jsonl_path, transform, seed)
+        super().__init__(jsonl_path, transform, seed, limit)
 
 
-def create_hierarchical_paired_data_loader(dataset_path: str, batch_size: int, shuffle: bool, num_workers: Optional[int] = None):
+def create_hierarchical_paired_data_loader(dataset_path: str, batch_size: int, shuffle: bool, num_workers: Optional[int] = None, limit: Optional[int] = None):
     """
     Creates a data loader for a specific level of the hierarchical paired dataset.
 
@@ -1382,17 +1389,18 @@ def create_hierarchical_paired_data_loader(dataset_path: str, batch_size: int, s
         batch_size: The batch size for the data loader.
         shuffle: Whether to shuffle the data.
         num_workers: The number of worker processes for data loading.
+        limit: Optional maximum number of samples to load.
 
     Returns:
         A DataLoader instance for the specified dataset level.
     """
-    dataset = HierarchicalPairedDataset(dataset_path)
+    dataset = HierarchicalPairedDataset(dataset_path, limit=limit)
 
     if TORCH_AVAILABLE:
         try:
             from torch.utils.data import DataLoader
             if num_workers is None:
-                num_workers = os.cpu_count()
+                num_workers = 0 # Disabled for now to prevent file handle exhaustion
             
             loader = DataLoader(
                 dataset,
