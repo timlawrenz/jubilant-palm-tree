@@ -58,9 +58,11 @@ def build_partial_ast(original_node, max_depth, current_depth=0):
 
     if 'children' in original_node and original_node['children']:
         for child in original_node['children']:
-            partial_child = build_partial_ast(child, max_depth, current_depth + 1)
-            if partial_child:
-                new_node['children'].append(partial_child)
+            # Only process dict children with 'type' field (filter out string nodes)
+            if isinstance(child, dict) and 'type' in child:
+                partial_child = build_partial_ast(child, max_depth, current_depth + 1)
+                if partial_child:
+                    new_node['children'].append(partial_child)
 
     return new_node
 

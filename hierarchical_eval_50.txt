@@ -1,0 +1,21 @@
+🖥️  Using device: cuda
+🧠 Loading hierarchical model from models/hierarchical...
+✅ Model loaded successfully.
+Loaded code encoder weights from models/best_model.pt
+Code encoder weights frozen
+Using SentenceTransformer: all-MiniLM-L6-v2
+Text encoder output dim: 384, projecting to: 64
+✅ Successfully loaded pre-trained alignment model from models/best_alignment_model.pt
+📂 Loading dataset from dataset/test.jsonl...
+Loaded 50 samples for evaluation.
+Evaluating Samples:   0%|          | 0/50 [00:00<?, ?it/s]Evaluating Samples:   2%|▏         | 1/50 [00:00<00:47,  1.02it/s]Evaluating Samples:   4%|▍         | 2/50 [00:01<00:36,  1.33it/s]Evaluating Samples:   6%|▌         | 3/50 [00:02<00:32,  1.46it/s]Evaluating Samples:   8%|▊         | 4/50 [00:02<00:29,  1.54it/s]Evaluating Samples:  10%|█         | 5/50 [00:03<00:28,  1.58it/s]Evaluating Samples:  12%|█▏        | 6/50 [00:03<00:27,  1.61it/s]Evaluating Samples:  14%|█▍        | 7/50 [00:04<00:26,  1.62it/s]Evaluating Samples:  16%|█▌        | 8/50 [00:05<00:25,  1.62it/s]Evaluating Samples:  18%|█▊        | 9/50 [00:05<00:25,  1.63it/s]Evaluating Samples:  20%|██        | 10/50 [00:06<00:26,  1.53it/s]Evaluating Samples:  22%|██▏       | 11/50 [00:07<00:24,  1.56it/s]Evaluating Samples:  24%|██▍       | 12/50 [00:07<00:23,  1.60it/s]Evaluating Samples:  26%|██▌       | 13/50 [00:08<00:23,  1.60it/s]Evaluating Samples:  28%|██▊       | 14/50 [00:08<00:22,  1.62it/s]Evaluating Samples:  30%|███       | 15/50 [00:09<00:21,  1.64it/s]Evaluating Samples:  32%|███▏      | 16/50 [00:10<00:20,  1.64it/s]Evaluating Samples:  34%|███▍      | 17/50 [00:10<00:19,  1.65it/s]Evaluating Samples:  36%|███▌      | 18/50 [00:11<00:19,  1.65it/s]Evaluating Samples:  38%|███▊      | 19/50 [00:11<00:18,  1.65it/s]Evaluating Samples:  40%|████      | 20/50 [00:12<00:18,  1.66it/s]Evaluating Samples:  42%|████▏     | 21/50 [00:13<00:17,  1.66it/s]Evaluating Samples:  44%|████▍     | 22/50 [00:13<00:16,  1.67it/s]Evaluating Samples:  46%|████▌     | 23/50 [00:14<00:16,  1.67it/s]Evaluating Samples:  48%|████▊     | 24/50 [00:14<00:15,  1.67it/s]Evaluating Samples:  50%|█████     | 25/50 [00:15<00:14,  1.67it/s]Evaluating Samples:  52%|█████▏    | 26/50 [00:16<00:14,  1.67it/s]Evaluating Samples:  54%|█████▍    | 27/50 [00:16<00:13,  1.67it/s]Evaluating Samples:  56%|█████▌    | 28/50 [00:17<00:13,  1.67it/s]Evaluating Samples:  58%|█████▊    | 29/50 [00:17<00:12,  1.67it/s]Evaluating Samples:  60%|██████    | 30/50 [00:18<00:11,  1.67it/s]Evaluating Samples:  62%|██████▏   | 31/50 [00:19<00:11,  1.67it/s]Evaluating Samples:  64%|██████▍   | 32/50 [00:19<00:10,  1.67it/s]Evaluating Samples:  66%|██████▌   | 33/50 [00:20<00:10,  1.67it/s]Evaluating Samples:  68%|██████▊   | 34/50 [00:20<00:09,  1.67it/s]Evaluating Samples:  70%|███████   | 35/50 [00:21<00:08,  1.67it/s]Evaluating Samples:  72%|███████▏  | 36/50 [00:22<00:08,  1.57it/s]Evaluating Samples:  74%|███████▍  | 37/50 [00:22<00:08,  1.60it/s]Evaluating Samples:  76%|███████▌  | 38/50 [00:23<00:07,  1.61it/s]Evaluating Samples:  78%|███████▊  | 39/50 [00:24<00:06,  1.62it/s]Evaluating Samples:  80%|████████  | 40/50 [00:24<00:06,  1.63it/s]Evaluating Samples:  82%|████████▏ | 41/50 [00:25<00:05,  1.64it/s]Evaluating Samples:  84%|████████▍ | 42/50 [00:25<00:04,  1.64it/s]Evaluating Samples:  86%|████████▌ | 43/50 [00:26<00:04,  1.65it/s]Evaluating Samples:  88%|████████▊ | 44/50 [00:27<00:03,  1.65it/s]Evaluating Samples:  90%|█████████ | 45/50 [00:27<00:03,  1.65it/s]Evaluating Samples:  92%|█████████▏| 46/50 [00:28<00:02,  1.66it/s]Evaluating Samples:  94%|█████████▍| 47/50 [00:28<00:01,  1.66it/s]Evaluating Samples:  96%|█████████▌| 48/50 [00:29<00:01,  1.66it/s]Evaluating Samples:  98%|█████████▊| 49/50 [00:30<00:00,  1.66it/s]Evaluating Samples: 100%|██████████| 50/50 [00:30<00:00,  1.67it/s]Evaluating Samples: 100%|██████████| 50/50 [00:30<00:00,  1.63it/s]
+
+--- Evaluation Summary ---
+Model: models/hierarchical
+Samples Evaluated: 50
+--------------------------
+                    Metric  Score
+    Syntactic Validity (%)    0.0
+       AST Isomorphism (%)    0.0
+Avg. Normalized BLEU Score    0.0
+  Avg. Standard BLEU Score    0.0

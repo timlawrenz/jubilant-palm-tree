@@ -13,6 +13,7 @@ from pathlib import Path
 import torch
 import logging
 import torch_geometric
+from torch_geometric.data import Data
 from torch_geometric.utils import to_dense_adj
 
 # Add src directory to path
@@ -46,13 +47,30 @@ def main():
     parser.add_argument('--epochs-per-level', type=int, default=5, help='Number of training epochs for each level.')
     parser.add_argument('--batch-size', type=int, default=16, help='Batch size for training.')
     parser.add_argument('--learning-rate', type=float, default=1e-4, help='Learning rate for the optimizer.')
+    parser.add_argument('--num-workers', type=int, default=4, help='Number of data loading workers.')
     parser.add_argument('--debug-max-samples', type=int, default=None, help='Limit dataset size for fast debugging.')
+    parser.add_argument('--reset', action='store_true', help='Reset training by removing all checkpoints and starting from level 0.')
+    parser.add_argument('--resume', action='store_true', help='Resume training from the last checkpoint (default behavior).')
     args = parser.parse_args()
 
     logging.info("🚀 Starting Hierarchical AST Decoder Training...")
     
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_path = output_dir / "training_checkpoint.pt"
+    
+    # Handle reset flag
+    if args.reset:
+        logging.info("🔄 Reset flag detected. Removing all checkpoints and trained models...")
+        if checkpoint_path.exists():
+            checkpoint_path.unlink()
+            logging.info(f"Removed checkpoint: {checkpoint_path}")
+        for level in range(args.max_levels):
+            level_model_path = output_dir / f"hierarchical_decoder_level_{level}.pt"
+            if level_model_path.exists():
+                level_model_path.unlink()
+                logging.info(f"Removed model: {level_model_path}")
+        logging.info("✅ Reset complete. Starting training from level 0.")
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f"Using device: {device}")
@@ -92,8 +110,26 @@ def main():
 
     logging.info(f"Initialized Hierarchical Decoder with {args.max_levels} levels and feature dimension {feature_dim}.")
 
+    # Load checkpoint if exists (unless reset was requested)
+    start_level = 0
+    if checkpoint_path.exists() and not args.reset:
+        try:
+            checkpoint = torch.load(checkpoint_path, map_location=device)
+            start_level = checkpoint['last_completed_level'] + 1
+            logging.info(f"📂 Found checkpoint. Resuming from level {start_level}")
+            
+            # Load previously trained level generators
+            for level in range(start_level):
+                level_model_path = output_dir / f"hierarchical_decoder_level_{level}.pt"
+                if level_model_path.exists():
+                    model.level_generators[level].load_state_dict(torch.load(level_model_path, map_location=device))
+                    logging.info(f"Loaded model for level {level}")
+        except Exception as e:
+            logging.warning(f"Failed to load checkpoint: {e}. Starting from level 0.")
+            start_level = 0
+
     # --- Training Loop ---
-    for level in range(args.max_levels):
+    for level in range(start_level, args.max_levels):
         logging.info(f"--- Starting Training for Level {level} ---")
         
         dataset_path = Path(args.dataset_dir) / f"train_paired_data_level_{level}.jsonl"
@@ -106,6 +142,7 @@ def main():
                 dataset_path=str(dataset_path),
                 batch_size=args.batch_size,
                 shuffle=True,
+                num_workers=args.num_workers,
                 limit=args.debug_max_samples
             )
         except Exception as e:
@@ -116,9 +153,18 @@ def main():
         feature_loss_fn = torch.nn.MSELoss()
         adjacency_loss_fn = torch.nn.BCEWithLogitsLoss()
 
+        # The input for the first level is the text embedding. For subsequent levels,
+        # it's the hidden state from the previous level's model.
+        # We'll need to manage this state across batches and epochs for a given level.
+        # For this training script, we'll simplify by re-calculating the base embedding each time.
+        
         model.train()
         for epoch in range(args.epochs_per_level):
             total_loss = 0
+            
+            # We need a persistent hidden state for the next level's input
+            # For simplicity in training, we will re-generate it from the text embedding for each batch
+            
             for batch_graphs, text_descriptions in train_loader:
                 optimizer.zero_grad()
 
@@ -128,26 +174,47 @@ def main():
                 
                 edge_index = torch.tensor(batch_graphs['edge_index'], dtype=torch.long, device=device)
                 
-                # Create a single dense adjacency matrix for the whole batch
                 true_adjacency = to_dense_adj(edge_index, max_num_nodes=true_features.shape[0]).squeeze(0)
 
                 with torch.no_grad():
-                    input_tensor = alignment_model.encode_text(list(text_descriptions))
-
-                expanded_input = input_tensor.repeat_interleave(num_nodes_per_graph, dim=0)
-
-                predictions = model(expanded_input, target_level=level)
-                pred_features = predictions['pred_features']
-                pred_adjacency = predictions['pred_adjacency']
-
-                # Ensure dimensions match for loss calculation
-                num_nodes = true_features.shape[0]
-                pred_adjacency = pred_adjacency[:num_nodes, :num_nodes]
-
-                feature_loss = feature_loss_fn(pred_features, true_features)
-                adj_loss = adjacency_loss_fn(pred_adjacency, true_adjacency)
+                    # Get the initial text embedding
+                    text_embedding = alignment_model.encode_text(list(text_descriptions))
                 
-                loss = feature_loss + adj_loss
+                # For level 0, use text embedding directly
+                # For subsequent levels, pass through previous levels to get hidden state
+                if level == 0:
+                    # Level 0: input is text embedding
+                    level_input_features = text_embedding
+                else:
+                    # Level > 0: need to get hidden state from previous levels
+                    with torch.no_grad():
+                        level_input_features = text_embedding
+                        for i in range(level):
+                            # Expand features to match current nodes and create Data object
+                            expanded_features = level_input_features.repeat_interleave(num_nodes_per_graph, dim=0)
+                            prev_data = Data(
+                                x=expanded_features,
+                                edge_index=edge_index
+                            ).to(device)
+                            prev_level_output = model(prev_data, target_level=i)
+                            # Use hidden state as input for next level (aggregate back to batch size)
+                            level_input_features = prev_level_output['hidden_state'].mean(dim=0, keepdim=True).expand(text_embedding.size(0), -1)
+
+                # Create input Data object for current level
+                expanded_input = level_input_features.repeat_interleave(num_nodes_per_graph, dim=0)
+                input_data = Data(
+                    x=expanded_input,
+                    edge_index=edge_index
+                ).to(device)
+
+                predictions = model(input_data, target_level=level)
+                pred_features = predictions['pred_features']
+                
+                # Note: Model now returns only diagonal adjacency for memory efficiency
+                # We'll skip adjacency loss for now and focus on node type prediction
+                feature_loss = feature_loss_fn(pred_features, true_features)
+                
+                loss = feature_loss
                 
                 loss.backward()
                 optimizer.step()
@@ -162,6 +229,17 @@ def main():
         level_model_path = output_dir / f"hierarchical_decoder_level_{level}.pt"
         torch.save(model.level_generators[level].state_dict(), level_model_path)
         logging.info(f"Saved model for level {level} to {level_model_path}")
+        
+        # Save checkpoint after completing each level
+        checkpoint = {
+            'last_completed_level': level,
+            'total_levels': args.max_levels,
+            'feature_dim': feature_dim,
+            'embedding_dim': args.embedding_dim,
+            'hidden_dim': args.hidden_dim
+        }
+        torch.save(checkpoint, checkpoint_path)
+        logging.info(f"💾 Checkpoint saved. Level {level} complete ({level+1}/{args.max_levels})")
 
     logging.info("✅ Hierarchical AST Decoder training complete!")
 
