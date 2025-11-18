@@ -711,7 +711,7 @@ class AlignmentModel(torch.nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int = 64, num_layers: int = 3,
                  conv_type: str = 'GCN', dropout: float = 0.1,
                  text_model_name: str = 'all-MiniLM-L6-v2',
-                 code_encoder_weights_path: str = 'models/best_encoder_model.pt'):
+                 code_encoder_weights_path: str = 'models/best_model.pt'):
         """
         Initialize the alignment model.
         
@@ -897,9 +897,8 @@ class HierarchicalASTDecoder(torch.nn.Module):
     Hierarchical, coarse-to-fine decoder for generating ASTs level by level.
 
     This model takes a text embedding and progressively generates an AST from the
-    root down, with each stage adding one level of depth to the tree. This
-    approach is designed to handle complex and nested code structures more
-    robustly than a one-shot decoder.
+    root down, with each stage adding one level of depth to the tree. Uses proper
+    GNN layers to process graph structures at each level.
     """
 
     def __init__(self, embedding_dim: int, hidden_dim: int, num_levels: int, node_feature_dim: int, conv_type: str = 'GCN'):
@@ -911,25 +910,39 @@ class HierarchicalASTDecoder(torch.nn.Module):
             hidden_dim: Hidden dimension for the GNN layers.
             num_levels: The maximum depth of the AST to generate (number of stages).
             node_feature_dim: The dimension of the node features to be predicted.
-            conv_type: The type of GNN convolution to use (e.g., 'GCN').
+            conv_type: The type of GNN convolution to use ('GCN' or 'SAGE').
         """
         super().__init__()
         self.embedding_dim = embedding_dim
         self.hidden_dim = hidden_dim
         self.num_levels = num_levels
         self.node_feature_dim = node_feature_dim
+        self.conv_type = conv_type
         self.register_buffer('device_indicator', torch.empty(0))
+
+        # Select GNN layer type
+        if conv_type == 'GCN':
+            ConvLayer = GCNConv
+        elif conv_type == 'SAGE':
+            ConvLayer = SAGEConv
+        else:
+            raise ValueError(f"Unsupported conv_type: {conv_type}. Use 'GCN' or 'SAGE'.")
 
         # A ModuleList to hold the generator for each level of the AST.
         self.level_generators = torch.nn.ModuleList()
 
         for i in range(num_levels):
-            input_dim = self.embedding_dim
+            # Level 0 takes embedding as input, subsequent levels take hidden state
+            # which has the same dimension as the output of the previous level's GNN
+            if i == 0:
+                input_dim = self.embedding_dim
+            else:
+                input_dim = self.hidden_dim
             
-            # Each level generator is a module with a core layer and two prediction heads.
-            level_gnn = torch.nn.Linear(input_dim, self.hidden_dim) # Placeholder for a real GNN
+            # Each level generator uses proper GNN layers
+            level_gnn = ConvLayer(input_dim, self.hidden_dim)
             node_predictor = torch.nn.Linear(self.hidden_dim, node_feature_dim)
-            adjacency_predictor = torch.nn.Linear(self.hidden_dim, self.hidden_dim) # To be used for adjacency matrix
+            adjacency_predictor = torch.nn.Linear(self.hidden_dim, self.hidden_dim)
 
             self.level_generators.append(torch.nn.ModuleDict({
                 'gnn': level_gnn,
@@ -942,41 +955,161 @@ class HierarchicalASTDecoder(torch.nn.Module):
         """Returns the device the model is on."""
         return self.device_indicator.device
 
-    def forward(self, input_tensor: torch.Tensor, target_level: int) -> Dict[str, torch.Tensor]:
+    def forward(self, input_data: Data, target_level: int) -> Dict[str, torch.Tensor]:
         """
-        Performs a forward pass for a single level of generation for a batch of graphs.
+        Performs a forward pass for a single level of generation.
 
         Args:
-            input_tensor: The input tensor for the current generation level.
-                          For level 0, this is the text embedding. For subsequent levels,
-                          it's the hidden state from the previous level.
+            input_data: PyG Data object with node features (x) and edge indices (edge_index).
+                        For level 0, x should be the text embedding repeated for initial node(s).
             target_level: The specific AST level to generate.
 
         Returns:
-            A dictionary containing the predicted node features and a representation
-            for predicting the adjacency matrix.
+            Dictionary containing:
+                - pred_features: Predicted node features for next level
+                - pred_adjacency: Predicted adjacency matrix (only diagonal for memory efficiency)
+                - hidden_state: Hidden representations for next level
         """
         if target_level >= self.num_levels:
             raise ValueError(f"Target level {target_level} is out of bounds for {self.num_levels} levels.")
 
         generator = self.level_generators[target_level]
         
-        # Process the input tensor through the core GNN/Linear layer
-        hidden_state = F.relu(generator['gnn'](input_tensor))
+        # Process through GNN layer
+        hidden_state = F.relu(generator['gnn'](input_data.x, input_data.edge_index))
         
-        # Predict node features and adjacency representation from the new hidden state
+        # Predict node features
         pred_features = generator['node_predictor'](hidden_state)
         
-        # Adjacency prediction: produce a representation for each node for adjacency matrix
+        # Predict adjacency - use diagonal only for memory efficiency
+        # Only compute self-connections (diagonal) to avoid huge matrix
         adjacency_repr = generator['adjacency_predictor'](hidden_state)
-        
-        # For a batch of nodes, compute the outer product to get a similarity matrix,
-        # which serves as the predicted adjacency matrix.
-        # This creates a matrix of shape [num_nodes, num_nodes]
-        pred_adjacency = torch.matmul(adjacency_repr, adjacency_repr.t())
+        # For diagonal: just take dot product with self
+        pred_adjacency_diag = (adjacency_repr * adjacency_repr).sum(dim=1, keepdim=True)
 
         return {
             'hidden_state': hidden_state,
             'pred_features': pred_features,
-            'pred_adjacency': pred_adjacency
+            'pred_adjacency_diag': pred_adjacency_diag  # Changed: return only diagonal
         }
+    
+    def generate(self, embedding: torch.Tensor, max_levels: int = None, max_nodes_per_level: int = 10, max_total_nodes: int = 1000) -> list:
+        """
+        Generate a complete AST from a text embedding using hierarchical generation.
+
+        Args:
+            embedding: Text embedding tensor of shape (1, embedding_dim) or (embedding_dim,)
+            max_levels: Maximum depth of AST to generate (default: self.num_levels)
+            max_nodes_per_level: Maximum children per parent node (default: 10)
+            max_total_nodes: Maximum total nodes in AST to prevent runaway growth (default: 1000)
+
+        Returns:
+            List representing AST in JSON format with 'type' and 'children' fields
+        """
+        if max_levels is None:
+            max_levels = self.num_levels
+        
+        device = self.device
+        if embedding.dim() == 1:
+            embedding = embedding.unsqueeze(0)
+        embedding = embedding.to(device)
+        
+        # Track all nodes with their metadata
+        all_nodes = []
+        node_id_counter = 0
+        
+        # Level 0: Generate root node
+        root_data = Data(
+            x=embedding,  # Single node with embedding as features
+            edge_index=torch.empty((2, 0), dtype=torch.long, device=device)
+        )
+        
+        with torch.no_grad():
+            root_output = self.forward(root_data, target_level=0)
+            root_features = root_output['pred_features']
+            root_type_idx = root_features.argmax(dim=1)[0].item()
+            
+            root_node = {
+                'id': node_id_counter,
+                'type_idx': root_type_idx,
+                'features': root_features[0],
+                'hidden': root_output['hidden_state'][0],  # Store hidden state for next level
+                'children': [],
+                'level': 0
+            }
+            all_nodes.append(root_node)
+            node_id_counter += 1
+        
+        # Current level nodes that can spawn children
+        current_level_nodes = [root_node]
+        
+        # Generate subsequent levels (optimized: batch all parents at each level)
+        for level in range(1, max_levels):
+            if len(current_level_nodes) == 0 or len(all_nodes) >= max_total_nodes:
+                break
+            
+            next_level_nodes = []
+            
+            # OPTIMIZATION: Batch all parent nodes together
+            if len(current_level_nodes) > 0:
+                # Stack all parent hidden states
+                parent_hiddens = torch.stack([node['hidden'] for node in current_level_nodes])
+                
+                # Create batched data (disconnected nodes, one per parent)
+                batch_indices = torch.arange(len(current_level_nodes), device=device).repeat_interleave(1)
+                batched_data = Data(
+                    x=parent_hiddens,
+                    edge_index=torch.empty((2, 0), dtype=torch.long, device=device),
+                    batch=batch_indices
+                )
+                
+                with torch.no_grad():
+                    output = self.forward(batched_data, target_level=level)
+                    pred_features = output['pred_features']  # (num_parents, node_feature_dim)
+                    # Use diagonal adjacency values for spawn probability
+                    
+                    # Process each parent's output
+                    for parent_idx, parent_node in enumerate(current_level_nodes):
+                        # Use diagonal element as spawn probability for this parent
+                        spawn_prob = torch.sigmoid(output['pred_adjacency_diag'][parent_idx, 0]).item()
+                        num_children = min(int(spawn_prob * max_nodes_per_level), max_nodes_per_level)
+                        
+                        # Generate children nodes for this parent
+                        for child_idx in range(num_children):
+                            if len(all_nodes) >= max_total_nodes:
+                                break  # Stop if we hit the node limit
+                                
+                            # Use the parent's predicted features/hidden state
+                            child_features = pred_features[parent_idx]
+                            child_hidden = output['hidden_state'][parent_idx]
+                            child_type_idx = child_features.argmax(dim=0).item()
+                            
+                            child_node = {
+                                'id': node_id_counter,
+                                'type_idx': child_type_idx,
+                                'features': child_features,
+                                'hidden': child_hidden,
+                                'children': [],
+                                'level': level,
+                                'parent_id': parent_node['id']
+                            }
+                            
+                            parent_node['children'].append(child_node)
+                            all_nodes.append(child_node)
+                            next_level_nodes.append(child_node)
+                            node_id_counter += 1
+            
+            current_level_nodes = next_level_nodes
+        
+        # Convert to AST JSON format (recursive structure)
+        def node_to_ast_json(node):
+            ast_node = {
+                'type': f"type_{node['type_idx']}",  # Will be mapped to actual types by caller
+                'children': [node_to_ast_json(child) for child in node['children']]
+            }
+            return ast_node
+        
+        if len(all_nodes) > 0:
+            return [node_to_ast_json(all_nodes[0])]
+        else:
+            return []

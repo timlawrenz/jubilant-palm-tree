@@ -13,7 +13,7 @@ This project explores the potential of Graph Neural Networks (GNNs) to understan
 ### Key Achievements & Status
 - **Superior Performance**: GNN model achieved a **Mean Absolute Error of 4.77**, a **~26.6% improvement** over the verified heuristic baseline of 6.50.
 - **Large-Scale Dataset**: The data pipeline successfully processed over **218,000 Ruby methods** from **42 open-source projects**.
-- **AST Reconstruction**: 🚧 **(In Progress)** The current autoencoder is non-functional, with **0% syntactic validity** on reconstruction tasks.
+- **AST Reconstruction**: 🚧 **(In Progress)** The original "one-shot" autoencoder is non-functional, with **0% syntactic validity**. A new hierarchical decoder has been trained and is pending evaluation.
 - **Text-Code Alignment**: 🚧 **(In Progress)** The alignment model is non-functional, with retrieval metrics (**Recall@10 of ~2-3%**) indicating performance is near random chance.
 - **Text-to-Code Generation**: 🚧 **(In Progress)** The end-to-end pipeline is non-functional and unable to generate meaningful code from prompts.
 
@@ -42,13 +42,20 @@ This project has been developed through 7 phases, with Phase 7 representing the 
 - [Embedding Visualization](https://github.com/timlawrenz/jubilant-palm-tree/issues/23)
 - [Final Report Generation](https://github.com/timlawrenz/jubilant-palm-tree/issues/24)
 
-### [Phase 4 - AST Autoencoder for Code Generation](docs/README_phase4.md) 🚧 **IN PROGRESS**
+### [Phase 4 - AST Autoencoder for Code Generation](docs/README_phase4.md) ❌ **FAILED & SUPERSEDED**
 **Goal**: To build and train a GNN-based decoder that can reconstruct a Ruby method's AST from its learned embedding, validating the generative potential of the embeddings.
 - [Autoencoder Model Definition](https://github.com/timlawrenz/jubilant-palm-tree/issues/34)
 - [AST Reconstruction Loss Function](https://github.com/timlawrenz/jubilant-palm-tree/issues/35)
 - [Autoencoder Training Loop](https://github.com/timlawrenz/jubilant-palm-tree/issues/36)
 - [Evaluation with Pretty-Printing](https://github.com/timlawrenz/jubilant-palm-tree/issues/37)
 - [And 8 additional issues for robust implementation and evaluation](docs/README_phase4.md)
+
+### [Phase 4b - Hierarchical AST Generation](docs/README_phase4b.md) 🚧 **IN PROGRESS**
+**Goal**: To build and train a functional generative model that can construct a Ruby method's AST from a learned embedding using a hierarchical, top-down approach. This phase replaces the failed "one-shot" autoencoder from the original Phase 4.
+- Data Preparation for Hierarchical Training
+- Hierarchical Decoder Model Implementation
+- Hierarchical Training Loop
+- Hierarchical Inference and Evaluation
 
 ### [Phase 5 - Aligning Text and Code Embeddings](docs/README_phase5.md) 🚧 **IN PROGRESS**
 **Goal**: Train a text-encoder so that the embedding it produces for a method's description is located at the same point in the 64-dimensional space as the embedding our GNN produces for the method's AST.
@@ -97,14 +104,16 @@ dataset/                  # 1,896 processed Ruby methods (train/val/test splits)
 dataset/samples/          # Small sample datasets for fast testing
 src/models.py            # GNN models and autoencoder architecture
 models/best_model.pt            # Pre-trained complexity prediction model
-models/best_decoder.pt          # Trained AST reconstruction decoder
+models/best_decoder.pt          # Trained AST reconstruction decoder (one-shot, failed)
+models/hierarchical/            # Trained hierarchical AST decoder models
 models/best_alignment_model.pt  # Trained text-code alignment model
 models/samples/                 # Lightweight sample models for testing
 
 # Training and evaluation
 train.py                 # GNN complexity prediction training
-train_autoencoder.py     # AST autoencoder training
+train_autoencoder.py     # AST autoencoder training (one-shot, failed)
 train_alignment.py       # Text-code alignment training
+train_hierarchical.py    # Hierarchical AST decoder training
 train_autoregressive.py  # Autoregressive AST decoder training
 scripts/train_sample_models.sh  # Create sample models for fast testing
 evaluate_autoencoder_optimized.py  # Large-scale evaluation
@@ -242,6 +251,11 @@ print(ruby_code)
 - **Performance**: The model achieves **0% syntactic validity** and **0% AST isomorphism**. It is incapable of reconstructing a valid AST from an embedding.
 - **Conclusion**: The initial one-shot decoder architecture is flawed or was severely undertrained. The "100% structural preservation" claim was inaccurate.
 
+### Hierarchical AST Generation (Phase 4b)
+- **Current Status**: Training is complete for the new hierarchical decoder. Evaluation is pending.
+- **Approach**: This model replaces the failed one-shot autoencoder with a coarse-to-fine, level-by-level AST generation process.
+- **Next Steps**: Evaluate the model's ability to generate syntactically valid code.
+
 ### Text-Code Alignment (Phase 5)
 - **Current Status**: The alignment model is **non-functional**.
 - **Performance**: Retrieval metrics are near random chance (**Recall@10 of ~2-3%**), indicating the model cannot align text and code embeddings.
@@ -336,6 +350,7 @@ jubilant-palm-tree/
 ├── README_phase2.md          # Phase 2: Model Setup & Training  
 ├── README_phase3.md          # Phase 3: Evaluation & Analysis
 ├── README_phase4.md          # Phase 4: AST Autoencoder for Code Generation
+├── README_phase4b.md         # Phase 4b: Hierarchical AST Generation
 ├── README_phase5.md          # Phase 5: Text and Code Embeddings
 ├── README_phase6.md          # Phase 6: Text-to-Code Generation
 ├── README_phase7.md          # Phase 7: Advanced Decoder Architectures
@@ -347,6 +362,7 @@ jubilant-palm-tree/
 ├── train.py                  # GNN complexity prediction training
 ├── train_autoencoder.py      # AST autoencoder training
 ├── train_alignment.py        # Text-code alignment training
+├── train_hierarchical.py     # Hierarchical AST decoder training
 └── train_autoregressive.py   # Autoregressive decoder training (Phase 7)
 ```
 
