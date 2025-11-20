@@ -1,3 +1,6 @@
+You must review the curren status in PROJECT_STATUS.md
+Track milestones in PROJECT_STATUS.md
+
 <!-- OPENSPEC:START -->
 # OpenSpec Instructions
 
