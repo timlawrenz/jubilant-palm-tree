@@ -105,103 +105,46 @@ def generate_ast(prompt, alignment_model, decoder, args, device):
 
 
     with torch.no_grad():
-        # Start with the text embedding as the input for the first level.
-        level_input = alignment_model.encode_text([prompt]).to(device)
-
-    print("🧠 Performing hierarchical generation...")
+        # Get the text embedding
+        text_embedding = alignment_model.encode_text([prompt]).to(device)
+        
+        print("🧠 Performing hierarchical generation...")
+        # Use the decoder's built-in generate method which properly handles PyG Data objects
+        ast_nodes = decoder.generate(
+            embedding=text_embedding,
+            max_levels=args.max_depth,
+            max_nodes_per_level=10,
+            max_total_nodes=100
+        )
     
-    all_nodes = []
-    all_edges = []
-    node_offset = 0
-
-    # Iteratively generate each level of the AST
-    for level in range(decoder.num_levels):
-        print(f"   - Generating Level {level}...")
-        try:
-            # First, run the decoder with a single node to get an initial prediction
-            # for the adjacency matrix, which we'll use to decide how many nodes to generate.
-            initial_output = decoder(level_input.repeat(1, 1), target_level=level)
-
-            # For this simplified generation, we'll determine the number of nodes
-            # to generate at this level based on the density of the predicted adjacency matrix.
-            # This is a heuristic to allow for dynamic, multi-node generation per level.
-            num_nodes_at_this_level = max(1, int(torch.sigmoid(initial_output['pred_adjacency']).sum().item() / 2))
-
-            # The input for the generator needs to be expanded to match the number of nodes we'll create.
-            expanded_input = level_input.repeat(num_nodes_at_this_level, 1)
-
-            # Re-run the decoder for this level with the correct number of nodes.
-            output = decoder(expanded_input, target_level=level)
-            
-            # The next level's input is the *mean* of the hidden states from this level's nodes.
-            level_input = output['hidden_state'].mean(dim=0, keepdim=True)
-
-            # --- Process the output of the current level ---
-            # 1. Node Features: Decide the type of node(s) generated at this level.
-            # Using argmax to get the most likely node type from the feature vector.
-            pred_features = output['pred_features']
-            node_types_indices = torch.argmax(pred_features, dim=1)
-            
-            # 2. Adjacency Matrix: Decide connections
-            pred_adjacency = output['pred_adjacency']
-            # Use a threshold to determine which connections exist.
-            connections = (torch.sigmoid(pred_adjacency) > 0.5).nonzero().tolist()
-
-            # Store the generated nodes and edges
-            for idx in node_types_indices:
-                node_type_str = idx_to_type.get(idx.item(), 'unknown')
-                all_nodes.append({'id': node_offset, 'type': node_type_str, 'children': []})
-                node_offset += 1
-            
-            for src, dest in connections:
-                if src < node_offset and dest < node_offset:
-                    all_edges.append((src, dest))
-
-        except Exception as e:
-            print(f"⚠️ WARNING: Could not generate level {level}: {e}")
-            break
-
-    print(f"✅ Generation loop finished. Total nodes: {len(all_nodes)}, Total edges: {len(all_edges)}")
-
-    # --- Reconstruct the AST from the flat list of nodes and edges ---
-    if not all_nodes:
-        return {"type": "empty", "children": []}
-
-    node_map = {node['id']: node for node in all_nodes}
+    print(f"✅ Generation complete. Generated AST.")
     
-    # Build the tree structure
-    child_ids = set()
-    for src_id, dest_id in all_edges:
-        if src_id in node_map and dest_id in node_map:
-            # Prevent a node from being its own parent
-            if src_id == dest_id:
-                continue
+    # The generate method returns a list containing AST dicts
+    # Each dict has 'type' as a string like "type_5" and 'children' as a list
+    # We need to convert "type_5" to actual type names
+    def convert_type_names(ast_node):
+        """Convert type_N strings to actual node type names."""
+        if isinstance(ast_node, dict):
+            node_type = ast_node.get('type', 'unknown')
+            # Extract index from "type_N" format
+            if node_type.startswith('type_'):
+                try:
+                    type_idx = int(node_type.split('_')[1])
+                    node_type = idx_to_type.get(type_idx, 'unknown')
+                except (IndexError, ValueError):
+                    node_type = 'unknown'
             
-            # Add child to parent's children list
-            parent_node = node_map[src_id]
-            child_node = node_map[dest_id]
-            parent_node['children'].append(child_node)
-            
-            # Keep track of which nodes are children
-            child_ids.add(dest_id)
-
-    # Find the root of the tree (a node that is not a child of any other node)
-    root_nodes = [node for i, node in node_map.items() if i not in child_ids]
-
-    # For simplicity, we'll return the first root found.
-    # A more complex implementation might handle multiple roots (a forest).
-    if root_nodes:
-        generated_ast = root_nodes[0]
+            result = {
+                'type': node_type,
+                'children': [convert_type_names(child) for child in ast_node.get('children', [])]
+            }
+            return result
+        return {'type': 'unknown', 'children': []}
+    
+    if ast_nodes and len(ast_nodes) > 0:
+        return convert_type_names(ast_nodes[0])
     else:
-        # Fallback if no clear root is found (e.g., a circular graph)
-        generated_ast = all_nodes[0] if all_nodes else {"type": "empty", "children": []}
-    
-    # Clean up the temporary 'id' field from all nodes before returning
-    for node in all_nodes:
-        if 'id' in node:
-            del node['id']
-
-    return generated_ast
+        return {"type": "empty", "children": []}
 
 def main():
     parser = argparse.ArgumentParser(description="Generate Ruby code from a text prompt using a hierarchical AST decoder.")

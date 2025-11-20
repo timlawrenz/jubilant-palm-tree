@@ -214,7 +214,18 @@ def main():
                 # We'll skip adjacency loss for now and focus on node type prediction
                 feature_loss = feature_loss_fn(pred_features, true_features)
                 
-                loss = feature_loss
+                # Add penalty for predicting unknown nodes (index 73)
+                # This discourages the model from learning to output unknown everywhere
+                unknown_idx = 73
+                unknown_penalty_weight = 2.0  # Weight for unknown node penalty
+                
+                # Penalize predictions that have high values at the unknown position
+                # when the true label is NOT unknown
+                true_is_not_unknown = (true_features[:, unknown_idx] < 0.5).float()
+                pred_unknown_prob = pred_features[:, unknown_idx]
+                unknown_penalty = (pred_unknown_prob * true_is_not_unknown).mean()
+                
+                loss = feature_loss + unknown_penalty_weight * unknown_penalty
                 
                 loss.backward()
                 optimizer.step()
