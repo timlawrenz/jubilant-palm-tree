@@ -1,0 +1,33 @@
+🚀 Using Enhanced Autoregressive Code Generator (Recommended)
+🚀 Loading Autoregressive Code Generation Models...
+==================================================
+📦 Loading AlignmentModel...
+Loaded code encoder weights from models/samples/best_model.pt
+Code encoder weights frozen
+Using SentenceTransformer: all-MiniLM-L6-v2
+Text encoder output dim: 384, projecting to: 64
+✅ Loaded alignment model weights from models/samples/best_alignment_model.pt
+✅ AlignmentModel loaded successfully
+📦 Loading AutoregressiveASTDecoder...
+✅ Loaded autoregressive decoder weights from models/samples/best_autoregressive_decoder.pt
+✅ AutoregressiveASTDecoder loaded successfully
+
+🎯 Autoregressive Code Generator ready!
+🔍 Generating code for: 'a method that adds two numbers'
+--------------------------------------------------
+   🎛️  Generation settings: max_length=50, temperature=1.0, top_k=5
+1. Converting text to embedding...
+   ✅ Generated embedding shape: torch.Size([1, 64])
+2. Converting embedding to AST (autoregressive)...
+   ✅ Generated AST with 1 nodes
+3. Converting AST to JSON...
+   ✅ Generated AST JSON
+4. Converting JSON to Ruby code...
+   ✅ Generated Ruby code
+
+🎉 Generated Ruby Code:
+==============================
+def a_method_that_adds_t
+nil
+end
+==============================

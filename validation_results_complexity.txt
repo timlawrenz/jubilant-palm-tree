@@ -1,0 +1,27 @@
+Using device: cuda
+Model loaded from models/best_model.pt
+Processing JSONL file into graphs: dataset/test.jsonl
+Converted 22453 graphs from dataset/test.jsonl
+Processing JSONL file into graphs: dataset/test.jsonl
+Converted 22453 graphs from dataset/test.jsonl
+✅ Using standard PyG DataLoader with 32 workers.
+Evaluating model:   0%|          | 0/702 [00:00<?, ?it/s]/home/tim/source/activity/jubilant-palm-tree/validate_complexity_model.py:45: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  x = torch.tensor(batch['x'], dtype=torch.float).to(device)
+/home/tim/source/activity/jubilant-palm-tree/validate_complexity_model.py:46: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  edge_index = torch.tensor(batch['edge_index'], dtype=torch.long).to(device)
+/home/tim/source/activity/jubilant-palm-tree/validate_complexity_model.py:47: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  y = torch.tensor(batch['y'], dtype=torch.float).to(device)
+/home/tim/source/activity/jubilant-palm-tree/validate_complexity_model.py:48: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.detach().clone() or sourceTensor.detach().clone().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  batch_idx = torch.tensor(batch['batch'], dtype=torch.long).to(device)
+Evaluating model:   0%|          | 1/702 [00:01<23:16,  1.99s/it]Evaluating model:   6%|▌         | 42/702 [00:02<00:23, 27.89it/s]Evaluating model:  12%|█▏        | 87/702 [00:02<00:09, 64.65it/s]Evaluating model:  19%|█▉        | 136/702 [00:02<00:05, 111.72it/s]Evaluating model:  26%|██▌       | 181/702 [00:02<00:03, 157.24it/s]Evaluating model:  32%|███▏      | 222/702 [00:02<00:02, 189.41it/s]Evaluating model:  37%|███▋      | 260/702 [00:02<00:02, 218.36it/s]Evaluating model:  42%|████▏     | 297/702 [00:02<00:01, 216.49it/s]Evaluating model:  47%|████▋     | 332/702 [00:02<00:01, 241.79it/s]Evaluating model:  54%|█████▍    | 380/702 [00:03<00:01, 293.63it/s]Evaluating model:  59%|█████▉    | 417/702 [00:03<00:00, 302.55it/s]Evaluating model:  65%|██████▍   | 453/702 [00:03<00:00, 305.63it/s]Evaluating model:  70%|██████▉   | 488/702 [00:03<00:00, 310.36it/s]Evaluating model:  74%|███████▍  | 522/702 [00:03<00:00, 310.80it/s]Evaluating model:  79%|███████▉  | 555/702 [00:03<00:00, 269.00it/s]Evaluating model:  84%|████████▍ | 589/702 [00:03<00:00, 286.06it/s]Evaluating model:  90%|█████████ | 634/702 [00:03<00:00, 326.84it/s]Evaluating model:  96%|█████████▋| 676/702 [00:03<00:00, 351.74it/s]Evaluating model: 100%|██████████| 702/702 [00:04<00:00, 175.29it/s]
+
+GNN Model MAE: 4.6369
+Note: The heuristic benchmark MAE is a placeholder based on node count.
+The claimed benchmark implementation needs to be located and used for a fair comparison.
+Simple Heuristic Benchmark MAE (Node Count): 8.6918
+
+--- Comparison ---
+GNN Model MAE: 4.6369
+Simple Heuristic MAE: 8.6918
+Claimed GNN MAE: 4.27
+Claimed Benchmark MAE: 4.46
