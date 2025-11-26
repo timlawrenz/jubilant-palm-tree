@@ -2,13 +2,29 @@
 
 [![CircleCI](https://circleci.com/gh/timlawrenz/jubilant-palm-tree.svg?style=svg)](https://circleci.com/gh/timlawrenz/jubilant-palm-tree)
 
+## ⚠️ PROJECT STATUS: DISCONTINUED - RESEARCH FINDINGS AVAILABLE
+
+**This project has been discontinued as of November 2025.** The hierarchical graph-based approach to code generation has proven fundamentally incompatible with the sequential nature of programming languages. All findings, trained models, and analysis are preserved below for the research community.
+
 ## Overview
 
-This project explores the potential of Graph Neural Networks (GNNs) to understand and generate Ruby code through Abstract Syntax Tree (AST) analysis. The project demonstrates that neural networks can learn meaningful structural representations of code complexity and successfully reconstruct AST structures from learned embeddings.
+This project explored whether Graph Neural Networks (GNNs) could understand and generate Ruby code through Abstract Syntax Tree (AST) analysis. The experiment achieved **partial success**: neural networks can learn meaningful representations of code complexity, but **graph-based approaches fundamentally fail at code generation** due to architectural mismatch with sequential programming languages.
+
+### What Worked ✅
+- **Code complexity prediction**: GNN achieved 26.6% improvement over heuristic baselines (MAE 4.77 vs 6.50)
+- **Structural understanding**: Successfully processed 218,000 Ruby methods from 42 open-source projects
+- **Embedding learning**: 64-dimensional representations effectively cluster methods by complexity
+
+### What Failed ❌
+- **Graph-based code generation**: 0% syntactic validity after full training
+- **Hierarchical AST decoder**: Generates structurally plausible but semantically nonsensical code
+- **Text-code alignment**: Near-random performance (2-3% Recall@10)
+
+**Key Finding**: Code generation is fundamentally a sequence modeling problem, not a graph problem. See [Hierarchical Decoder Failure Analysis](docs/HIERARCHICAL_FAILURE_ANALYSIS.md) for detailed findings.
 
 ## Project Results Summary
 
-✅ **Foundational Success, Generative Models In Progress**: The project has successfully demonstrated that a GNN can significantly outperform heuristic benchmarks for code complexity prediction. However, the generative models for AST reconstruction and text-to-code generation are not yet functional and require further development.
+❌ **Generative Approach Failed**: While GNN complexity prediction succeeded, all generative models (AST reconstruction, hierarchical decoder, text-to-code) failed fundamentally due to architecture mismatch. The hierarchical graph-based approach cannot capture the sequential semantics required for code generation.
 
 ### Key Achievements & Status
 - **Superior Performance**: GNN model achieved a **Mean Absolute Error of 4.77**, a **~26.6% improvement** over the verified heuristic baseline of 6.50.
@@ -50,12 +66,11 @@ This project has been developed through 7 phases, with Phase 7 representing the 
 - [Evaluation with Pretty-Printing](https://github.com/timlawrenz/jubilant-palm-tree/issues/37)
 - [And 8 additional issues for robust implementation and evaluation](docs/README_phase4.md)
 
-### [Phase 4b - Hierarchical AST Generation](docs/README_phase4b.md) 🚧 **IN PROGRESS**
+### [Phase 4b - Hierarchical AST Generation](docs/README_phase4b.md) ❌ **FAILED - DISCONTINUED**
 **Goal**: To build and train a functional generative model that can construct a Ruby method's AST from a learned embedding using a hierarchical, top-down approach. This phase replaces the failed "one-shot" autoencoder from the original Phase 4.
-- Data Preparation for Hierarchical Training
-- Hierarchical Decoder Model Implementation
-- Hierarchical Training Loop
-- Hierarchical Inference and Evaluation
+- **Result**: Complete failure - 0% syntactic validity after full training (20 levels, 100 epochs)
+- **Root Cause**: Fundamental architecture mismatch - GNNs cannot model sequential code semantics
+- **See**: [Hierarchical Decoder Failure Analysis](docs/HIERARCHICAL_FAILURE_ANALYSIS.md) for detailed findings
 
 ### [Phase 5 - Aligning Text and Code Embeddings](docs/README_phase5.md) 🚧 **IN PROGRESS**
 **Goal**: Train a text-encoder so that the embedding it produces for a method's description is located at the same point in the 64-dimensional space as the embedding our GNN produces for the method's AST.
@@ -251,10 +266,12 @@ print(ruby_code)
 - **Performance**: The model achieves **0% syntactic validity** and **0% AST isomorphism**. It is incapable of reconstructing a valid AST from an embedding.
 - **Conclusion**: The initial one-shot decoder architecture is flawed or was severely undertrained. The "100% structural preservation" claim was inaccurate.
 
-### Hierarchical AST Generation (Phase 4b)
-- **Current Status**: Training is complete for the new hierarchical decoder. Evaluation is pending.
-- **Approach**: This model replaces the failed one-shot autoencoder with a coarse-to-fine, level-by-level AST generation process.
-- **Next Steps**: Evaluate the model's ability to generate syntactically valid code.
+### Hierarchical AST Generation (Phase 4b) - **FAILED**
+- **Current Status**: Training complete (20 levels, 8 hours). Validation shows **0% syntactic validity**.
+- **Approach**: Coarse-to-fine, level-by-level AST generation using Graph Neural Networks.
+- **Failure Mode**: Model generates repetitive, semantically nonsensical patterns despite loss convergence.
+- **Root Cause**: Graph-based approach incompatible with sequential nature of code. See [detailed analysis](docs/HIERARCHICAL_FAILURE_ANALYSIS.md).
+- **Conclusion**: GNNs excel at reasoning over fixed graphs but cannot generate sequential code structures.
 
 ### Text-Code Alignment (Phase 5)
 - **Current Status**: The alignment model is **non-functional**.
@@ -267,11 +284,10 @@ print(ruby_code)
 - **Conclusion**: As the upstream autoencoder and alignment models are non-functional, the generation pipeline fails as expected.
 - **Future Direction**: The planned autoregressive architecture in Phase 7 is not an enhancement but a necessary first step toward building a functional code generator.
 
-### Advanced Decoder Architectures (Phase 7) - Planned
-- **Autoregressive Generation**: Sequential AST building to handle complex control structures
-- **Enhanced Training**: Teacher forcing with step-by-step sequence generation
-- **Improved Inference**: Iterative sampling with temperature and top-k controls
-- **Target Capability**: Generate conditional statements, loops, and nested logic structures
+### Advanced Decoder Architectures (Phase 7) - **DISCONTINUED**
+- **Status**: Not implemented. Project discontinued after Phase 4b failure analysis.
+- **Original Plan**: Autoregressive transformer-based decoder for sequential code generation.
+- **Recommendation**: Future researchers should start with proven transformer architectures (GPT-style) rather than graph-based approaches for code generation tasks.
 
 ## Development Setup
 
@@ -368,4 +384,70 @@ jubilant-palm-tree/
 
 ---
 
-*This project successfully demonstrates that Graph Neural Networks can learn meaningful structural representations of Ruby code, enabling complexity prediction, complete AST reconstruction, text-code alignment through contrastive learning, and end-to-end text-to-code generation. The 6-phase implementation proves the viability of neural approaches to code understanding and generation, with Phase 7 planned to address the remaining limitations in complex control flow generation through autoregressive decoder architectures. For detailed information about each phase, see the individual phase README files.*
+## Research Findings & Lessons Learned
+
+This project provides valuable negative results for the research community:
+
+### ✅ What Works
+- **GNN-based complexity prediction**: Outperforms heuristics by 26.6% (MAE 4.77)
+- **Structural code understanding**: GNNs effectively learn AST patterns
+- **Large-scale AST processing**: Pipeline handles 200K+ methods successfully
+
+### ❌ What Doesn't Work
+- **Graph-based code generation**: 0% validity despite 100 training epochs
+- **Hierarchical GNN decoders**: Cannot capture sequential code semantics
+- **MSE loss on code features**: Wrong objective for discrete code generation
+- **Small embeddings for code**: 64D insufficient (CodeBERT uses 768D+)
+
+### 🔬 Key Research Insights
+
+1. **Code generation is sequence modeling**: Despite ASTs having graph structure, generating them requires sequential/autoregressive models (transformers) not graph models (GNNs).
+
+2. **Loss convergence ≠ learning**: The hierarchical model's loss decreased from -3.46 to -70.28, but validation showed 0% validity. The model learned to minimize MSE without capturing code semantics.
+
+3. **Architecture matters more than tuning**: No amount of hyperparameter optimization can fix fundamental architecture mismatch.
+
+4. **Pre-training is crucial**: Custom 64D embeddings insufficient; state-of-the-art uses 768D+ pre-trained on billions of code tokens.
+
+### 📊 Complete Documentation
+
+All experimental data and findings are preserved for the research community:
+
+- **[Hierarchical Decoder Failure Analysis](docs/HIERARCHICAL_FAILURE_ANALYSIS.md)**: Comprehensive analysis of why graph-based generation failed
+- **Training Logs**: `training_log_with_penalty.txt` (9.7MB, 100 epochs across 20 levels)
+- **Trained Models**: `models/hierarchical/` (20 level models, ~850K parameters total)
+- **Validation Results**: `validation_results_hierarchical.txt`
+- **Loss Analysis**: `docs/hierarchical_training_analysis.png`
+- **Diagnostic Plots**: `docs/hierarchical_failure_analysis.png`
+
+### 🎓 For Future Researchers
+
+**If you're working on code generation**:
+- ✅ DO use transformer-based autoregressive models (proven: GPT, CodeT5, StarCoder)
+- ✅ DO use pre-trained embeddings (CodeBERT, GraphCodeBERT)
+- ✅ DO use cross-entropy loss on tokens, not MSE on features
+- ❌ DON'T use GNNs for generation (they're for graph reasoning, not sequential synthesis)
+- ❌ DON'T use hierarchical independence (breaks semantic coherence)
+
+**If you're working on code understanding** (complexity, bug detection, etc.):
+- ✅ GNNs work well for these tasks (as this project demonstrates)
+- ✅ AST-based graph representations are effective
+- ✅ Smaller models (64D embeddings) can be sufficient
+
+## License & Data Availability
+
+**All research materials are released under [CC0 1.0 Universal (Public Domain)](https://creativecommons.org/publicdomain/zero/1.0/)**
+
+You are free to:
+- ✅ Use all data, models, and findings for any purpose
+- ✅ Modify and redistribute without attribution
+- ✅ Use in commercial and academic research
+- ✅ Learn from our failures without repeating them
+
+**No rights reserved. All negative results are contributed to the public domain.**
+
+The dataset, trained models, training logs, and analysis are preserved in this repository for the benefit of the research community. We hope others can learn from this experiment's findings—both positive and negative.
+
+---
+
+*This project demonstrates that while Graph Neural Networks excel at code understanding tasks like complexity prediction, they fundamentally fail at code generation due to architectural mismatch with sequential programming languages. The complete experimental record is preserved here as a cautionary tale and learning resource for future researchers. Detailed phase documentation is available in the individual phase README files in the docs/ directory.*

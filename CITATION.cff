@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this research data, please cite it as below."
+title: "Graph Neural Networks for Ruby Code Generation: A Failed Experiment"
+authors:
+  - family-names: "Lawrenz"
+    given-names: "Tim"
+type: dataset
+license: CC0-1.0
+repository-code: "https://github.com/timlawrenz/jubilant-palm-tree"
+keywords:
+  - "graph neural networks"
+  - "code generation"
+  - "abstract syntax trees"
+  - "negative results"
+  - "research failure analysis"
+  - "ruby programming"
+  - "machine learning"
+abstract: >
+  This repository contains the complete experimental record of an attempt
+  to use Graph Neural Networks (GNNs) for Ruby code generation through
+  hierarchical AST decoding. The experiment demonstrates that while GNNs
+  excel at code understanding tasks (26.6% improvement in complexity
+  prediction), they fundamentally fail at code generation (0% syntactic
+  validity) due to architectural mismatch with sequential programming
+  languages. All data, models, training logs, and detailed failure
+  analysis are preserved for the research community under CC0 license.
+  
+  Key finding: Code generation requires sequential/autoregressive models
+  (transformers), not graph-based approaches. Complete documentation of
+  this negative result is available to help future researchers avoid
+  similar pitfalls.
+date-released: 2025-11-26
