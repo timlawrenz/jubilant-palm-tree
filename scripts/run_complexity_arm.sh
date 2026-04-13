@@ -3,7 +3,7 @@
 # Outputs METRICS:{json} for Ratiocinator fleet parsing.
 #
 # Environment variables (set by Ratiocinator fleet):
-#   CONV_TYPE     - GNN convolution type: GCN, SAGE (default: SAGE)
+#   CONV_TYPE     - GNN convolution type: GCN, SAGE, GAT, GIN, GraphConv (default: SAGE)
 #   HIDDEN_DIM    - Hidden dimension (default: 64)
 #   NUM_LAYERS    - Number of GNN layers (default: 3)
 #   DROPOUT       - Dropout rate (default: 0.1)
@@ -12,7 +12,7 @@
 #   BATCH_SIZE    - Batch size (default: 32)
 #   DATASET_PATH  - Path to dataset dir (default: dataset/)
 
-set -euo pipefail
+set -uo pipefail
 
 CONV_TYPE="${CONV_TYPE:-SAGE}"
 HIDDEN_DIM="${HIDDEN_DIM:-64}"
@@ -31,7 +31,7 @@ echo "DROPOUT=$DROPOUT LR=$LEARNING_RATE EPOCHS=$EPOCHS BATCH=$BATCH_SIZE"
 # Pull LFS files if they are pointers (e.g., after shallow clone)
 if command -v git-lfs &>/dev/null || git lfs version &>/dev/null 2>&1; then
     echo "Pulling LFS files..."
-    git lfs pull 2>&1 || true
+    git lfs pull 2>&1 || echo "LFS pull returned non-zero (may be OK if files exist)"
 elif [ -f "${DATASET_PATH}/validation.jsonl" ] && head -1 "${DATASET_PATH}/validation.jsonl" | grep -q "^version https://git-lfs"; then
     echo "ERROR: LFS pointer files detected but git-lfs not installed"
     echo "Install with: apt-get install -y git-lfs && git lfs pull"
@@ -53,17 +53,18 @@ fi
 
 mkdir -p models
 
-# Run training — train.py expects train.jsonl and validation.jsonl in dataset_path
-# Our split produces train.jsonl and val.jsonl; create a symlink for compatibility
+# Symlink validation.jsonl → val.jsonl for compatibility
 if [ -f "${DATASET_PATH}/val.jsonl" ]; then
     ORIG_VAL="${DATASET_PATH}/validation.jsonl"
-    if [ -f "$ORIG_VAL" ]; then
+    if [ -f "$ORIG_VAL" ] && ! [ -L "$ORIG_VAL" ]; then
         mv "$ORIG_VAL" "${DATASET_PATH}/validation_full.jsonl"
     fi
     ln -sf val.jsonl "${DATASET_PATH}/validation.jsonl"
 fi
 
-TRAIN_OUTPUT=$(python train.py \
+# Run training — stream output directly (no capturing)
+TRAIN_LOG="/tmp/train_output_$$.log"
+python train.py \
     --dataset_path "$DATASET_PATH" \
     --epochs "$EPOCHS" \
     --output_path "$OUTPUT_PATH" \
@@ -74,25 +75,28 @@ TRAIN_OUTPUT=$(python train.py \
     --conv_type "$CONV_TYPE" \
     --dropout "$DROPOUT" \
     --num_workers 0 \
-    2>&1)
+    2>&1 | tee "$TRAIN_LOG"
 
-echo "$TRAIN_OUTPUT"
+TRAIN_RC=${PIPESTATUS[0]}
+if [ "$TRAIN_RC" -ne 0 ]; then
+    echo "ERROR: train.py exited with code $TRAIN_RC"
+    echo "METRICS:{\"error\": \"training_failed\", \"exit_code\": $TRAIN_RC}"
+    exit 1
+fi
 
 # Extract best validation loss from training output
-BEST_VAL_LOSS=$(echo "$TRAIN_OUTPUT" | grep "Best validation loss" | grep -oP '[\d.]+' | tail -1)
+BEST_VAL_LOSS=$(grep "Best validation loss" "$TRAIN_LOG" | grep -oP '[\d.]+' | tail -1)
 
 # Run evaluation to get MAE on the validation set
-EVAL_OUTPUT=$(python -c "
+python -c "
 import sys, os, json, torch
 sys.path.insert(0, os.path.join(os.path.dirname('.'), 'src'))
 from data_processing import create_data_loaders
 from models import RubyComplexityGNN
-from torch_geometric.data import Data
 import numpy as np
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Load model
 checkpoint = torch.load('$OUTPUT_PATH', map_location=device, weights_only=False)
 config = checkpoint['model_config']
 model = RubyComplexityGNN(
@@ -105,13 +109,11 @@ model = RubyComplexityGNN(
 model.load_state_dict(checkpoint['model_state_dict'])
 model.eval()
 
-# Load validation data
 val_path = os.path.join('${DATASET_PATH}', 'val.jsonl')
 if not os.path.exists(val_path):
     val_path = os.path.join('${DATASET_PATH}', 'validation.jsonl')
-_, val_loader = create_data_loaders(val_path, val_path, batch_size=64, shuffle=False)
+_, val_loader = create_data_loaders(val_path, val_path, batch_size=64, shuffle=False, num_workers=0)
 
-# Compute MAE
 all_preds, all_targets = [], []
 with torch.no_grad():
     for batch in val_loader:
@@ -126,7 +128,7 @@ mae = float(np.mean(np.abs(preds - targets)))
 mse = float(np.mean((preds - targets) ** 2))
 r2 = float(1 - np.sum((targets - preds)**2) / np.sum((targets - np.mean(targets))**2))
 
-print(json.dumps({
+print('METRICS:' + json.dumps({
     'val_mae': round(mae, 4),
     'val_mse': round(mse, 4),
     'val_r2': round(r2, 4),
@@ -138,14 +140,6 @@ print(json.dumps({
     'learning_rate': $LEARNING_RATE,
     'epochs': $EPOCHS
 }))
-" 2>&1)
+" 2>&1
 
-echo "$EVAL_OUTPUT"
-
-# Extract the JSON line and emit as METRICS
-METRICS_JSON=$(echo "$EVAL_OUTPUT" | grep '^{' | tail -1)
-if [ -n "$METRICS_JSON" ]; then
-    echo "METRICS:$METRICS_JSON"
-else
-    echo "METRICS:{\"error\": \"evaluation_failed\", \"best_val_loss\": ${BEST_VAL_LOSS:-0}}"
-fi
+rm -f "$TRAIN_LOG"
