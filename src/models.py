@@ -262,6 +262,203 @@ class ASTDecoder(torch.nn.Module):
         }
 
 
+class TreeAwareASTDecoder(torch.nn.Module):
+    """
+    Tree-topology-aware AST decoder.
+
+    Unlike ASTDecoder which constructs sequential chain edges (0→1→2→…),
+    this decoder uses the actual AST tree structure for GNN message passing.
+
+    Three edge modes:
+      - 'chain':          Legacy sequential edges (same as ASTDecoder).
+      - 'teacher_forced': Uses ground-truth AST edges during training.
+      - 'iterative':      Two-pass: chain edges → predict parents → rebuild
+                          tree edges → refine predictions.  Fully feed-forward.
+    """
+
+    def __init__(self, embedding_dim: int, output_node_dim: int,
+                 hidden_dim: int = 256, num_layers: int = 5,
+                 max_nodes: int = 100, conv_type: str = 'GCN',
+                 edge_mode: str = 'teacher_forced',
+                 gradient_checkpointing: bool = False):
+        super().__init__()
+        self.embedding_dim = embedding_dim
+        self.output_node_dim = output_node_dim
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        self.max_nodes = max_nodes
+        self.edge_mode = edge_mode
+        self.gradient_checkpointing = gradient_checkpointing
+
+        self.embedding_transform = torch.nn.Linear(embedding_dim, hidden_dim)
+
+        # Primary GNN stack
+        self.convs = torch.nn.ModuleList()
+        current_dim = hidden_dim
+        for _ in range(num_layers):
+            conv, current_dim = self._make_conv(conv_type, current_dim, hidden_dim)
+            self.convs.append(conv)
+
+        self.node_output = torch.nn.Linear(current_dim, output_node_dim)
+        self.parent_predictor = torch.nn.Linear(current_dim, max_nodes)
+
+        # Refinement GNN stack (only used in iterative mode)
+        if edge_mode == 'iterative':
+            self.refine_convs = torch.nn.ModuleList()
+            ref_dim = current_dim
+            for _ in range(max(num_layers // 2, 1)):
+                conv, ref_dim = self._make_conv(conv_type, ref_dim, hidden_dim)
+                self.refine_convs.append(conv)
+            self.refine_node_output = torch.nn.Linear(ref_dim, output_node_dim)
+            self.refine_parent_predictor = torch.nn.Linear(ref_dim, max_nodes)
+
+    @staticmethod
+    def _make_conv(conv_type: str, in_dim: int, hidden_dim: int):
+        if conv_type == 'GAT':
+            heads = 4
+            return GATConv(in_dim, hidden_dim, heads=heads), hidden_dim * heads
+        elif conv_type == 'GIN':
+            mlp = torch.nn.Sequential(
+                torch.nn.Linear(in_dim, in_dim),
+                torch.nn.ReLU(),
+                torch.nn.Linear(in_dim, in_dim),
+            )
+            return GINConv(mlp), in_dim
+        elif conv_type == 'SAGE':
+            return SAGEConv(in_dim, in_dim), in_dim
+        elif conv_type == 'GCN':
+            return GCNConv(in_dim, in_dim), in_dim
+        elif conv_type == 'GraphConv':
+            return GraphConv(in_dim, in_dim), in_dim
+        else:
+            raise ValueError(f"Unsupported conv_type: {conv_type}")
+
+    # ------------------------------------------------------------------
+    # Edge construction helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_chain_edges(num_nodes_per_graph: torch.Tensor) -> torch.Tensor:
+        """Build sequential chain edges (legacy behaviour)."""
+        device = num_nodes_per_graph.device
+        num_edges_per_graph = torch.clamp(num_nodes_per_graph - 1, min=0)
+        total_edges = num_edges_per_graph.sum().item()
+        if total_edges == 0:
+            return torch.empty((2, 0), dtype=torch.long, device=device)
+
+        node_offsets = torch.cat([
+            torch.zeros(1, device=device, dtype=num_nodes_per_graph.dtype),
+            torch.cumsum(num_nodes_per_graph[:-1], dim=0),
+        ])
+        graph_indices = torch.repeat_interleave(
+            torch.arange(len(num_nodes_per_graph), device=device),
+            num_edges_per_graph,
+        )
+        edge_offsets = torch.cat([
+            torch.zeros(1, device=device, dtype=num_edges_per_graph.dtype),
+            torch.cumsum(num_edges_per_graph[:-1], dim=0),
+        ])
+        src_in_graph = torch.arange(total_edges, device=device) - edge_offsets[graph_indices]
+        edge_node_offsets = node_offsets[graph_indices]
+        src = edge_node_offsets + src_in_graph
+        dst = src + 1
+        return torch.stack([src, dst], dim=0)
+
+    @staticmethod
+    def _parents_to_edges(parent_logits: torch.Tensor,
+                          num_nodes_per_graph: torch.Tensor) -> torch.Tensor:
+        """Convert per-node parent logits to a hard edge_index (argmax)."""
+        device = parent_logits.device
+        total_nodes = parent_logits.size(0)
+        max_nodes = parent_logits.size(1)
+
+        # Compute graph membership and node offsets
+        batch_vec = torch.repeat_interleave(
+            torch.arange(len(num_nodes_per_graph), device=device),
+            num_nodes_per_graph,
+        )
+        node_offsets = torch.cat([
+            torch.zeros(1, device=device, dtype=num_nodes_per_graph.dtype),
+            torch.cumsum(num_nodes_per_graph[:-1], dim=0),
+        ])
+
+        # Mask out logits for positions beyond each graph's node count
+        mask = torch.arange(max_nodes, device=device).unsqueeze(0).expand(total_nodes, -1)
+        graph_sizes = num_nodes_per_graph[batch_vec].unsqueeze(1)
+        parent_logits = parent_logits.clone()
+        parent_logits[mask >= graph_sizes] = float('-inf')
+
+        # Local parent index → global parent index
+        local_parent = parent_logits.argmax(dim=1)  # [total_nodes]
+        global_parent = local_parent + node_offsets[batch_vec]
+
+        # Node 0 of each graph (the root) has no parent — remove those edges
+        local_idx = torch.arange(total_nodes, device=device) - node_offsets[batch_vec]
+        is_root = local_idx == 0
+        src = global_parent[~is_root]
+        dst = torch.arange(total_nodes, device=device)[~is_root]
+        return torch.stack([src, dst], dim=0).long()
+
+    # ------------------------------------------------------------------
+    # Forward
+    # ------------------------------------------------------------------
+
+    def _apply_convs(self, x, edge_index, convs):
+        edge_index = torch_geometric.utils.to_undirected(edge_index)
+        if self.gradient_checkpointing and self.training:
+            def _make_fn(module):
+                def fn(*inputs):
+                    return module(*inputs)
+                return fn
+            for conv in convs:
+                x = torch.utils.checkpoint.checkpoint(
+                    _make_fn(conv), x, edge_index, use_reentrant=False,
+                )
+                x = F.relu(x)
+        else:
+            for conv in convs:
+                x = conv(x, edge_index)
+                x = F.relu(x)
+        return x
+
+    def forward(self, embedding: torch.Tensor,
+                num_nodes_per_graph: torch.Tensor,
+                gt_edge_index: torch.Tensor | None = None) -> dict:
+        """
+        Args:
+            embedding: [batch_size, embedding_dim]
+            num_nodes_per_graph: [batch_size]
+            gt_edge_index: [2, num_edges] ground-truth AST edges (optional).
+                           Required for teacher_forced mode during training.
+        """
+        device = embedding.device
+        node_features = self.embedding_transform(embedding)
+        node_features = node_features.repeat_interleave(num_nodes_per_graph, dim=0)
+
+        # ---- choose edges for the first GNN pass ----
+        if self.edge_mode == 'teacher_forced' and gt_edge_index is not None:
+            first_pass_edges = gt_edge_index
+        else:
+            first_pass_edges = self._build_chain_edges(num_nodes_per_graph)
+
+        x = self._apply_convs(node_features, first_pass_edges, self.convs)
+        output_node_features = self.node_output(x)
+        parent_logits = self.parent_predictor(x)
+
+        # ---- optional second (refinement) pass ----
+        if self.edge_mode == 'iterative':
+            predicted_edges = self._parents_to_edges(parent_logits, num_nodes_per_graph)
+            if predicted_edges.size(1) > 0:
+                x2 = self._apply_convs(x, predicted_edges, self.refine_convs)
+                output_node_features = self.refine_node_output(x2)
+                parent_logits = self.refine_parent_predictor(x2)
+
+        return {
+            'node_features': output_node_features,
+            'parent_logits': parent_logits,
+        }
+
+
 class AutoregressiveASTDecoder(torch.nn.Module):
     """
     Autoregressive decoder for generating Abstract Syntax Trees sequentially.
@@ -504,7 +701,8 @@ class ASTAutoencoder(torch.nn.Module):
                  conv_type: str = 'GCN', dropout: float = 0.1,
                  freeze_encoder: bool = False, encoder_weights_path: str = None,
                  max_nodes: int = 100, decoder_conv_type: str = 'GCN',
-                 gradient_checkpointing: bool = False):
+                 gradient_checkpointing: bool = False,
+                 decoder_edge_mode: str = 'chain'):
         """
         Initialize the AST autoencoder.
         
@@ -520,9 +718,13 @@ class ASTAutoencoder(torch.nn.Module):
             max_nodes: Maximum number of nodes for the decoder.
             decoder_conv_type: The GNN layer type for the decoder.
             gradient_checkpointing: Whether to enable gradient checkpointing for memory efficiency.
+            decoder_edge_mode: Edge construction strategy for the decoder.
+                'chain' uses the original ASTDecoder with sequential edges.
+                'teacher_forced' or 'iterative' uses TreeAwareASTDecoder.
         """
         super().__init__()
         
+        self.decoder_edge_mode = decoder_edge_mode
         # Initialize encoder (RubyComplexityGNN without prediction head)
         self.encoder = RubyComplexityGNN(
             input_dim=encoder_input_dim,
@@ -570,15 +772,27 @@ class ASTAutoencoder(torch.nn.Module):
             print("Encoder weights frozen")
         
         # Initialize decoder
-        self.decoder = ASTDecoder(
-            embedding_dim=hidden_dim,
-            output_node_dim=node_output_dim,
-            hidden_dim=hidden_dim,
-            num_layers=num_layers,
-            max_nodes=max_nodes,
-            conv_type=decoder_conv_type,
-            gradient_checkpointing=gradient_checkpointing
-        )
+        if decoder_edge_mode in ('teacher_forced', 'iterative'):
+            self.decoder = TreeAwareASTDecoder(
+                embedding_dim=hidden_dim,
+                output_node_dim=node_output_dim,
+                hidden_dim=hidden_dim,
+                num_layers=num_layers,
+                max_nodes=max_nodes,
+                conv_type=decoder_conv_type,
+                edge_mode=decoder_edge_mode,
+                gradient_checkpointing=gradient_checkpointing,
+            )
+        else:
+            self.decoder = ASTDecoder(
+                embedding_dim=hidden_dim,
+                output_node_dim=node_output_dim,
+                hidden_dim=hidden_dim,
+                num_layers=num_layers,
+                max_nodes=max_nodes,
+                conv_type=decoder_conv_type,
+                gradient_checkpointing=gradient_checkpointing,
+            )
         
         self.hidden_dim = hidden_dim
         self.freeze_encoder = freeze_encoder
@@ -600,7 +814,14 @@ class ASTAutoencoder(torch.nn.Module):
         num_nodes_per_graph = torch.bincount(data.batch)
         
         # Decode: Batch of embeddings -> Batch of reconstructed ASTs
-        reconstruction = self.decoder(embedding, num_nodes_per_graph)
+        # Pass ground-truth edges for tree-aware decoders
+        if self.decoder_edge_mode != 'chain':
+            reconstruction = self.decoder(
+                embedding, num_nodes_per_graph,
+                gt_edge_index=data.edge_index,
+            )
+        else:
+            reconstruction = self.decoder(embedding, num_nodes_per_graph)
         
         return {
             'embedding': embedding,

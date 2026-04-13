@@ -176,6 +176,11 @@ def parse_args():
     parser.add_argument('--loss_fn', type=str, default='improved',
                         choices=['improved', 'comprehensive', 'simple', 'original'],
                         help='Loss function variant (default: improved)')
+    parser.add_argument('--decoder_edge_mode', type=str, default='chain',
+                        choices=['chain', 'teacher_forced', 'iterative'],
+                        help='Decoder edge construction: chain (legacy sequential), '
+                             'teacher_forced (ground-truth AST edges), '
+                             'iterative (predict→refine). Default: chain')
     parser.add_argument('--profile', action='store_true',
                         help='Enable profiling for one epoch to identify performance bottlenecks.')
     return parser.parse_args()
@@ -215,6 +220,7 @@ def main():
     for key, value in config.items():
         print(f"   {key}: {value}")
     print(f"   decoder_conv_type: {args.decoder_conv_type}")
+    print(f"   decoder_edge_mode: {args.decoder_edge_mode}")
     print(f"   type_weight: {args.type_weight}")
     print(f"   parent_weight: {args.parent_weight}")
     print(f"   dataset_path: {args.dataset_path}")
@@ -259,7 +265,8 @@ def main():
         freeze_encoder=config['freeze_encoder'],
         encoder_weights_path=config['encoder_weights_path'],
         decoder_conv_type=args.decoder_conv_type,
-        gradient_checkpointing=True  # Enable for memory efficiency
+        gradient_checkpointing=True,  # Enable for memory efficiency
+        decoder_edge_mode=args.decoder_edge_mode,
     ).to(device)
     
     # Count parameters

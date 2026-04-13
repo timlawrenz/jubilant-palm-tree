@@ -155,6 +155,9 @@ class ASTGraphConverter:
         """Reset the converter state for processing a new AST."""
         self.nodes = []  # List of node features
         self.edges = []  # List of edge tuples (parent_idx, child_idx)
+        self.edge_attrs = []  # List of edge attributes [child_index, depth, num_siblings]
+        self.node_depths = []  # Depth of each node in the tree
+        self.node_child_indices = []  # Position of each node among its siblings
         self.node_count = 0
     
     def parse_ast_json(self, ast_json: str) -> Dict[str, Any]:
@@ -165,19 +168,23 @@ class ASTGraphConverter:
             ast_json: JSON string representing the AST
             
         Returns:
-            Dictionary containing node features and edge indices
+            Dictionary containing node features, edge indices, and edge attributes.
+            edge_attr contains [child_index, depth, num_siblings] per edge.
+            node_pos contains [child_index, depth] per node for positional encoding.
         """
         self.reset()
         
         try:
             ast_data = json.loads(ast_json)
-            self._process_node(ast_data, parent_idx=None)
+            self._process_node(ast_data, parent_idx=None, depth=0, child_index=0, num_siblings=1)
             
             # Convert to appropriate format
             if not self.nodes:
                 # Handle empty AST case
                 node_features = [[0.0] * self.node_encoder.vocab_size]
                 edge_index = [[], []]  # Empty edge list
+                edge_attr = []
+                node_pos = [[0, 0]]
             else:
                 node_features = self.nodes
                 if self.edges:
@@ -188,28 +195,39 @@ class ASTGraphConverter:
                         edge_index[1].append(child)
                 else:
                     edge_index = [[], []]
+                edge_attr = self.edge_attrs
+                node_pos = list(zip(self.node_child_indices, self.node_depths))
             
             return {
                 'x': node_features,
                 'edge_index': edge_index,
+                'edge_attr': edge_attr,
+                'node_pos': node_pos,
                 'num_nodes': len(self.nodes) if self.nodes else 1
             }
             
-        except (json.JSONDecodeError, Exception) as e:
+        except (json.JSONDecodeError, Exception):
             # Handle malformed JSON or other errors gracefully
             return {
                 'x': [[0.0] * self.node_encoder.vocab_size],
                 'edge_index': [[], []],
+                'edge_attr': [],
+                'node_pos': [[0, 0]],
                 'num_nodes': 1
             }
     
-    def _process_node(self, node: Union[Dict, List, str, int, float, None], parent_idx: Optional[int] = None) -> int:
+    def _process_node(self, node: Union[Dict, List, str, int, float, None],
+                      parent_idx: Optional[int] = None, depth: int = 0,
+                      child_index: int = 0, num_siblings: int = 1) -> int:
         """
         Recursively process an AST node and its children.
         
         Args:
             node: The AST node (dict, list, or primitive)
             parent_idx: Index of the parent node
+            depth: Depth of the current node in the AST
+            child_index: Position of this node among its siblings (0-based)
+            num_siblings: Total number of siblings (including this node)
             
         Returns:
             Index of the current node
@@ -223,22 +241,30 @@ class ASTGraphConverter:
             # Create node features
             features = self.node_encoder.create_node_features(node_type)
             self.nodes.append(features)
+            self.node_depths.append(depth)
+            self.node_child_indices.append(child_index)
             
             # Add edge from parent to current node
             if parent_idx is not None:
                 self.edges.append((parent_idx, current_idx))
+                self.edge_attrs.append([child_index, depth, num_siblings])
             
-            # Process children
+            # Process children with positional information
             if 'children' in node:
-                for child in node['children']:
-                    self._process_node(child, current_idx)
+                children = node['children']
+                n_children = len(children)
+                for i, child in enumerate(children):
+                    self._process_node(child, current_idx, depth=depth + 1,
+                                       child_index=i, num_siblings=n_children)
             
             return current_idx
             
         elif isinstance(node, list):
             # Process list of nodes
-            for child in node:
-                self._process_node(child, parent_idx)
+            n_items = len(node)
+            for i, child in enumerate(node):
+                self._process_node(child, parent_idx, depth=depth,
+                                   child_index=i, num_siblings=n_items)
             return parent_idx if parent_idx is not None else -1
             
         else:
@@ -251,9 +277,12 @@ class ASTGraphConverter:
                 leaf_type = 'leaf_' + type(node).__name__
                 features = self.node_encoder.create_node_features(leaf_type)
                 self.nodes.append(features)
+                self.node_depths.append(depth)
+                self.node_child_indices.append(child_index)
                 
                 # Add edge from parent to leaf
                 self.edges.append((parent_idx, current_idx))
+                self.edge_attrs.append([child_index, depth, num_siblings])
                 
                 return current_idx
             return -1
@@ -677,6 +706,17 @@ class PrecomputedRubyASTDataset:
                 y = torch.tensor([sample.get('complexity_score', 5.0)], dtype=torch.float)
 
                 data_obj = Data(x=x, edge_index=edge_index, y=y)
+
+                # Add positional attributes from Track 3 changes
+                if graph_data.get('edge_attr'):
+                    data_obj.edge_attr = torch.tensor(
+                        graph_data['edge_attr'], dtype=torch.float,
+                    )
+                if graph_data.get('node_pos'):
+                    data_obj.node_pos = torch.tensor(
+                        graph_data['node_pos'], dtype=torch.float,
+                    )
+
                 self.data.append(data_obj)
             print(f"Converted {len(self.data)} graphs from {path}")
         else:
