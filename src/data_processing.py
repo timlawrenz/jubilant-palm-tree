@@ -707,15 +707,16 @@ class PrecomputedRubyASTDataset:
 
                 data_obj = Data(x=x, edge_index=edge_index, y=y)
 
-                # Add positional attributes from Track 3 changes
-                if graph_data.get('edge_attr'):
-                    data_obj.edge_attr = torch.tensor(
-                        graph_data['edge_attr'], dtype=torch.float,
-                    )
-                if graph_data.get('node_pos'):
-                    data_obj.node_pos = torch.tensor(
-                        graph_data['node_pos'], dtype=torch.float,
-                    )
+                # Add positional attributes — always set so PyG collation is consistent
+                ea = graph_data.get('edge_attr', [])
+                data_obj.edge_attr = torch.tensor(
+                    ea if ea else [], dtype=torch.float,
+                ).reshape(-1, 3) if ea else torch.zeros((0, 3), dtype=torch.float)
+
+                np_ = graph_data.get('node_pos', [])
+                data_obj.node_pos = torch.tensor(
+                    np_ if np_ else [[0, 0]], dtype=torch.float,
+                )
 
                 self.data.append(data_obj)
             print(f"Converted {len(self.data)} graphs from {path}")
