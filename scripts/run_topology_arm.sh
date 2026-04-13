@@ -15,7 +15,7 @@
 #   EPOCHS            - Training epochs (default: 30)
 #   DATASET_PATH      - Path to dataset dir (default: dataset/)
 
-set -euo pipefail
+set -uo pipefail
 
 DECODER_EDGE_MODE="${DECODER_EDGE_MODE:-teacher_forced}"
 DECODER_CONV_TYPE="${DECODER_CONV_TYPE:-GAT}"
@@ -37,29 +37,40 @@ echo "LR=$LEARNING_RATE TYPE_W=$TYPE_WEIGHT PARENT_W=$PARENT_WEIGHT LOSS=$LOSS_F
 # Pull LFS files if they are pointers (e.g., after shallow clone)
 if command -v git-lfs &>/dev/null || git lfs version &>/dev/null 2>&1; then
     echo "Pulling LFS files..."
-    git lfs pull 2>&1 || true
+    git lfs pull 2>&1 || echo "LFS pull returned non-zero (may be OK if files exist)"
 elif [ -f "${DATASET_PATH}/validation.jsonl" ] && head -1 "${DATASET_PATH}/validation.jsonl" | grep -q "^version https://git-lfs"; then
     echo "ERROR: LFS pointer files detected but git-lfs not installed"
     exit 1
 fi
 
-# Need pre-collated data for autoencoder training
-if [ ! -f "${DATASET_PATH}/train_collated_b4096.pt" ]; then
-    echo "ERROR: Pre-collated data not found. Run scripts/pre_collate_batches.py first."
-    echo "METRICS:{\"error\": \"missing_collated_data\"}"
-    exit 1
+# Ensure train/val split exists
+if [ ! -f "${DATASET_PATH}/train.jsonl" ]; then
+    echo "Creating train/val split..."
+    python scripts/split_complexity_data.py \
+        --input "${DATASET_PATH}/validation.jsonl" \
+        --output-dir "${DATASET_PATH}"
+fi
+
+# Symlink validation.jsonl → val.jsonl for compatibility
+if [ -f "${DATASET_PATH}/val.jsonl" ]; then
+    ORIG_VAL="${DATASET_PATH}/validation.jsonl"
+    if [ -f "$ORIG_VAL" ] && ! [ -L "$ORIG_VAL" ]; then
+        mv "$ORIG_VAL" "${DATASET_PATH}/validation_full.jsonl"
+    fi
+    ln -sf val.jsonl "${DATASET_PATH}/validation.jsonl"
 fi
 
 # Need pre-trained encoder
 if [ ! -f "$ENCODER_PATH" ]; then
     echo "Training encoder first..."
-    python train.py --epochs 20 --output_path "$ENCODER_PATH" --dataset_path "$DATASET_PATH"
+    python train.py --epochs 20 --output_path "$ENCODER_PATH" --dataset_path "$DATASET_PATH" --num_workers 0
 fi
 
 mkdir -p models
 
-# Run autoencoder training with tree-aware decoder
-TRAIN_OUTPUT=$(python train_autoencoder.py \
+# Run autoencoder training with tree-aware decoder — stream output
+TRAIN_LOG="/tmp/topo_train_$$.log"
+python train_autoencoder.py \
     --dataset_path "$DATASET_PATH" \
     --epochs "$EPOCHS" \
     --output_path "$OUTPUT_PATH" \
@@ -72,14 +83,19 @@ TRAIN_OUTPUT=$(python train_autoencoder.py \
     --type_weight "$TYPE_WEIGHT" \
     --parent_weight "$PARENT_WEIGHT" \
     --loss_fn "$LOSS_FN" \
-    2>&1)
+    2>&1 | tee "$TRAIN_LOG"
 
-echo "$TRAIN_OUTPUT"
+TRAIN_RC=${PIPESTATUS[0]}
+if [ "$TRAIN_RC" -ne 0 ]; then
+    echo "ERROR: train_autoencoder.py exited with code $TRAIN_RC"
+    echo "METRICS:{\"error\": \"training_failed\", \"exit_code\": $TRAIN_RC}"
+    exit 1
+fi
 
-BEST_VAL_LOSS=$(echo "$TRAIN_OUTPUT" | grep "Best validation loss" | grep -oP '[\d.]+' | tail -1)
+BEST_VAL_LOSS=$(grep "Best validation loss" "$TRAIN_LOG" | grep -oP '[\d.]+' | tail -1)
 
 # Run syntactic validity evaluation
-EVAL_OUTPUT=$(python -c "
+python -c "
 import sys, os, json, torch
 sys.path.insert(0, os.path.join(os.path.dirname('.'), 'src'))
 from models import ASTAutoencoder
@@ -107,13 +123,11 @@ try:
     model.decoder.load_state_dict(checkpoint['decoder_state_dict'])
     model.eval()
 
-    val_path = '${DATASET_PATH}/validation_collated_b4096.pt'
+    # Load val data
+    val_path = os.path.join('${DATASET_PATH}', 'val.jsonl')
     if not os.path.exists(val_path):
-        val_path = '${DATASET_PATH}/validation.pt'
-    _, val_loader = create_data_loaders(
-        val_path, val_path, batch_size=1,
-        pre_collated=os.path.exists('${DATASET_PATH}/validation_collated_b4096.pt'),
-    )
+        val_path = os.path.join('${DATASET_PATH}', 'validation.jsonl')
+    _, val_loader = create_data_loaders(val_path, val_path, batch_size=1, shuffle=False, num_workers=0)
 
     with torch.no_grad():
         for batch in val_loader:
@@ -136,7 +150,7 @@ except Exception as e:
     total = num_samples
     print(f'Eval error: {e}', file=sys.stderr)
 
-print(json.dumps({
+print('METRICS:' + json.dumps({
     'syntactic_validity_pct': round(validity_pct, 2),
     'val_loss': round(float('${BEST_VAL_LOSS:-0}'), 4),
     'samples_evaluated': total,
@@ -151,13 +165,6 @@ print(json.dumps({
     'learning_rate': $LEARNING_RATE,
     'epochs': $EPOCHS,
 }))
-" 2>&1)
+" 2>&1
 
-echo "$EVAL_OUTPUT"
-
-METRICS_JSON=$(echo "$EVAL_OUTPUT" | grep '^{' | tail -1)
-if [ -n "$METRICS_JSON" ]; then
-    echo "METRICS:$METRICS_JSON"
-else
-    echo "METRICS:{\"error\": \"evaluation_failed\", \"val_loss\": ${BEST_VAL_LOSS:-0}}"
-fi
+rm -f "$TRAIN_LOG"

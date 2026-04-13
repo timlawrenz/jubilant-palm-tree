@@ -234,20 +234,27 @@ def main():
     # Create data loaders
     print("📂 Loading datasets...")
     
-    # Use pre-collated data for maximum performance
-    pre_collated = True
-    b_size = args.batch_size # The script's batch_size now refers to the pre-collation batch size
-    train_data_path = os.path.join(args.dataset_path, f"train_collated_b{b_size}.pt")
-    val_data_path = os.path.join(args.dataset_path, f"validation_collated_b{b_size}.pt")
+    # Try pre-collated data first (most efficient), fall back to JSONL
+    b_size = args.batch_size
+    train_collated = os.path.join(args.dataset_path, f"train_collated_b{b_size}.pt")
+    val_collated = os.path.join(args.dataset_path, f"validation_collated_b{b_size}.pt")
     
-    train_loader, val_loader = create_data_loaders(
-        train_data_path,
-        val_data_path,
-        batch_size=1, # Batch size is 1 because each item *is* a batch
-        shuffle=True,
-        num_workers=0, # Workers > 0 can be slower with pre-collated data
-        pre_collated=pre_collated
-    )
+    if os.path.exists(train_collated) and os.path.exists(val_collated):
+        print("   Using pre-collated batches (fastest)")
+        train_loader, val_loader = create_data_loaders(
+            train_collated, val_collated,
+            batch_size=1, shuffle=True, num_workers=0, pre_collated=True,
+        )
+    else:
+        print("   Pre-collated data not found, loading from JSONL (slower but works)")
+        train_jsonl = os.path.join(args.dataset_path, "train.jsonl")
+        val_jsonl = os.path.join(args.dataset_path, "val.jsonl")
+        if not os.path.exists(val_jsonl):
+            val_jsonl = os.path.join(args.dataset_path, "validation.jsonl")
+        train_loader, val_loader = create_data_loaders(
+            train_jsonl, val_jsonl,
+            batch_size=b_size, shuffle=True, num_workers=0,
+        )
     
     print(f"   Training batches: {len(train_loader)}")
     print(f"   Validation batches: {len(val_loader)}")

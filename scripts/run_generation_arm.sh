@@ -9,11 +9,11 @@
 #   LEARNING_RATE     - Learning rate (default: 0.001)
 #   TYPE_WEIGHT       - Weight for node type loss (default: 2.0)
 #   PARENT_WEIGHT     - Weight for parent prediction loss (default: 1.0)
-#   LOSS_FN           - Loss function: mse, ce, combined (default: mse)
+#   LOSS_FN           - Loss function: simple, improved, comprehensive, original (default: improved)
 #   EPOCHS            - Training epochs (default: 30)
 #   DATASET_PATH      - Path to dataset dir (default: dataset/)
 
-set -euo pipefail
+set -uo pipefail
 
 DECODER_CONV_TYPE="${DECODER_CONV_TYPE:-GAT}"
 HIDDEN_DIM="${HIDDEN_DIM:-256}"
@@ -21,7 +21,7 @@ NUM_LAYERS="${NUM_LAYERS:-5}"
 LEARNING_RATE="${LEARNING_RATE:-0.001}"
 TYPE_WEIGHT="${TYPE_WEIGHT:-2.0}"
 PARENT_WEIGHT="${PARENT_WEIGHT:-1.0}"
-LOSS_FN="${LOSS_FN:-mse}"
+LOSS_FN="${LOSS_FN:-improved}"
 EPOCHS="${EPOCHS:-30}"
 DATASET_PATH="${DATASET_PATH:-dataset/}"
 OUTPUT_PATH="models/experiment_decoder.pt"
@@ -34,38 +34,40 @@ echo "LR=$LEARNING_RATE TYPE_W=$TYPE_WEIGHT PARENT_W=$PARENT_WEIGHT LOSS=$LOSS_F
 # Pull LFS files if they are pointers (e.g., after shallow clone)
 if command -v git-lfs &>/dev/null || git lfs version &>/dev/null 2>&1; then
     echo "Pulling LFS files..."
-    git lfs pull 2>&1 || true
+    git lfs pull 2>&1 || echo "LFS pull returned non-zero (may be OK if files exist)"
 elif [ -f "${DATASET_PATH}/validation.jsonl" ] && head -1 "${DATASET_PATH}/validation.jsonl" | grep -q "^version https://git-lfs"; then
     echo "ERROR: LFS pointer files detected but git-lfs not installed"
     exit 1
 fi
 
-# Need pre-collated data for autoencoder training
-if [ ! -f "${DATASET_PATH}/train_collated_b4096.pt" ]; then
-    echo "ERROR: Pre-collated data not found. Run scripts/pre_collate_batches.py first."
-    echo "METRICS:{\"error\": \"missing_collated_data\"}"
-    exit 1
+# Ensure train/val split exists
+if [ ! -f "${DATASET_PATH}/train.jsonl" ]; then
+    echo "Creating train/val split..."
+    python scripts/split_complexity_data.py \
+        --input "${DATASET_PATH}/validation.jsonl" \
+        --output-dir "${DATASET_PATH}"
+fi
+
+# Symlink validation.jsonl → val.jsonl for compatibility
+if [ -f "${DATASET_PATH}/val.jsonl" ]; then
+    ORIG_VAL="${DATASET_PATH}/validation.jsonl"
+    if [ -f "$ORIG_VAL" ] && ! [ -L "$ORIG_VAL" ]; then
+        mv "$ORIG_VAL" "${DATASET_PATH}/validation_full.jsonl"
+    fi
+    ln -sf val.jsonl "${DATASET_PATH}/validation.jsonl"
 fi
 
 # Need pre-trained encoder
 if [ ! -f "$ENCODER_PATH" ]; then
     echo "Training encoder first..."
-    python train.py --epochs 20 --output_path "$ENCODER_PATH" --dataset_path "$DATASET_PATH"
+    python train.py --epochs 20 --output_path "$ENCODER_PATH" --dataset_path "$DATASET_PATH" --num_workers 0
 fi
 
 mkdir -p models
 
-# Map loss function name to train_autoencoder.py's --loss_fn flag
-LOSS_FN_MAP="improved"
-case "$LOSS_FN" in
-    ce)       LOSS_FN_MAP="improved" ;;   # improved already uses cross-entropy
-    mse)      LOSS_FN_MAP="simple" ;;     # simple uses MSE
-    combined) LOSS_FN_MAP="comprehensive" ;;
-    *)        LOSS_FN_MAP="$LOSS_FN" ;;
-esac
-
-# Run autoencoder training
-TRAIN_OUTPUT=$(python train_autoencoder.py \
+# Run autoencoder training — stream output directly
+TRAIN_LOG="/tmp/gen_train_$$.log"
+python train_autoencoder.py \
     --dataset_path "$DATASET_PATH" \
     --epochs "$EPOCHS" \
     --output_path "$OUTPUT_PATH" \
@@ -76,21 +78,24 @@ TRAIN_OUTPUT=$(python train_autoencoder.py \
     --learning_rate "$LEARNING_RATE" \
     --type_weight "$TYPE_WEIGHT" \
     --parent_weight "$PARENT_WEIGHT" \
-    --loss_fn "$LOSS_FN_MAP" \
-    2>&1)
+    --loss_fn "$LOSS_FN" \
+    2>&1 | tee "$TRAIN_LOG"
 
-echo "$TRAIN_OUTPUT"
+TRAIN_RC=${PIPESTATUS[0]}
+if [ "$TRAIN_RC" -ne 0 ]; then
+    echo "ERROR: train_autoencoder.py exited with code $TRAIN_RC"
+    echo "METRICS:{\"error\": \"training_failed\", \"exit_code\": $TRAIN_RC}"
+    exit 1
+fi
 
-BEST_VAL_LOSS=$(echo "$TRAIN_OUTPUT" | grep "Best validation loss" | grep -oP '[\d.]+' | tail -1)
+BEST_VAL_LOSS=$(grep "Best validation loss" "$TRAIN_LOG" | grep -oP '[\d.]+' | tail -1)
 
 # Run syntactic validity evaluation
-EVAL_OUTPUT=$(python -c "
+python -c "
 import sys, os, json, torch
 sys.path.insert(0, os.path.join(os.path.dirname('.'), 'src'))
 from models import ASTAutoencoder
 from data_processing import create_data_loaders
-import subprocess
-import tempfile
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 num_samples = 100
@@ -98,7 +103,6 @@ valid_count = 0
 total = 0
 
 try:
-    # Load autoencoder
     model = ASTAutoencoder(
         encoder_input_dim=74,
         node_output_dim=74,
@@ -107,18 +111,18 @@ try:
         conv_type='SAGE',
         freeze_encoder=True,
         encoder_weights_path='$ENCODER_PATH',
-        decoder_conv_type='$DECODER_CONV_TYPE'
+        decoder_conv_type='$DECODER_CONV_TYPE',
     ).to(device)
 
     checkpoint = torch.load('$OUTPUT_PATH', map_location=device, weights_only=False)
     model.decoder.load_state_dict(checkpoint['decoder_state_dict'])
     model.eval()
 
-    # Load validation data
-    val_path = '${DATASET_PATH}/validation_collated_b4096.pt'
+    # Load val data (JSONL or .pt)
+    val_path = os.path.join('${DATASET_PATH}', 'val.jsonl')
     if not os.path.exists(val_path):
-        val_path = '${DATASET_PATH}/validation.pt'
-    _, val_loader = create_data_loaders(val_path, val_path, batch_size=1, pre_collated=os.path.exists('${DATASET_PATH}/validation_collated_b4096.pt'))
+        val_path = os.path.join('${DATASET_PATH}', 'validation.jsonl')
+    _, val_loader = create_data_loaders(val_path, val_path, batch_size=1, shuffle=False, num_workers=0)
 
     with torch.no_grad():
         for batch in val_loader:
@@ -127,11 +131,9 @@ try:
             batch = batch.to(device)
             result = model(batch)
             recon = result['reconstruction']
-            # Check if reconstruction has valid node types
             node_preds = recon.x if hasattr(recon, 'x') else None
             if node_preds is not None:
                 pred_types = node_preds.argmax(dim=-1)
-                # Valid if not all same type (not collapsed)
                 unique_types = len(pred_types.unique())
                 if unique_types > 2:
                     valid_count += 1
@@ -141,8 +143,9 @@ try:
 except Exception as e:
     validity_pct = 0.0
     total = num_samples
+    print(f'Eval error: {e}', file=sys.stderr)
 
-print(json.dumps({
+print('METRICS:' + json.dumps({
     'syntactic_validity_pct': round(validity_pct, 2),
     'val_loss': round(float('${BEST_VAL_LOSS:-0}'), 4),
     'samples_evaluated': total,
@@ -154,15 +157,8 @@ print(json.dumps({
     'type_weight': $TYPE_WEIGHT,
     'parent_weight': $PARENT_WEIGHT,
     'learning_rate': $LEARNING_RATE,
-    'epochs': $EPOCHS
+    'epochs': $EPOCHS,
 }))
-" 2>&1)
+" 2>&1
 
-echo "$EVAL_OUTPUT"
-
-METRICS_JSON=$(echo "$EVAL_OUTPUT" | grep '^{' | tail -1)
-if [ -n "$METRICS_JSON" ]; then
-    echo "METRICS:$METRICS_JSON"
-else
-    echo "METRICS:{\"error\": \"evaluation_failed\", \"val_loss\": ${BEST_VAL_LOSS:-0}}"
-fi
+rm -f "$TRAIN_LOG"
