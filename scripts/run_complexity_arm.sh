@@ -73,6 +73,7 @@ TRAIN_OUTPUT=$(python train.py \
     --num_layers "$NUM_LAYERS" \
     --conv_type "$CONV_TYPE" \
     --dropout "$DROPOUT" \
+    --num_workers 0 \
     2>&1)
 
 echo "$TRAIN_OUTPUT"

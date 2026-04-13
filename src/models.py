@@ -38,32 +38,47 @@ class RubyComplexityGNN(torch.nn.Module):
             input_dim: Dimension of input node features
             hidden_dim: Hidden layer dimension
             num_layers: Number of convolutional layers
-            conv_type: Type of convolution ('GCN' or 'SAGE')
+            conv_type: Type of convolution ('GCN', 'SAGE', 'GAT', 'GIN', 'GraphConv')
             dropout: Dropout probability for regularization
         """
         super().__init__()
         
-        if conv_type not in ['GCN', 'SAGE']:
-            raise ValueError("conv_type must be either 'GCN' or 'SAGE'")
+        supported = ['GCN', 'SAGE', 'GAT', 'GIN', 'GraphConv']
+        if conv_type not in supported:
+            raise ValueError(f"conv_type must be one of {supported}")
         
         self.num_layers = num_layers
         self.conv_type = conv_type
         self.dropout = dropout
         self.convs = torch.nn.ModuleList()
         
-        # Select convolution layer type
-        ConvLayer = GCNConv if conv_type == 'GCN' else SAGEConv
+        def _make_conv(in_dim, out_dim):
+            if conv_type == 'GCN':
+                return GCNConv(in_dim, out_dim)
+            elif conv_type == 'SAGE':
+                return SAGEConv(in_dim, out_dim)
+            elif conv_type == 'GAT':
+                return GATConv(in_dim, out_dim, heads=1)
+            elif conv_type == 'GIN':
+                mlp = torch.nn.Sequential(
+                    torch.nn.Linear(in_dim, out_dim),
+                    torch.nn.ReLU(),
+                    torch.nn.Linear(out_dim, out_dim),
+                )
+                return GINConv(mlp)
+            elif conv_type == 'GraphConv':
+                return GraphConv(in_dim, out_dim)
         
         # First layer
-        self.convs.append(ConvLayer(input_dim, hidden_dim))
+        self.convs.append(_make_conv(input_dim, hidden_dim))
         
         # Hidden layers
         for _ in range(num_layers - 2):
-            self.convs.append(ConvLayer(hidden_dim, hidden_dim))
+            self.convs.append(_make_conv(hidden_dim, hidden_dim))
             
         # Last layer
         if num_layers > 1:
-            self.convs.append(ConvLayer(hidden_dim, hidden_dim))
+            self.convs.append(_make_conv(hidden_dim, hidden_dim))
         
         # Output layer for complexity prediction
         self.predictor = torch.nn.Linear(hidden_dim, 1)

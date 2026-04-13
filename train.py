@@ -145,10 +145,13 @@ def parse_args():
                         help='Hidden dimension size (default: 64)')
     parser.add_argument('--num_layers', type=int, default=3,
                         help='Number of GNN layers (default: 3)')
-    parser.add_argument('--conv_type', type=str, default='SAGE', choices=['GCN', 'SAGE'],
+    parser.add_argument('--conv_type', type=str, default='SAGE',
+                        choices=['GCN', 'SAGE', 'GAT', 'GIN', 'GraphConv'],
                         help='GNN convolution type (default: SAGE)')
     parser.add_argument('--dropout', type=float, default=0.1,
                         help='Dropout rate (default: 0.1)')
+    parser.add_argument('--num_workers', type=int, default=0,
+                        help='DataLoader workers (default: 0 for Docker compat)')
     return parser.parse_args()
 
 
@@ -196,7 +199,8 @@ def main():
         train_data_path,
         val_data_path,
         batch_size=config['batch_size'],
-        shuffle=True
+        shuffle=True,
+        num_workers=args.num_workers
     )
     
     print(f"   Training batches: {len(train_loader)}")
