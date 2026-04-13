@@ -28,6 +28,16 @@ echo "=== GNN Complexity Arm ==="
 echo "CONV_TYPE=$CONV_TYPE HIDDEN_DIM=$HIDDEN_DIM NUM_LAYERS=$NUM_LAYERS"
 echo "DROPOUT=$DROPOUT LR=$LEARNING_RATE EPOCHS=$EPOCHS BATCH=$BATCH_SIZE"
 
+# Pull LFS files if they are pointers (e.g., after shallow clone)
+if command -v git-lfs &>/dev/null || git lfs version &>/dev/null 2>&1; then
+    echo "Pulling LFS files..."
+    git lfs pull 2>&1 || true
+elif [ -f "${DATASET_PATH}/validation.jsonl" ] && head -1 "${DATASET_PATH}/validation.jsonl" | grep -q "^version https://git-lfs"; then
+    echo "ERROR: LFS pointer files detected but git-lfs not installed"
+    echo "Install with: apt-get install -y git-lfs && git lfs pull"
+    exit 1
+fi
+
 # Ensure train/val split exists
 if [ ! -f "${DATASET_PATH}/train.jsonl" ]; then
     echo "Creating train/val split..."

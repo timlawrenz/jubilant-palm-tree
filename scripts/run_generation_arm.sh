@@ -31,6 +31,15 @@ echo "=== GNN Generation Arm ==="
 echo "DECODER=$DECODER_CONV_TYPE HIDDEN=$HIDDEN_DIM LAYERS=$NUM_LAYERS"
 echo "LR=$LEARNING_RATE TYPE_W=$TYPE_WEIGHT PARENT_W=$PARENT_WEIGHT LOSS=$LOSS_FN"
 
+# Pull LFS files if they are pointers (e.g., after shallow clone)
+if command -v git-lfs &>/dev/null || git lfs version &>/dev/null 2>&1; then
+    echo "Pulling LFS files..."
+    git lfs pull 2>&1 || true
+elif [ -f "${DATASET_PATH}/validation.jsonl" ] && head -1 "${DATASET_PATH}/validation.jsonl" | grep -q "^version https://git-lfs"; then
+    echo "ERROR: LFS pointer files detected but git-lfs not installed"
+    exit 1
+fi
+
 # Need pre-collated data for autoencoder training
 if [ ! -f "${DATASET_PATH}/train_collated_b4096.pt" ]; then
     echo "ERROR: Pre-collated data not found. Run scripts/pre_collate_batches.py first."
