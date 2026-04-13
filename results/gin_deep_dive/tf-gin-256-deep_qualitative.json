@@ -1,0 +1,101 @@
+{
+  "label": "tf-gin-256-deep",
+  "total": 200,
+  "heuristic_valid": 199,
+  "heuristic_pct": 99.5,
+  "syntax_valid": 0,
+  "syntax_pct": 0.0,
+  "valid_examples": [],
+  "failed_high_acc": [
+    {
+      "index": 17,
+      "num_nodes": 12,
+      "type_accuracy": 1.0,
+      "heuristic_valid": true,
+      "syntax_valid": false,
+      "original_code": "def call(storage)\n        new(storage).call\n      end",
+      "reconstructed_code": ""
+    },
+    {
+      "index": 39,
+      "num_nodes": 44,
+      "type_accuracy": 1.0,
+      "heuristic_valid": true,
+      "syntax_valid": false,
+      "original_code": "def ==(other)\n          table == other.table && partition_name == other.partition_name && from == other.from && to == other.to\n        end",
+      "reconstructed_code": ""
+    },
+    {
+      "index": 42,
+      "num_nodes": 14,
+      "type_accuracy": 1.0,
+      "heuristic_valid": true,
+      "syntax_valid": false,
+      "original_code": "def work_package_cfs_for(type)\n        all_work_package_cfs.merge(type.custom_fields)\n      end",
+      "reconstructed_code": ""
+    },
+    {
+      "index": 68,
+      "num_nodes": 12,
+      "type_accuracy": 1.0,
+      "heuristic_valid": true,
+      "syntax_valid": false,
+      "original_code": "def find(name)\n    settings[name]\n  end",
+      "reconstructed_code": ""
+    },
+    {
+      "index": 44,
+      "num_nodes": 54,
+      "type_accuracy": 0.9815,
+      "heuristic_valid": true,
+      "syntax_valid": false,
+      "original_code": "def down\n    execute(<<~SQL)\n      UPDATE application_settings\n      SET zoekt_settings = jsonb_set(\n        zoekt_settings,\n        '{zoekt_auto_delete_lost_nodes}',\n        'false'\n      )\n      WHERE zoekt_settings ? 'zoekt_lost_node_threshold'\n      AND zoekt_settings->>'zoekt_lost_node_threshold' = '0'\n    SQL\n\n    execute(<<~SQL)\n      UPDATE application_settings\n      SET zoekt_settings = jsonb_set(\n        zoekt_settings,\n        '{zoekt_auto_delete_lost_nodes}',\n        'true'\n      )\n      WHERE zoekt_settings ? 'zoekt_lost_node_threshold'\n      AND zoekt_settings->>'zoekt_lost_node_threshold' != '0'\n    SQL\n\n    execute(<<~SQL)\n      UPDATE application_settings\n      SET zoekt_settings = zoekt_settings - 'zoekt_lost_node_threshold'\n      WHERE zoekt_settings ? 'zoekt_lost_node_threshold'\n    SQL\n  end",
+      "reconstructed_code": ""
+    },
+    {
+      "index": 59,
+      "num_nodes": 94,
+      "type_accuracy": 0.9787,
+      "heuristic_valid": true,
+      "syntax_valid": false,
+      "original_code": "def initialize(info = {})\n    super(\n      update_info(\n        info,\n        'Name' => 'Supermicro Onboard IPMI CGI Vulnerability Scanner',\n        'Description' => %q{\n          This module checks for known vulnerabilities in the CGI applications of\n          Supermicro Onboard IPMI controllers. These issues currently include\n          several unauthenticated buffer overflows in the login.cgi and close_window.cgi\n          components.\n        },\n        'Author' => [\n          'hdm', # Discovery and analysis\n          'juan vazquez' # Metasploit module\n        ],\n        'License' => MSF_LICENSE,\n        'References' => [\n          [ 'CVE', '2013-3621' ],\n          [ 'CVE', '2013-3623' ],\n          [ 'URL', 'https://www.rapid7.com/blog/post/2013/11/06/supermicro-ipmi-firmware-vulnerabilities/']\n        ],\n        'DisclosureDate' => '2013-11-06',\n        'Notes' => {\n          'Reliability' => UNKNOWN_RELIABILITY,\n          'Stability' => UNKNOWN_STABILITY,\n          'SideEffects' => UNKNOWN_SIDE_EFFECTS\n        }\n      )\n    )\n  end",
+      "reconstructed_code": ""
+    },
+    {
+      "index": 111,
+      "num_nodes": 30,
+      "type_accuracy": 0.9667,
+      "heuristic_valid": true,
+      "syntax_valid": false,
+      "original_code": "def allow_actions(action_hash)\n        permission_path = normalized_controller_action_string(action_hash)\n\n        permissions.select { |p| p.controller_actions.include? permission_path }\n      end",
+      "reconstructed_code": ""
+    },
+    {
+      "index": 32,
+      "num_nodes": 55,
+      "type_accuracy": 0.9636,
+      "heuristic_valid": true,
+      "syntax_valid": false,
+      "original_code": "def add_entry(options)\n    raise _(\"entries can only be added to classifications\") unless category?\n\n    # Inherit from parent classification\n    options.merge!(:read_only => read_only, :syntax => syntax, :single_value => single_value, :ns => ns)\n    children.create!(options)\n  end",
+      "reconstructed_code": ""
+    },
+    {
+      "index": 81,
+      "num_nodes": 26,
+      "type_accuracy": 0.9615,
+      "heuristic_valid": true,
+      "syntax_valid": false,
+      "original_code": "def quote_column_name(name) # :nodoc:\n            QUOTED_COLUMN_NAMES[name] ||= PG::Connection.quote_ident(name.to_s).freeze\n          end",
+      "reconstructed_code": ""
+    },
+    {
+      "index": 123,
+      "num_nodes": 38,
+      "type_accuracy": 0.9474,
+      "heuristic_valid": true,
+      "syntax_valid": false,
+      "original_code": "def test_reload_expires_cache_of_found_items\n    all_posts = Topic.base\n    all_posts.to_a\n\n    new_post = Topic.create!\n    assert_not_includes all_posts, new_post\n    assert_includes all_posts.reload, new_post\n  end",
+      "reconstructed_code": ""
+    }
+  ]
+}

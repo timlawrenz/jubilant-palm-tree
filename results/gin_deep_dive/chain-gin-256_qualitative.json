@@ -1,0 +1,10 @@
+{
+  "label": "chain-gin-256",
+  "total": 200,
+  "heuristic_valid": 8,
+  "heuristic_pct": 4.0,
+  "syntax_valid": 0,
+  "syntax_pct": 0.0,
+  "valid_examples": [],
+  "failed_high_acc": []
+}
