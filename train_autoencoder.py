@@ -21,13 +21,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from data_processing import create_data_loaders
 from models import ASTAutoencoder
-from loss import ast_reconstruction_loss_improved
+from loss import (
+    ast_reconstruction_loss_improved,
+    ast_reconstruction_loss_comprehensive,
+    ast_reconstruction_loss_simple,
+    ast_reconstruction_loss,
+)
 
 # Performance optimization: Cache CUDA availability
 CUDA_AVAILABLE = torch.cuda.is_available()
 
 
-def train_epoch(model, train_loader, optimizer, device, type_weight, parent_weight, scaler):
+def train_epoch(model, train_loader, optimizer, device, type_weight, parent_weight, scaler, loss_fn=None):
+    if loss_fn is None:
+        loss_fn = ast_reconstruction_loss_improved
     model.train()
     total_loss = 0.0
     num_graphs = 0
@@ -55,7 +62,7 @@ def train_epoch(model, train_loader, optimizer, device, type_weight, parent_weig
         # Use pre-computed autocast context
         with autocast_ctx:
             result = model(data)
-            loss = ast_reconstruction_loss_improved(
+            loss = loss_fn(
                 data, 
                 result['reconstruction'],
                 type_weight=type_weight,
@@ -79,7 +86,9 @@ def train_epoch(model, train_loader, optimizer, device, type_weight, parent_weig
     return total_loss / num_graphs if num_graphs > 0 else 0.0
 
 
-def validate_epoch(model, val_loader, device, type_weight, parent_weight):
+def validate_epoch(model, val_loader, device, type_weight, parent_weight, loss_fn=None):
+    if loss_fn is None:
+        loss_fn = ast_reconstruction_loss_improved
     model.eval()
     total_loss = 0.0
     num_graphs = 0
@@ -97,7 +106,7 @@ def validate_epoch(model, val_loader, device, type_weight, parent_weight):
 
             with autocast_ctx:
                 result = model(data)
-                loss = ast_reconstruction_loss_improved(
+                loss = loss_fn(
                     data, 
                     result['reconstruction'],
                     type_weight=type_weight,
@@ -164,6 +173,9 @@ def parse_args():
                         help='Weight for the node type loss component.')
     parser.add_argument('--parent_weight', type=float, default=1.0,
                         help='Weight for the parent prediction loss component.')
+    parser.add_argument('--loss_fn', type=str, default='improved',
+                        choices=['improved', 'comprehensive', 'simple', 'original'],
+                        help='Loss function variant (default: improved)')
     parser.add_argument('--profile', action='store_true',
                         help='Enable profiling for one epoch to identify performance bottlenecks.')
     return parser.parse_args()
@@ -186,8 +198,18 @@ def main():
         'conv_type': args.conv_type,
         'dropout': args.dropout,
         'freeze_encoder': True,  # Key requirement: freeze encoder
-        'encoder_weights_path': args.encoder_weights_path
+        'encoder_weights_path': args.encoder_weights_path,
+        'loss_fn': args.loss_fn,
     }
+
+    # Select loss function variant
+    LOSS_FUNCTIONS = {
+        'improved': ast_reconstruction_loss_improved,
+        'comprehensive': ast_reconstruction_loss_comprehensive,
+        'simple': ast_reconstruction_loss_simple,
+        'original': ast_reconstruction_loss,
+    }
+    loss_fn = LOSS_FUNCTIONS[args.loss_fn]
     
     print("📋 Training Configuration:")
     for key, value in config.items():
@@ -293,7 +315,7 @@ def main():
     for epoch in range(config['epochs']):
         epoch_start = time.time()
         
-        train_loss = train_epoch(model, train_loader, optimizer, device, args.type_weight, args.parent_weight, scaler)
+        train_loss = train_epoch(model, train_loader, optimizer, device, args.type_weight, args.parent_weight, scaler, loss_fn=loss_fn)
         
         # If profiling, stop after one training epoch and print results
         if args.profile:
@@ -303,7 +325,7 @@ def main():
             stats.print_stats(20)
             break # Exit after profiling
             
-        val_loss = validate_epoch(model, val_loader, device, args.type_weight, args.parent_weight)
+        val_loss = validate_epoch(model, val_loader, device, args.type_weight, args.parent_weight, loss_fn=loss_fn)
         
         epoch_time = time.time() - epoch_start
         

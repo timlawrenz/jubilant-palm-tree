@@ -46,13 +46,14 @@ fi
 
 mkdir -p models
 
-# Build extra args for loss function
-EXTRA_ARGS=""
-if [ "$LOSS_FN" = "ce" ]; then
-    EXTRA_ARGS="--loss_fn cross_entropy"
-elif [ "$LOSS_FN" = "combined" ]; then
-    EXTRA_ARGS="--loss_fn combined"
-fi
+# Map loss function name to train_autoencoder.py's --loss_fn flag
+LOSS_FN_MAP="improved"
+case "$LOSS_FN" in
+    ce)       LOSS_FN_MAP="improved" ;;   # improved already uses cross-entropy
+    mse)      LOSS_FN_MAP="simple" ;;     # simple uses MSE
+    combined) LOSS_FN_MAP="comprehensive" ;;
+    *)        LOSS_FN_MAP="$LOSS_FN" ;;
+esac
 
 # Run autoencoder training
 TRAIN_OUTPUT=$(python train_autoencoder.py \
@@ -66,7 +67,7 @@ TRAIN_OUTPUT=$(python train_autoencoder.py \
     --learning_rate "$LEARNING_RATE" \
     --type_weight "$TYPE_WEIGHT" \
     --parent_weight "$PARENT_WEIGHT" \
-    $EXTRA_ARGS \
+    --loss_fn "$LOSS_FN_MAP" \
     2>&1)
 
 echo "$TRAIN_OUTPUT"
