@@ -1,453 +1,69 @@
-# jubilant-palm-tree
+# The Neural Universal Machine: AI-Native Execution Graphs
 
-[![CircleCI](https://circleci.com/gh/timlawrenz/jubilant-palm-tree.svg?style=svg)](https://circleci.com/gh/timlawrenz/jubilant-palm-tree)
-
-## ⚠️ PROJECT STATUS: DISCONTINUED - RESEARCH FINDINGS AVAILABLE
-
-**This project has been discontinued as of November 2025.** The hierarchical graph-based approach to code generation has proven fundamentally incompatible with the sequential nature of programming languages. All findings, trained models, and analysis are preserved below for the research community.
-
-## Overview
-
-This project explored whether Graph Neural Networks (GNNs) could understand and generate Ruby code through Abstract Syntax Tree (AST) analysis. The experiment achieved **partial success**: neural networks can learn meaningful representations of code complexity, but **graph-based approaches fundamentally fail at code generation** due to architectural mismatch with sequential programming languages.
-
-### What Worked ✅
-- **Code complexity prediction**: GNN achieved 26.6% improvement over heuristic baselines (MAE 4.77 vs 6.50)
-- **Structural understanding**: Successfully processed 218,000 Ruby methods from 42 open-source projects
-- **Embedding learning**: 64-dimensional representations effectively cluster methods by complexity
-
-### What Failed ❌
-- **Graph-based code generation**: 0% syntactic validity after full training
-- **Hierarchical AST decoder**: Generates structurally plausible but semantically nonsensical code
-- **Text-code alignment**: Near-random performance (2-3% Recall@10)
-
-**Key Finding**: Code generation is fundamentally a sequence modeling problem, not a graph problem. See [Hierarchical Decoder Failure Analysis](docs/HIERARCHICAL_FAILURE_ANALYSIS.md) for detailed findings.
-
-## Project Results Summary
-
-❌ **Generative Approach Failed**: While GNN complexity prediction succeeded, all generative models (AST reconstruction, hierarchical decoder, text-to-code) failed fundamentally due to architecture mismatch. The hierarchical graph-based approach cannot capture the sequential semantics required for code generation.
-
-### Key Achievements & Status
-- **Superior Performance**: GNN model achieved a **Mean Absolute Error of 4.77**, a **~26.6% improvement** over the verified heuristic baseline of 6.50.
-- **Large-Scale Dataset**: The data pipeline successfully processed over **218,000 Ruby methods** from **42 open-source projects**.
-- **AST Reconstruction**: 🚧 **(In Progress)** The original "one-shot" autoencoder is non-functional, with **0% syntactic validity**. A new hierarchical decoder has been trained and is pending evaluation.
-- **Text-Code Alignment**: 🚧 **(In Progress)** The alignment model is non-functional, with retrieval metrics (**Recall@10 of ~2-3%**) indicating performance is near random chance.
-- **Text-to-Code Generation**: 🚧 **(In Progress)** The end-to-end pipeline is non-functional and unable to generate meaningful code from prompts.
-
-## Project Phases
-
-This project has been developed through 7 phases, with Phase 7 representing the next major advancement:
-
-### [Phase 1 - Data Generation & Preprocessing](docs/README_phase1.md) ✅ **COMPLETED**
-**Goal**: To produce a clean, structured dataset from raw source code, ready for model training.
-- [Source Code Aggregation](https://github.com/timlawrenz/jubilant-palm-tree/issues/1)
-- [Method Extraction](https://github.com/timlawrenz/jubilant-palm-tree/issues/2)
-- [Feature & Label Generation](https://github.com/timlawrenz/jubilant-palm-tree/issues/3)
-- [Dataset Assembly & Cleaning](https://github.com/timlawrenz/jubilant-palm-tree/issues/4)
-
-### [Phase 2 - Model Setup & Training](docs/README_phase2.md) ✅ **COMPLETED**
-**Goal**: To build, train, and benchmark the GNN model for complexity prediction.
-- [Python Environment Setup](https://github.com/timlawrenz/jubilant-palm-tree/issues/5)
-- [Data Ingestion & Graph Conversion](https://github.com/timlawrenz/jubilant-palm-tree/issues/9)
-- [GNN Model Definition](https://github.com/timlawrenz/jubilant-palm-tree/issues/10)
-- [Training & Validation Loop](https://github.com/timlawrenz/jubilant-palm-tree/issues/11)
-- [Heuristic Benchmark Implementation](https://github.com/timlawrenz/jubilant-palm-tree/issues/12)
-
-### [Phase 3 - Evaluation & Analysis](docs/README_phase3.md) ✅ **COMPLETED**
-**Goal**: To evaluate the trained model's performance and analyze its learned representations.
-- [Model Evaluation Script](https://github.com/timlawrenz/jubilant-palm-tree/issues/22)
-- [Embedding Visualization](https://github.com/timlawrenz/jubilant-palm-tree/issues/23)
-- [Final Report Generation](https://github.com/timlawrenz/jubilant-palm-tree/issues/24)
-
-### [Phase 4 - AST Autoencoder for Code Generation](docs/README_phase4.md) ❌ **FAILED & SUPERSEDED**
-**Goal**: To build and train a GNN-based decoder that can reconstruct a Ruby method's AST from its learned embedding, validating the generative potential of the embeddings.
-- [Autoencoder Model Definition](https://github.com/timlawrenz/jubilant-palm-tree/issues/34)
-- [AST Reconstruction Loss Function](https://github.com/timlawrenz/jubilant-palm-tree/issues/35)
-- [Autoencoder Training Loop](https://github.com/timlawrenz/jubilant-palm-tree/issues/36)
-- [Evaluation with Pretty-Printing](https://github.com/timlawrenz/jubilant-palm-tree/issues/37)
-- [And 8 additional issues for robust implementation and evaluation](docs/README_phase4.md)
-
-### [Phase 4b - Hierarchical AST Generation](docs/README_phase4b.md) ❌ **FAILED - DISCONTINUED**
-**Goal**: To build and train a functional generative model that can construct a Ruby method's AST from a learned embedding using a hierarchical, top-down approach. This phase replaces the failed "one-shot" autoencoder from the original Phase 4.
-- **Result**: Complete failure - 0% syntactic validity after full training (20 levels, 100 epochs)
-- **Root Cause**: Fundamental architecture mismatch - GNNs cannot model sequential code semantics
-- **See**: [Hierarchical Decoder Failure Analysis](docs/HIERARCHICAL_FAILURE_ANALYSIS.md) for detailed findings
-
-### [Phase 5 - Aligning Text and Code Embeddings](docs/README_phase5.md) 🚧 **IN PROGRESS**
-**Goal**: Train a text-encoder so that the embedding it produces for a method's description is located at the same point in the 64-dimensional space as the embedding our GNN produces for the method's AST.
-- [Alignment Training Loop](https://github.com/timlawrenz/jubilant-palm-tree/issues/77)
-
-### [Phase 6 - Text-to-Code Generation](docs/README_phase6.md) 🚧 **IN PROGRESS**
-**Goal**: Complete the end-to-end text-to-code generation pipeline by combining aligned text-code embeddings with AST reconstruction to generate Ruby code from natural language descriptions.
-- Complete integration of all phases into working text-to-code system
-- Demonstrated successful generation for arithmetic and array operations
-- Identified decoder limitations for complex control flow structures
-
-### [Phase 7 - Advanced Decoder Architectures](docs/README_phase7.md) 🚧 **PLANNED**
-**Goal**: To overcome the limitations of the simple, one-shot decoder by implementing a more powerful, autoregressive model that can generate complex, nested code structures.
-- [Update Data Loader for Autoregressive Training](https://github.com/timlawrenz/jubilant-palm-tree/issues/27)
-- [Implement Autoregressive AST Decoder Model](https://github.com/timlawrenz/jubilant-palm-tree/issues/28)
-- [Implement Autoregressive Training Loop](https://github.com/timlawrenz/jubilant-palm-tree/issues/29)
-- [Implement Autoregressive Inference](https://github.com/timlawrenz/jubilant-palm-tree/issues/30)
-
-## Quick Start
-
-### Prerequisites
-- Ruby 2.7+ and Python 3.8+
-- PyTorch and PyTorch Geometric for GNN training
-- See individual phase READMEs for detailed setup instructions
-
-### End-to-End Setup (Recommended)
-
-For a complete setup from scratch, use the master pipeline script that executes all data preparation and training steps in the correct order:
-
-```bash
-# Run the complete end-to-end pipeline
-./scripts/run_full_pipeline.sh
-```
-
-This script will:
-1. **Data Preparation**: Clone repositories, extract methods, process data, create paired datasets, and precompute embeddings
-2. **Production Model Training**: Train all four production models (GNN complexity, AST autoencoder, text-code alignment, autoregressive decoder)
-3. **Sample Assets**: Generate sample datasets and train lightweight sample models for testing
-
-The script includes robust error handling and clear progress messages for each stage. It serves as the single source of truth for the complete workflow and ensures reproducible results.
-
-### Key Components
-```bash
-# Dataset and models
-dataset/                  # 1,896 processed Ruby methods (train/val/test splits)  
-dataset/samples/          # Small sample datasets for fast testing
-src/models.py            # GNN models and autoencoder architecture
-models/best_model.pt            # Pre-trained complexity prediction model
-models/best_decoder.pt          # Trained AST reconstruction decoder (one-shot, failed)
-models/hierarchical/            # Trained hierarchical AST decoder models
-models/best_alignment_model.pt  # Trained text-code alignment model
-models/samples/                 # Lightweight sample models for testing
-
-# Training and evaluation
-train.py                 # GNN complexity prediction training
-train_autoencoder.py     # AST autoencoder training (one-shot, failed)
-train_alignment.py       # Text-code alignment training
-train_hierarchical.py    # Hierarchical AST decoder training
-train_autoregressive.py  # Autoregressive AST decoder training
-scripts/train_sample_models.sh  # Create sample models for fast testing
-evaluate_autoencoder_optimized.py  # Large-scale evaluation
-
-# Code generation tools
-generate_code.py         # Complete text-to-code generation pipeline
-scripts/pretty_print_ast.rb  # Convert AST JSON to Ruby code
-notebooks/demonstrate_text_to_code.ipynb  # Interactive text-to-code demo
-notebooks/evaluate_autoencoder.ipynb     # Interactive evaluation
-```
-
-## Testing and CI
-
-The project uses lightweight sample datasets and models for fast testing and continuous integration:
-
-- **Sample Datasets**: Located in `dataset/samples/`, contain 20 representative examples each
-- **Sample Models**: Located in `models/samples/`, are lightweight versions of trained models  
-- **CI Strategy**: CircleCI runs tests using only sample data, avoiding large file downloads
-- **Test Coverage**: All test files matching `tests/test_*.py` are executed in CI for comprehensive coverage
-
-### Project Organization
-
-The repository is organized into dedicated directories for better maintainability:
-
-```bash
-tests/          # All test files (test_*.py, validate_*.py, verify_*.py)
-demos/          # Demo scripts showing functionality (demo_*.py, demonstrate_*.py)  
-examples/       # Usage examples (example_*.py)
-```
-
-### Debugging Evaluation
-
-When running the evaluation script (`scripts/evaluate_model.py`), a CSV file with detailed results is generated. This file is crucial for debugging, especially in the early stages of training.
-
-The `reconstructed_ast` column shows the raw JSON output of the model's decoder before it's converted back into Ruby code. If you see a flat list of nodes of type `unknown`, like this:
-
-```json
-"[{""type"": ""unknown"", ""children"": []}, {""type"": ""unknown"", ""children"": []}]"
-```
-
-This is a clear indicator that the model is undertrained. It has not yet learned to predict the correct node types or the hierarchical structure of the Abstract Syntax Tree. As a result, all subsequent metrics (like syntactic validity and BLEU score) will be zero because no valid Ruby code can be generated from this malformed AST.
-
-To run the full test suite locally:
-```bash
-# Run all test files (all files matching tests/test_*.py are executed in CI)
-for test_file in tests/test_*.py; do
-  echo "Running $test_file"
-  python "$test_file"
-done
-
-# Or run individual tests:
-python tests/test_dataset.py      # Tests data loading and processing
-python tests/test_autoencoder.py  # Tests AST autoencoder functionality  
-python tests/test_alignment_model.py  # Tests text-code alignment
-```
-
-### Quick Demo
-```python
-# Load trained autoencoder for AST reconstruction
-from src.models import ASTAutoencoder
-
-autoencoder = ASTAutoencoder(
-    encoder_input_dim=74,
-    node_output_dim=74,
-    hidden_dim=64,
-    freeze_encoder=True,
-    encoder_weights_path="models/best_model.pt"
-)
-)
-
-# Complete pipeline: AST → embedding → reconstructed AST
-result = autoencoder(ast_data)
-embedding = result['embedding']           # 64-dimensional representation
-reconstruction = result['reconstruction'] # Reconstructed AST
-```
-
-### Sample Models for Testing
-
-For fast testing and development, lightweight sample models can be trained using minimal data:
-
-```bash
-# Train all sample models at once (fast, 1 epoch each)
-./scripts/train_sample_models.sh
-
-# Generated sample models in models/samples/:
-# - best_model.pt                    (complexity prediction)
-# - best_decoder.pt                  (AST autoencoder)
-# - best_alignment_model.pt          (text-code alignment)
-# - best_autoregressive_decoder.pt   (autoregressive decoder)
-```
-
-**Use Cases for Sample Models:**
-- **Unit Testing**: Fast model loading and inference testing
-- **CI/CD Pipelines**: Lightweight validation without full model training
-- **Development**: Quick iteration and debugging
-- **Integration Testing**: End-to-end pipeline validation
-
-**Training Individual Sample Models:**
-```bash
-# Train individual models with custom parameters
-python train.py --dataset_path dataset/samples/ --epochs 1 --output_path models/samples/test_model.pt
-python train_autoencoder.py --dataset_path dataset/samples/ --epochs 1 --output_path models/samples/test_decoder.pt
-python train_alignment.py --dataset_path dataset/samples/ --epochs 1 --output_path models/samples/test_alignment.pt
-python train_autoregressive.py --dataset_path dataset/samples/ --epochs 1 --output_path models/samples/test_autoregressive.pt
-```
-
-### Text-to-Code Generation
-```bash
-# Generate Ruby code from natural language
-python generate_code.py "a method that adds two numbers"
-
-# Interactive code generation
-python generate_code.py --interactive
-```
-
-```python
-# Use in Python scripts
-from generate_code import CodeGenerator
-
-generator = CodeGenerator()
-ruby_code = generator.generate_code("calculate total price with tax")
-print(ruby_code)
-```
-
-## Project Results
-
-### Complexity Prediction (Phases 1-3)
-- **GNN Model Performance**: Verified MAE of **4.77** vs. heuristic baseline of **6.50** (**~26.6% improvement**).
-- **Embedding Quality**: 64-dimensional representations effectively cluster methods by complexity.
-- **Dataset Scale**: Over **218,000 Ruby methods** from **42 open-source projects**.
-- **Training Stability**: 100 epochs with robust convergence on the full dataset.
-
-### AST Reconstruction (Phase 4)
-- **Current Status**: The AST autoencoder is **non-functional**.
-- **Performance**: The model achieves **0% syntactic validity** and **0% AST isomorphism**. It is incapable of reconstructing a valid AST from an embedding.
-- **Conclusion**: The initial one-shot decoder architecture is flawed or was severely undertrained. The "100% structural preservation" claim was inaccurate.
-
-### Hierarchical AST Generation (Phase 4b) - **FAILED**
-- **Current Status**: Training complete (20 levels, 8 hours). Validation shows **0% syntactic validity**.
-- **Approach**: Coarse-to-fine, level-by-level AST generation using Graph Neural Networks.
-- **Failure Mode**: Model generates repetitive, semantically nonsensical patterns despite loss convergence.
-- **Root Cause**: Graph-based approach incompatible with sequential nature of code. See [detailed analysis](docs/HIERARCHICAL_FAILURE_ANALYSIS.md).
-- **Conclusion**: GNNs excel at reasoning over fixed graphs but cannot generate sequential code structures.
-
-### Text-Code Alignment (Phase 5)
-- **Current Status**: The alignment model is **non-functional**.
-- **Performance**: Retrieval metrics are near random chance (**Recall@10 of ~2-3%**), indicating the model cannot align text and code embeddings.
-- **Conclusion**: The previously reported "43.5% loss improvement" was a misleading vanity metric that did not correlate with functional performance.
-
-### Text-to-Code Generation (Phase 6)
-- **Current Status**: The end-to-end pipeline is **non-functional**.
-- **Performance**: The system fails to generate meaningful or syntactically correct code for even simple prompts like "a method that adds two numbers".
-- **Conclusion**: As the upstream autoencoder and alignment models are non-functional, the generation pipeline fails as expected.
-- **Future Direction**: The planned autoregressive architecture in Phase 7 is not an enhancement but a necessary first step toward building a functional code generator.
-
-### Advanced Decoder Architectures (Phase 7) - **DISCONTINUED**
-- **Status**: Not implemented. Project discontinued after Phase 4b failure analysis.
-- **Original Plan**: Autoregressive transformer-based decoder for sequential code generation.
-- **Recommendation**: Future researchers should start with proven transformer architectures (GPT-style) rather than graph-based approaches for code generation tasks.
-
-## Development Setup
-
-### Sample Data for Testing and CI
-
-For development and CI/CD environments where the full LFS-managed dataset files are not available, you can generate small sample datasets that are checked directly into the repository.
-
-```bash
-# Generate sample datasets (first 20 lines from each dataset file)
-./scripts/create_sample_datasets.sh
-```
-
-This script creates the `dataset/samples/` directory and generates five sample files:
-- `train_sample.jsonl`
-- `validation_sample.jsonl` 
-- `test_sample.jsonl`
-- `train_paired_data_sample.jsonl`
-- `validation_paired_data_sample.jsonl`
-
-These sample files are used for testing and CI environments where quick test execution is needed without downloading the full dataset.
-
-### Ruby Dependencies (Required for AST processing)
-
-**Quick Setup for Copilot Agents:**
-```bash
-# Automated setup - recommended for Copilot coding agents
-./setup-ruby.sh
-
-# Activate Ruby environment in current session
-source .env-ruby
-```
-
-**Manual Setup (if needed):**
-```bash
-# Install Ruby gems to user directory (avoids permission errors)
-gem install --user-install bundler parser json
-
-# Configure environment for user gems
-export PATH="$HOME/.local/share/gem/ruby/$(ruby -e "puts RUBY_VERSION.match(/\d+\.\d+/)[0]").0/bin:$PATH"
-export GEM_PATH="$HOME/.local/share/gem/ruby/$(ruby -e "puts RUBY_VERSION.match(/\d+\.\d+/)[0]").0:$GEM_PATH"
-```
-
-### Python Environment
-```bash
-# Python dependencies for GNN models
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### Verify Installation
-```bash
-# Test Ruby AST processing
-ruby test-ruby-setup.rb
-
-# Test specific scripts
-ruby scripts/check_syntax.rb < scripts/check_syntax.rb
-
-# Test Python ML pipeline
-python tests/test_dataset.py
-python tests/test_autoencoder.py
-
-# Test AST pretty printing
-ruby scripts/pretty_print_ast.rb --help
-
-# Run example usage demonstrations
-python examples/example_usage.py
-python demos/demo_alignment_model.py
-```
-
-## Project Structure
-
-```
-jubilant-palm-tree/
-├── README_phase1.md          # Phase 1: Data Generation & Preprocessing
-├── README_phase2.md          # Phase 2: Model Setup & Training  
-├── README_phase3.md          # Phase 3: Evaluation & Analysis
-├── README_phase4.md          # Phase 4: AST Autoencoder for Code Generation
-├── README_phase4b.md         # Phase 4b: Hierarchical AST Generation
-├── README_phase5.md          # Phase 5: Text and Code Embeddings
-├── README_phase6.md          # Phase 6: Text-to-Code Generation
-├── README_phase7.md          # Phase 7: Advanced Decoder Architectures
-├── dataset/                  # ML-ready Ruby method dataset
-├── src/                      # GNN models and training code
-├── scripts/                  # Data processing and AST conversion tools
-├── notebooks/                # Analysis and evaluation notebooks
-├── generate_code.py          # Text-to-code generation pipeline
-├── train.py                  # GNN complexity prediction training
-├── train_autoencoder.py      # AST autoencoder training
-├── train_alignment.py        # Text-code alignment training
-├── train_hierarchical.py     # Hierarchical AST decoder training
-└── train_autoregressive.py   # Autoregressive decoder training (Phase 7)
-```
+*A research initiative pivoting from human-readable code generation to pure, topological execution matrices.*
 
 ---
 
-## Research Findings & Lessons Learned
+## The History: The Literal Value Bottleneck
 
-This project provides valuable negative results for the research community:
+This project initially explored whether Graph Neural Networks (GNNs) could learn to generate valid code by treating Abstract Syntax Trees (ASTs) as graphs. We trained GNN autoencoders on 22,452 Ruby ASTs. 
 
-### ✅ What Works
-- **GNN-based complexity prediction**: Outperforms heuristics by 26.6% (MAE 4.77)
-- **Structural code understanding**: GNNs effectively learn AST patterns
-- **Large-scale AST processing**: Pipeline handles 200K+ methods successfully
+The models achieved **81% node type accuracy** and **99.5% type diversity**, yet generated exactly **0% syntactically valid code**. 
 
-### ❌ What Doesn't Work
-- **Graph-based code generation**: 0% validity despite 100 training epochs
-- **Hierarchical GNN decoders**: Cannot capture sequential code semantics
-- **MSE loss on code features**: Wrong objective for discrete code generation
-- **Small embeddings for code**: 64D insufficient (CodeBERT uses 768D+)
+The root cause was identified as the **Literal Value Bottleneck**. Nearly 47% of all AST nodes were literal values (method names, variable names, strings, numbers). Because these were collapsed into undifferentiated `UNKNOWN` tokens during structural encoding, the model could perfectly reconstruct the skeleton of a program while entirely losing the semantic "content." Furthermore, forcing a one-shot GNN to guess both node types and edge connections simultaneously led to severe mode collapse (the "chicken and egg" problem of graph generation).
 
-### 🔬 Key Research Insights
+For a detailed breakdown of these Phase 4B experiments and metrics, see: [**The Literal Value Bottleneck (Blog Post)**](blog_post.md).
 
-1. **Code generation is sequence modeling**: Despite ASTs having graph structure, generating them requires sequential/autoregressive models (transformers) not graph models (GNNs).
-
-2. **Loss convergence ≠ learning**: The hierarchical model's loss decreased from -3.46 to -70.28, but validation showed 0% validity. The model learned to minimize MSE without capturing code semantics.
-
-3. **Architecture matters more than tuning**: No amount of hyperparameter optimization can fix fundamental architecture mismatch.
-
-4. **Pre-training is crucial**: Custom 64D embeddings insufficient; state-of-the-art uses 768D+ pre-trained on billions of code tokens.
-
-### 📊 Complete Documentation
-
-All experimental data and findings are preserved for the research community:
-
-- **[Hierarchical Decoder Failure Analysis](docs/HIERARCHICAL_FAILURE_ANALYSIS.md)**: Comprehensive analysis of why graph-based generation failed
-- **Training Logs**: `training_log_with_penalty.txt` (9.7MB, 100 epochs across 20 levels)
-- **Trained Models**: `models/hierarchical/` (20 level models, ~850K parameters total)
-- **Validation Results**: `validation_results_hierarchical.txt`
-- **Loss Analysis**: `docs/hierarchical_training_analysis.png`
-- **Diagnostic Plots**: `docs/hierarchical_failure_analysis.png`
-
-### 🎓 For Future Researchers
-
-**If you're working on code generation**:
-- ✅ DO use transformer-based autoregressive models (proven: GPT, CodeT5, StarCoder)
-- ✅ DO use pre-trained embeddings (CodeBERT, GraphCodeBERT)
-- ✅ DO use cross-entropy loss on tokens, not MSE on features
-- ❌ DON'T use GNNs for generation (they're for graph reasoning, not sequential synthesis)
-- ❌ DON'T use hierarchical independence (breaks semantic coherence)
-
-**If you're working on code understanding** (complexity, bug detection, etc.):
-- ✅ GNNs work well for these tasks (as this project demonstrates)
-- ✅ AST-based graph representations are effective
-- ✅ Smaller models (64D embeddings) can be sufficient
-
-## License & Data Availability
-
-**All research materials are released under [CC0 1.0 Universal (Public Domain)](https://creativecommons.org/publicdomain/zero/1.0/)**
-
-You are free to:
-- ✅ Use all data, models, and findings for any purpose
-- ✅ Modify and redistribute without attribution
-- ✅ Use in commercial and academic research
-- ✅ Learn from our failures without repeating them
-
-**No rights reserved. All negative results are contributed to the public domain.**
-
-The dataset, trained models, training logs, and analysis are preserved in this repository for the benefit of the research community. We hope others can learn from this experiment's findings—both positive and negative.
+Previous documentation and research state can be found in `README_archive_phase4b.md`.
 
 ---
 
-*This project demonstrates that while Graph Neural Networks excel at code understanding tasks like complexity prediction, they fundamentally fail at code generation due to architectural mismatch with sequential programming languages. The complete experimental record is preserved here as a cautionary tale and learning resource for future researchers. Detailed phase documentation is available in the individual phase README files in the docs/ directory.*
+## The Pivot: Eradicating Human Syntax
+
+The current paradigm of using AI to generate code acts as a translation bottleneck: a high-dimensional neural network collapses its probabilistic understanding into a linear, human-readable string of characters, which a compiler then immediately parses *back* into a multi-dimensional graph to execute.
+
+If we remove the human from the loop, a "programming language" designed natively for AI should not be a language at all. It is a mathematical specification for a Directed Acyclic Graph (DAG). 
+
+We are pivoting the research to build a **Neural Universal Machine**. 
+
+### Core Principles
+1. **The Death of Variable Names:** Variable names are human mnemonics. The AI-native language relies entirely on directed edges. Data dependencies are pure topological routing.
+2. **Eradication of Syntax Sugar:** No parentheses, no brackets, no formatting. The code is saved directly as a sparse adjacency matrix and a minimal feature matrix.
+3. **Execution by Graph-Walk:** The matrix is not compiled or parsed; it is traversed directly by a minimal graph-walking interpreter.
+4. **Guaranteed Syntax:** Because the model generates mathematical graph topology directly rather than stringing text together, "syntax errors" are mathematically impossible. 
+
+---
+
+## The New Architecture: Scaffold and Fill
+
+To solve the literal value bottleneck and the mode collapse of pure GNN generation, we are adopting a **Motif-Driven Hybrid Architecture**—a system divided into two strict "branches of government":
+
+### 1. The Executive Branch (Structural Matrix Generation)
+A **Diffusion Transformer (DiT) / Flow Matching model** is responsible solely for predicting the graph topology. 
+*   **Iterative Denoising:** By using diffusion, we give the nodes the computational "time" to negotiate their connections and resolve into mathematically legal states.
+*   **Macro-Motifs:** Instead of predicting granular syntax (like `def` or `args`), the DiT predicts Turing-complete structural Motifs (based on the Böhm-Jacopini theorem): `[Sequence]`, `[Condition]`, `[Loop]`, `[State]`, `[Message]`, and `[Boundary]`.
+*   The DiT knows nothing about human language. It purely outputs a mathematically valid logic scaffold (an adjacency matrix).
+
+### 2. The Legislative Branch (The Semantic Custodian)
+A **Semantic LLM** acts as the data custodian. 
+*   It looks at the generated motif scaffold and the human intent, and maps human literals (strings, external function names) into a Constant Pool. 
+*   The structural matrix interfaces with these literals purely through integer pointers. The LLM acts as the compiler/renderer for the "content", leaving the structural physics entirely to the DiT.
+
+### 3. The Virtual Machine (Graph-Walk Interpreter)
+To execute the generated matrix, we bypass native language ASTs completely. The **Graph-Walk Interpreter** is a minimal execution engine that drops a token onto the `[Boundary]` node and routes it through the matrix's directed edges. 
+*   It evaluates `[Condition]` nodes and routes the execution pointer accordingly.
+*   It updates a state dictionary when traversing `[State]` nodes.
+*   It fires external logic when hitting a `[Message]` node.
+
+---
+
+## Roadmap
+
+This pivot redefines the immediate technical milestones of the project:
+
+1. **Dataset Compression:** Write a parser to run over the 22,452 Ruby AST graphs, strip away the 74-dimensional Ruby syntax, and collapse the human logic into our 6 language-agnostic Universal Motifs. This distills the dataset into pure human problem-solving topology.
+2. **Execution Engine MVP:** Write the Graph-Walk Interpreter and hardcode a simple mathematical graph (like a Fibonacci sequence) to prove execution natively inside the matrix structure.
+3. **DiT Generation Model:** Train the Diffusion Transformer on the compressed dataset to iteratively denoise empty matrices into valid Motif structures.
+4. **Semantic Integration:** Connect the LLM rendering bridge to populate the DiT scaffolds with executable literals. 
+
+*The detailed technical specification for this phase is tracked via OpenSpec in `openspec/changes/pivot-to-execution-graphs/`.*
