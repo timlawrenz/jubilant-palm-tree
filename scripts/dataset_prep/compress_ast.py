@@ -169,7 +169,7 @@ if __name__ == "__main__":
     output_path = "dataset/compressed/compressed_motifs.jsonl"
     
     if os.path.exists(input_path):
-        # We will process the first 100 as a quick test of the compressor
-        compress_dataset(input_path, output_path, limit=100)
+        # We will process the full file
+        compress_dataset(input_path, output_path, limit=None)
     else:
         print(f"Input file {input_path} not found.")
