@@ -12,11 +12,17 @@ from src.models.loss import compute_flow_matching_loss
 from src.models.inference import sample_graph
 from src.models.validation import GraphValidator
 
-def get_curriculum_phase(epoch: int) -> int:
-    """Returns the max_nodes limit based on the training epoch."""
-    if epoch <= 50:
+def get_curriculum_phase(epoch: int, batch_size: int) -> int:
+    """
+    Returns the max_nodes limit based on the effective number of optimization steps.
+    Since we dropped batch_size from 32 to 16, we double the epoch thresholds 
+    so the model sees the same amount of gradient updates before advancing.
+    """
+    # Equivalent to Epoch 50 at BS=32
+    if epoch <= 100:
         return 10  # Phase 1: Physics Engine (Tiny graphs)
-    elif epoch <= 150:
+    # Equivalent to Epoch 150 at BS=32
+    elif epoch <= 300:
         return 30  # Phase 2: Control Flow (Medium graphs)
     else:
         return 128 # Phase 3: The Crucible (Full dataset)
@@ -41,12 +47,12 @@ def train():
     writer = SummaryWriter(log_dir=log_dir)
     print(f"TensorBoard logging initialized. Run: `tensorboard --logdir=runs`")
     
-    epochs = 200
+    epochs = 400
     batch_size = 16 # Optimized balance: fits in 8GB VRAM but smooths out the gradient variance better than BS=4
 
     for epoch in range(1, epochs + 1):
         # --- CURRICULUM UPDATE ---
-        current_max_nodes = get_curriculum_phase(epoch)
+        current_max_nodes = get_curriculum_phase(epoch, batch_size)
         
         # Re-initialize dataset to filter by current_max_nodes
         dataset = ExecutionGraphDataset(
