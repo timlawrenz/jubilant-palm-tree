@@ -1,7 +1,7 @@
 ## 1. Execution Engine (Graph-Walk Interpreter)
-- [ ] 1.1 Define the adjacency matrix schema representing the 6 Motifs and edge routing.
-- [ ] 1.2 Implement the graph-walker script to traverse nodes, update state dictionary, route conditions, and execute messages.
-- [ ] 1.3 Hardcode a "Hello World" mathematical graph (e.g., Fibonacci or simple sort) to validate the interpreter before DiT integration.
+- [x] 1.1 Define the adjacency matrix schema representing the 6 Motifs and edge routing.
+- [x] 1.2 Implement the graph-walker script to traverse nodes, update state dictionary, route conditions, and execute messages.
+- [x] 1.3 Hardcode a "Hello World" mathematical graph (e.g., Fibonacci or simple sort) to validate the interpreter before DiT integration.
 
 ## 2. Generative Model
 - [ ] 2.1 Design Diffusion Transformer (DiT) architecture for structural Motif matrix generation.
