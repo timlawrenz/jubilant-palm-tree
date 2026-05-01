@@ -70,8 +70,13 @@ class ExecutionGraphDataset(Dataset):
             adjacency[0, source_idx, target_idx] = 1.0
             # Channel 1: Edge Type (0 for Exec, 1 for Data)
             adjacency[1, source_idx, target_idx] = float(e["edge_type"])
-            # Channel 2: Input Index (0, 1, 2...) scaled slightly so it doesn't blow up gradients
-            adjacency[2, source_idx, target_idx] = float(e["input_index"])
+            # The original edges list contains inputs indices that can theoretically exceed num_index_classes
+            # e.g., if a Method Call has 5 arguments, we get index 0,1,2,3,4. 
+            # To prevent CUDA CrossEntropy bounds crashes, we clamp the index to our class limit (K-1).
+            index_clamped = min(int(e["input_index"]), 3) # self.num_index_classes is 4
+            
+            # Channel 2: Input Index (Clamped for CE Loss)
+            adjacency[2, source_idx, target_idx] = float(index_clamped)
             
         # 4. Build Padding Mask (NxN grid of valid intersections)
         padding_mask[:num_nodes, :num_nodes] = True

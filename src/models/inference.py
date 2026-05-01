@@ -19,8 +19,8 @@ def sample_graph(model: NeuralUniversalMachineDiT, motifs: torch.Tensor, num_ste
     device = motifs.device
     
     # 1. Start at pure noise (t = 0)
-    # The channels are: 0=Presence, 1=EdgeType, 2=InputIndex
-    x = torch.randn((B, 3, MAX_NODES, MAX_NODES), device=device)
+    # Channels: 0=Presence, 1=EdgeType, plus 4 noise channels for the categorical logits input
+    x = torch.randn((B, 6, MAX_NODES, MAX_NODES), device=device)
     
     # 2. Time steps
     dt = 1.0 / num_steps
@@ -33,31 +33,34 @@ def sample_graph(model: NeuralUniversalMachineDiT, motifs: torch.Tensor, num_ste
         # Predict the constant velocity vector field
         velocity = model(x, t_tensor, motifs)
         
-        # Take an Euler step: x_{t+dt} = x_t + v * dt
-        x = x + (velocity * dt)
+        # Extract only the 2 continuous velocity channels (Presence, Type) to integrate
+        velocity_continuous = velocity[:, :2, :, :]
+        x_continuous = x[:, :2, :, :]
+        x_continuous = x_continuous + (velocity_continuous * dt)
+        
+        # We also need to keep track of the categorical logits, so we just take the latest prediction
+        # Since logits aren't integrated like velocity, we just hold the raw prediction for Step 3
+        velocity_categorical_logits = velocity[:, 2:, :, :]
+        
+        # Update our x tensor
+        x = torch.cat([x_continuous, velocity_categorical_logits], dim=1)
     
     # 3. Discretize the Continuous Output
     # The output 'x' is now a continuous approximation.
     # Channel 0 (Presence) and Channel 1 (Type) are basically binary probabilities.
-    # Channel 2 (InputIndex) is ordinal, but we'll round it cleanly.
+    # Channel 2 is now categorical classification logits [B, K, N, N]
     
-    # Separate the channels for careful discretization
     presence_continuous = x[:, 0:1, :, :]
     type_continuous = x[:, 1:2, :, :]
-    index_continuous = x[:, 2:3, :, :]
     
-    # Squash and threshold binary channels
     presence_discrete = (torch.sigmoid(presence_continuous) > 0.5).int()
     type_discrete = (torch.sigmoid(type_continuous) > 0.5).int()
     
-    # Round the ordinal index channel (e.g., 0.9 -> 1, 0.1 -> 0)
-    # We only care about this where presence is 1, but we can round the whole thing safely
-    index_discrete = torch.round(index_continuous).int()
-    # Ensure index doesn't go below 0
-    index_discrete = torch.clamp(index_discrete, min=0)
+    index_logits = x[:, 2:, :, :]
+    index_discrete = torch.argmax(index_logits, dim=1).int()
     
     # Recombine
-    discrete_adjacency = torch.cat([presence_discrete, type_discrete, index_discrete], dim=1)
+    discrete_adjacency = torch.cat([presence_discrete, type_discrete, index_discrete.unsqueeze(1)], dim=1)
     
     # 4. Clean up the padding
     # Ensure any rows/cols where motifs == 0 (padding) remain 0

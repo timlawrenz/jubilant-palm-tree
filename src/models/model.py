@@ -2,7 +2,7 @@ import torch
 from src.models.dit import InputConditioner, GraphDiTBlock
 
 class NeuralUniversalMachineDiT(torch.nn.Module):
-    def __init__(self, hidden_dim=256, num_heads=8, depth=12, num_motifs=7, motif_dim=16, in_channels=3):
+    def __init__(self, hidden_dim=256, num_heads=8, depth=12, num_motifs=7, motif_dim=16, in_channels=6):
         super().__init__()
         self.conditioner = InputConditioner(num_motifs=num_motifs, motif_dim=motif_dim, in_channels=in_channels)
         
@@ -25,8 +25,12 @@ class NeuralUniversalMachineDiT(torch.nn.Module):
             for _ in range(depth)
         ])
         
-        # Project back down to 3 output channels (Velocity prediction)
-        self.proj_out = torch.nn.Conv2d(hidden_dim, in_channels, kernel_size=1)
+        # Project back down to output channels
+        # Channels 0 and 1 are continuous velocity for Flow Matching (Presence, EdgeType)
+        # Channels 2 to 2+K are the Categorical Classification logits for input_index
+        # So total output channels = 2 + num_index_classes
+        self.num_index_classes = 4 # 0, 1, 2, 3
+        self.proj_out = torch.nn.Conv2d(hidden_dim, 2 + self.num_index_classes, kernel_size=1)
         
     def forward(self, x_t, t, motifs):
         """

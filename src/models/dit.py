@@ -11,13 +11,13 @@ class InputConditioner(nn.Module):
         super().__init__()
         # 0=Padding, 1=Boundary, 2=Sequence, 3=Condition, 4=Loop, 5=State, 6=Message
         self.embedding = nn.Embedding(num_embeddings=num_motifs, embedding_dim=motif_dim)
-        self.out_channels = in_channels + (motif_dim * 2) # e.g. 3 + 16 + 16 = 35
+        self.out_channels = in_channels + (motif_dim * 2) # e.g. 6 + 16 + 16 = 38
 
     def forward(self, noisy_adj: torch.Tensor, motifs: torch.Tensor) -> torch.Tensor:
         """
-        noisy_adj: [B, 3, N, N]
+        noisy_adj: [B, 6, N, N]
         motifs: [B, N]
-        Returns: [B, 35, N, N]
+        Returns: [B, 38, N, N]
         """
         B, C, N, _ = noisy_adj.shape
         
