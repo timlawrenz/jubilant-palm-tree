@@ -37,11 +37,12 @@ def train():
     # 2. Initialize TensorBoard Writer
     run_name = f"num_dit_run_{int(time.time())}"
     log_dir = os.path.join("runs", run_name)
+    os.makedirs(log_dir, exist_ok=True)
     writer = SummaryWriter(log_dir=log_dir)
     print(f"TensorBoard logging initialized. Run: `tensorboard --logdir=runs`")
     
     epochs = 200
-    batch_size = 32 # Adjust based on RTX 4090 VRAM
+    batch_size = 16 # Optimized balance: fits in 8GB VRAM but smooths out the gradient variance better than BS=4
 
     for epoch in range(1, epochs + 1):
         # --- CURRICULUM UPDATE ---
