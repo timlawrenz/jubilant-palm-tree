@@ -3,10 +3,12 @@
 - [x] 1.2 Implement the graph-walker script to traverse nodes, update state dictionary, route conditions, and execute messages.
 - [x] 1.3 Hardcode a "Hello World" mathematical graph (e.g., Fibonacci or simple sort) to validate the interpreter before DiT integration.
 
-## 2. Generative Model
-- [ ] 2.1 Design Diffusion Transformer (DiT) architecture for structural Motif matrix generation.
-- [ ] 2.2 Define the minimal set of Turing-complete Motifs (Sequence, Condition, Loop, State, Message, Boundary).
-- [ ] 2.3 Implement the Semantic LLM compiler bridge to fetch literals from the Data Custodian and populate Motifs.
+## 2. Generative Model (Permuted Dense DiT)
+- [x] 2.1 Develop PyTorch `Dataset` & `DataLoader` to convert dynamic JSON graphs into padded `[3, 128, 128]` tensors with a boolean padding mask.
+- [x] 2.2 Implement Node Permutation Data Augmentation inside the DataLoader to mathematically destroy the DiT's spatial bias, enforcing topological invariance.
+- [x] 2.3 Implement the "Cross-Hatch" Embedding Injection layer to fuse 1D motif sequences into the 2D matrix, resolving the disconnect between nodes and edges.
+- [ ] 2.4 Design Diffusion Transformer (DiT) core blocks for structural Motif matrix generation, avoiding 2D spatial encodings in favor of symmetric node embeddings.
+- [ ] 2.5 Implement the Semantic LLM compiler bridge to fetch literals from the Data Custodian and populate Motifs.
 
 ## 3. Validation Harness
 - [ ] 3.1 Implement strict topological graph validation (checking circular dependencies, arity).
