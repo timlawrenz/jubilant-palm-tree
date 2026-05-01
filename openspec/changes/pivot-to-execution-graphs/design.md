@@ -12,6 +12,8 @@ The prior phase of the research proved that GNN autoencoders achieved 81% accura
   - Rationale: Single-pass GNNs fail at creating structure due to the "chicken and egg" problem of node/edge interdependence. Iterative denoising allows the graph to negotiate connections into a valid state.
 - Decision: Direct Graph-Walk Interpretation.
   - Rationale: Instead of mapping to a native language AST, the MVP will execute the adjacency matrix directly via a minimal graph-walking script. This proves the graph itself is structurally sound code without relying on Ruby/Python VM baggage.
+- Decision: Hybrid Continuous/Discrete Output for Edge Indexing.
+  - Rationale: Attempting to predict strict categorical constraints (like argument indexes 0 vs 1 vs 2) using a continuous MSE vector field causes frequent rounding collisions. The DiT's `input_index` channel is split into K classification logits trained via CrossEntropy, while Presence/EdgeType remain continuous Flow Matching targets.
 
 ## Risks / Trade-offs
 - Risk: The generated graph is entirely unreadable by humans.

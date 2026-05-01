@@ -32,17 +32,20 @@ Inside the `GraphDiTBlock`:
 1. **Row Attention (The "Outgoing" Perspective)**: Look across the rows `[B * H, W, C]`. The transformer evaluates all 128 potential outgoing connections simultaneously (e.g., "I am a Condition Motif. I must point to exactly two targets").
 2. **Column Attention (The "Incoming" Perspective)**: Look down the columns `[B * W, H, C]`. The transformer evaluates incoming data dependencies (e.g., "I am a State Motif. I can only accept one incoming data edge").
 
-## 4. The Training Objective: Optimal Transport Flow Matching
+## 4. The Training Objective: Hybrid Flow Matching & Classification
 
-Instead of DDPM, we use **Conditional Flow Matching (Optimal Transport)**.
-Flow matching draws a mathematically straight line from pure noise to the clean graph, and trains the network to predict the constant velocity along that line.
+Instead of DDPM, we use **Conditional Flow Matching (Optimal Transport)** for the continuous graph physics, combined with **Categorical Classification** for discrete argument ordering.
 
-*   **The Target**: $x_1$ (Clean 3-channel adjacency matrix)
+The model outputs 6 channels per edge coordinate:
+*   **Channels 0 & 1** (Presence, EdgeType): Trained via Optimal Transport to predict the continuous vector field velocity from noise to structure.
+*   **Channels 2-5** (Logit0 - Logit3): Trained via Cross-Entropy to classify the specific `input_index` of the edge (resolving the "Continuous Index Channel" collision issue).
+
+For the Continuous Channels (0 & 1):
+*   **The Target**: $x_1$ (Clean adjacency)
 *   **The Noise**: $x_0 \sim \mathcal{N}(0, I)$
-*   **The Interpolation**: $x_t = (1-t)x_0 + tx_1$
 *   **The Target Velocity**: $v_t = x_1 - x_0$
 
-**Masked Loss**: Because our graphs vary in size (padded to 128x128), calculating standard MSE would penalize the model for failing to perfectly denoise the empty void. We use a boolean `padding_mask` to zero out the error in the padded regions, averaging the loss ONLY over the valid node intersections.
+**Masked Loss**: Because our graphs vary in size (padded to 128x128), calculating standard MSE/CE would penalize the model for failing to perfectly denoise the empty void. We use a boolean `padding_mask` to zero out the error in the padded regions, averaging the loss ONLY over the valid node intersections.
 
 ## 5. Inference: Euler ODE Solver & Discretization
 
@@ -54,7 +57,9 @@ for step in range(num_steps):
     x = x + (velocity * dt) # Euler Step
 ```
 
-**Thresholding**: The output of the DiT is continuous. To yield a runnable execution graph, we push the continuous probabilities through a `Sigmoid` and threshold at `0.5`, snapping the vector field back into rigid 1s and 0s. 
+**Discretization**: The output of the DiT is continuous. To yield a runnable execution graph:
+1.  **Presence/Type**: Pushed through a `Sigmoid` and thresholded at `0.5`, snapping the vector field back into rigid 1s and 0s.
+2.  **Input Index**: An `argmax` is taken across the 4 logit channels to assign the exact integer routing for arguments and control flow branches.
 
 ## 6. The Validation Harness: The 5 Laws of Physics
 

@@ -75,8 +75,8 @@ This proves we can mathematically separate logic from semantics on a massive sca
 We engineered a specialized Diffusion Transformer (DiT) architecture capable of native graph generation without spatial biases:
 1. **Node Permutation & Cross-Hatch Injection**: The DataLoader randomly shuffles node ordering to mathematically destroy spatial bias. The 1D sequence of Motifs is embedded and "Cross-Hatched" (broadcasted across rows and columns) into the 2D noise matrix, giving the DiT 360-degree awareness of the structural nodes it is connecting.
 2. **Axial Attention**: Instead of ViT square patches, the DiT uses Message-Passing Axial Attention. It evaluates outgoing edges via Row-Attention and incoming edge constraints via Column-Attention.
-3. **Optimal Transport Flow Matching**: The DiT learns to predict the constant velocity vector between pure noise and the clean graph. We use a masked MSE loss to ensure gradients only flow through valid, unpadded graph intersections.
-4. **Deterministic Inference**: Sampling is performed using a 20-step Euler ODE solver, followed by Sigmoid thresholding to snap the continuous vector field back into rigid topological 1s and 0s.
+3. **Hybrid Flow Matching & Classification**: The DiT predicts continuous velocity vectors (via masked MSE) for topological routing, alongside categorical logits (via masked Cross-Entropy) to distinctly assign argument indices without continuous rounding collisions.
+4. **Deterministic Inference**: Sampling is performed using a 20-step Euler ODE solver, followed by Sigmoid thresholding to snap the continuous field into topological 1s and 0s, and an argmax over the logit channels to distinctively assign data argument routing.
 
 ### The Validation Harness: 5 Laws of Physics
 To deterministically grade the DiT's output (Syntactic Validity Rate), we implemented a static topological analyzer that enforces 5 absolute graph laws:
