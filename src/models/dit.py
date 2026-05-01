@@ -38,6 +38,86 @@ class InputConditioner(nn.Module):
         
         return dit_input
 
+
+class AdaLN(nn.Module):
+    def __init__(self, hidden_dim: int, timestep_dim: int = 256):
+        super().__init__()
+        self.proj = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(timestep_dim, hidden_dim * 2)
+        )
+        self.norm = nn.LayerNorm(hidden_dim)
+        
+    def forward(self, x: torch.Tensor, t_emb: torch.Tensor) -> torch.Tensor:
+        # x shape: [B, C, H, W], we need to apply AdaLN to the channel dim
+        # Let's permute to [B, H, W, C] for LayerNorm
+        x_perm = x.permute(0, 2, 3, 1)
+        x_norm = self.norm(x_perm)
+        
+        # t_emb shape: [B, timestep_dim] -> proj -> [B, 2*C]
+        scale_shift = self.proj(t_emb)
+        scale, shift = scale_shift.chunk(2, dim=-1)
+        
+        # Reshape to [B, 1, 1, C] for broadcasting
+        scale = scale.unsqueeze(1).unsqueeze(1)
+        shift = shift.unsqueeze(1).unsqueeze(1)
+        
+        x_out = x_norm * (1 + scale) + shift
+        # Permute back to [B, C, H, W]
+        return x_out.permute(0, 3, 1, 2)
+
+
+class Mlp(nn.Module):
+    def __init__(self, hidden_dim: int, mlp_ratio: float = 4.0):
+        super().__init__()
+        self.fc1 = nn.Linear(hidden_dim, int(hidden_dim * mlp_ratio))
+        self.act = nn.GELU()
+        self.fc2 = nn.Linear(int(hidden_dim * mlp_ratio), hidden_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.fc2(self.act(self.fc1(x)))
+
+
+class GraphDiTBlock(nn.Module):
+    """
+    Message-Passing DiT Block using Axial (Row-Column) Attention.
+    """
+    def __init__(self, hidden_dim: int, num_heads: int, timestep_dim: int = 256):
+        super().__init__()
+        # AdaLN for injecting the Diffusion Timestep (t)
+        self.adaln = AdaLN(hidden_dim, timestep_dim) 
+        
+        self.row_attn = nn.MultiheadAttention(hidden_dim, num_heads, batch_first=True)
+        self.col_attn = nn.MultiheadAttention(hidden_dim, num_heads, batch_first=True)
+        
+        self.mlp = Mlp(hidden_dim)
+
+    def forward(self, x: torch.Tensor, t_emb: torch.Tensor) -> torch.Tensor:
+        # x shape: [B, C, 128, 128]
+        B, C, H, W = x.shape
+        
+        # 1. Condition on Timestep
+        x_conditioned = self.adaln(x, t_emb)
+        
+        # 2. Row Attention (Outgoing Edges)
+        # Reshape to treat each row as a sequence: [B*H, W, C]
+        x_row = x_conditioned.permute(0, 2, 3, 1).reshape(B * H, W, C) 
+        x_row_out, _ = self.row_attn(x_row, x_row, x_row)
+        x = x + x_row_out.reshape(B, H, W, C).permute(0, 3, 1, 2)
+        
+        # 3. Column Attention (Incoming Edges)
+        # Reshape to treat each column as a sequence: [B*W, H, C]
+        # x is [B, C, H, W] -> permute(0, 3, 2, 1) -> [B, W, H, C]
+        x_col = x.permute(0, 3, 2, 1).reshape(B * W, H, C)
+        x_col_out, _ = self.col_attn(x_col, x_col, x_col)
+        x = x + x_col_out.reshape(B, W, H, C).permute(0, 3, 2, 1)
+        
+        # 4. Standard MLP
+        # Permute for MLP over channel dim
+        x = x + self.mlp(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+        
+        return x
+
 if __name__ == "__main__":
     # Test the cross-hatch injection
     B, N = 4, 128
@@ -52,3 +132,11 @@ if __name__ == "__main__":
     print(f"Cross-Hatched DiT Input: {dit_input.shape}")
     assert dit_input.shape == (B, 35, N, N)
     print("Cross-Hatch injection successful!")
+    
+    # Test GraphDiTBlock
+    block = GraphDiTBlock(hidden_dim=35, num_heads=7) # 35 is divisible by 7
+    t_emb = torch.randn(B, 256)
+    out = block(dit_input, t_emb)
+    print(f"GraphDiTBlock output: {out.shape}")
+    assert out.shape == (B, 35, N, N)
+    print("GraphDiTBlock successful!")

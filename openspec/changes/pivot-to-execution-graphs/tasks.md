@@ -7,7 +7,7 @@
 - [x] 2.1 Develop PyTorch `Dataset` & `DataLoader` to convert dynamic JSON graphs into padded `[3, 128, 128]` tensors with a boolean padding mask.
 - [x] 2.2 Implement Node Permutation Data Augmentation inside the DataLoader to mathematically destroy the DiT's spatial bias, enforcing topological invariance.
 - [x] 2.3 Implement the "Cross-Hatch" Embedding Injection layer to fuse 1D motif sequences into the 2D matrix, resolving the disconnect between nodes and edges.
-- [ ] 2.4 Design Diffusion Transformer (DiT) core blocks for structural Motif matrix generation, avoiding 2D spatial encodings in favor of symmetric node embeddings.
+- [x] 2.4 Design Diffusion Transformer (DiT) core blocks for structural Motif matrix generation, using Axial Attention (Row-Column) to learn topological edge rules without spatial assumptions.
 - [ ] 2.5 Implement the Semantic LLM compiler bridge to fetch literals from the Data Custodian and populate Motifs.
 
 ## 3. Validation Harness
