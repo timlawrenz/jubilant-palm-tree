@@ -102,7 +102,9 @@ class GraphValidator:
                 if out_count not in (0, 2): return False # 0 if just broken, 2 if valid
                 if out_count == 2:
                     indices = set([idx for idx, tgt in out_edges])
-                    if indices != {0, 1}: return False # Must have exactly True(0) and False(1)
+                    # Strict validation currently demands EXACTLY 0 and 1.
+                    # With blunt sigmoid thresholding, it's very easy to accidentally draw two 0s or two 1s.
+                    if indices != {0, 1}: return False 
         return True
 
     @classmethod
@@ -121,6 +123,7 @@ class GraphValidator:
                 if is_write and in_count != 1: return False
             elif motif == MotifType.MESSAGE:
                 # Indices must be sequential: 0, 1, 2...
+                # Again, incredibly hard for continuous MSE to perfectly round the index channel to exact integers
                 indices = sorted([idx for idx, src in in_edges])
                 if indices != list(range(in_count)): return False
         return True

@@ -5,26 +5,17 @@
 
 ---
 
-## 🎯 CURRENT STATUS: PHASE 4B - HIERARCHICAL DECODER TRAINED BUT NON-FUNCTIONAL ❌
+## 🎯 CURRENT STATUS: PHASE 5 - NEURAL UNIVERSAL MACHINE MVP PROVEN 🚀
 
 ### What's Happening Right Now?
-Training **COMPLETE** (all 20 levels), but validation shows **0% syntactic validity**. The model generates ASTs but they are semantically nonsensical despite being structurally plausible.
+The research has successfully pivoted away from human-readable syntax to generating pure topological execution graphs. We implemented a 6-Motif Universal schema, compressed the Ruby AST dataset, and trained a Permuted Dense DiT using Optimal Transport Flow Matching.
 
-### Training Progress
-- **Completed Levels**: 20 (levels 0-19) ✅✅✅
-- **Total Levels Planned**: 20
-- **Progress**: 100% complete ✅
-- **Training Completed**: 2025-11-20 07:03 UTC
-- **Final Loss**: Level 19, Epoch 5/5, Avg. Loss: -70.2750
-- **Models**: `models/hierarchical/hierarchical_decoder_level_[0-19].pt`
-- **Training Duration**: ~8 hours (2025-11-19 22:47 - 2025-11-20 07:03)
+### Training Progress & Findings
+- **Core Hypothesis Proven**: The DiT natively learned to route Directed Acyclic logic graphs (achieving near 100% pathing/acyclic pass rates out of pure noise).
+- **The Sticking Point**: Syntactic Validity Rate (SVR) is currently bottlenecked by the "Continuous Index Channel." The model successfully draws the general graph topology, but suffers index collisions because it is trying to predict discrete branching paths (e.g., True vs False edges) using a continuous MSE regression target.
 
-### Validation Results (2025-11-20)
-- **Syntactic Validity**: 0% (0/100 samples)
-- **AST Isomorphism**: 0%
-- **BLEU Score**: 0.0
-- **Issue**: Model generates repetitive, semantically meaningless patterns (e.g., `def` with 10 `casgn` children, each having 10 `range` children)
-- **Root Cause**: Architecture likely cannot capture semantic relationships from text embeddings alone
+### Next Immediate Action
+- **Architectural Refinement**: Transition the DiT's `input_index` channel from continuous MSE regression to a discrete Categorical Classification head (CrossEntropyLoss) to natively enforce mutually exclusive edge routing without rounding collisions.
 
 ---
 
