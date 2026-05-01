@@ -19,10 +19,10 @@
 - [ ] 4.3 Validate and measure accuracy of the output graphs.
 
 ## 5. Dataset Compression (Ruby AST to Universal Motifs)
-- [ ] 5.1 Implement a parser to load the 22,452 Ruby AST graphs from the current dataset.
-- [ ] 5.2 Build pattern recognition to identify `[Condition_Motif]` structures (if/else/case).
-- [ ] 5.3 Build pattern recognition to identify `[Loop_Motif]` structures (while/until/each).
-- [ ] 5.4 Map method definitions and module boundaries to `[Boundary_Motif]`.
-- [ ] 5.5 Map method invocations and property access to `[Message_Motif]`.
-- [ ] 5.6 Map assignments and variable declarations to `[State_Motif]`.
-- [ ] 5.7 Write out a new dataset containing purely the 6-Motif adjacency matrices (dropping all strings and 74-dim Ruby syntax).
+- [x] 5.1 Implement a parser to load the 22,452 Ruby AST graphs from the current dataset.
+- [x] 5.2 Build pattern recognition to identify `[Condition_Motif]` structures (if/else/case).
+- [x] 5.3 Build pattern recognition to identify `[Loop_Motif]` structures (while/until/each).
+- [x] 5.4 Map method definitions and module boundaries to `[Boundary_Motif]`.
+- [x] 5.5 Map method invocations and property access to `[Message_Motif]`.
+- [x] 5.6 Map assignments and variable declarations to `[State_Motif]`.
+- [x] 5.7 Write out a new dataset containing purely the 6-Motif adjacency matrices (dropping all strings and 74-dim Ruby syntax).

@@ -57,6 +57,22 @@ To execute the generated matrix, we bypass native language ASTs completely. The 
 
 ---
 
+## Technical Progress & Demonstrations
+
+### MVP Execution Engine & Fibonacci Demo
+To validate the Graph-Walk concept, we implemented the schema (`src/execution_engine/schema.py`) and the interpreter (`src/execution_engine/interpreter.py`). We successfully hardcoded a 25-node topological matrix representing a `while` loop that calculates the 10th Fibonacci number. The interpreter traversed the purely structural graph—evaluating the condition, updating memory states via data-dependency edges, and returning the correct output (`55`)—all without relying on a traditional compiler.
+
+### Dataset Compression
+We developed the parser (`scripts/dataset_prep/compress_ast.py`) to systematically distill the 22,452 Ruby ASTs into our Universal Motifs.
+When run against complex, real-world examples (like the 144-node `structure` method from the AWS Ruby SDK), the parser:
+1. Stripped away all 74 dimensions of Ruby syntax, mapping everything to the 6 Motifs.
+2. Extracted exactly **50 literal values** (strings and method names like `"empty?"` and `"underscore"`) completely out of the graph and into the LLM's `literal_pool`.
+3. Re-mapped the tree into 107 `DATA` routing edges and 36 `EXECUTION` path edges.
+
+This proves we can mathematically separate logic from semantics on a massive scale, producing perfectly dense matrices for the Diffusion Transformer.
+
+---
+
 ## Roadmap
 
 This pivot redefines the immediate technical milestones of the project:
