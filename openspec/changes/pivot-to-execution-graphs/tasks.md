@@ -8,12 +8,12 @@
 - [x] 2.2 Implement Node Permutation Data Augmentation inside the DataLoader to mathematically destroy the DiT's spatial bias, enforcing topological invariance.
 - [x] 2.3 Implement the "Cross-Hatch" Embedding Injection layer to fuse 1D motif sequences into the 2D matrix, resolving the disconnect between nodes and edges.
 - [x] 2.4 Design Diffusion Transformer (DiT) core blocks for structural Motif matrix generation, using Axial Attention (Row-Column) to learn topological edge rules without spatial assumptions.
-- [ ] 2.5 Implement the Semantic LLM compiler bridge to fetch literals from the Data Custodian and populate Motifs.
+- [x] 2.5 Implement the Semantic LLM compiler bridge to fetch literals from the Data Custodian and populate Motifs.
 
 ## 3. Validation Harness
-- [ ] 3.1 Implement strict topological graph validation (checking circular dependencies, arity).
-- [ ] 3.2 Build the execution feedback loop that returns node failure locations and memory buffer states.
-- [ ] 3.3 Create vectorized error state formatting for DiT feedback.
+- [x] 3.1 Implement strict topological graph validation (checking circular dependencies, arity).
+- [x] 3.2 Build the execution feedback loop that returns node failure locations and memory buffer states.
+- [x] 3.3 Create vectorized error state formatting for DiT feedback.
 
 ## 4. MVP Demonstration
 - [ ] 4.1 Define semantic goal for an algorithmic task (e.g., sort array, Fibonacci).

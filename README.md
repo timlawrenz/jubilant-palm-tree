@@ -71,6 +71,23 @@ When run against complex, real-world examples (like the 144-node `structure` met
 
 This proves we can mathematically separate logic from semantics on a massive scale, producing perfectly dense matrices for the Diffusion Transformer.
 
+### Generative Model: Permuted Dense DiT & Flow Matching
+We engineered a specialized Diffusion Transformer (DiT) architecture capable of native graph generation without spatial biases:
+1. **Node Permutation & Cross-Hatch Injection**: The DataLoader randomly shuffles node ordering to mathematically destroy spatial bias. The 1D sequence of Motifs is embedded and "Cross-Hatched" (broadcasted across rows and columns) into the 2D noise matrix, giving the DiT 360-degree awareness of the structural nodes it is connecting.
+2. **Axial Attention**: Instead of ViT square patches, the DiT uses Message-Passing Axial Attention. It evaluates outgoing edges via Row-Attention and incoming edge constraints via Column-Attention.
+3. **Optimal Transport Flow Matching**: The DiT learns to predict the constant velocity vector between pure noise and the clean graph. We use a masked MSE loss to ensure gradients only flow through valid, unpadded graph intersections.
+4. **Deterministic Inference**: Sampling is performed using a 20-step Euler ODE solver, followed by Sigmoid thresholding to snap the continuous vector field back into rigid topological 1s and 0s.
+
+### The Validation Harness: 5 Laws of Physics
+To deterministically grade the DiT's output (Syntactic Validity Rate), we implemented a static topological analyzer that enforces 5 absolute graph laws:
+1. **Execution Out-Degree** (Valid branching limits per Motif)
+2. **Data In-Degree** (Strict argument arity constraints)
+3. **No Orphans** (BFS reachability)
+4. **Acyclic Data Plane** (DFS paradox/cycle detection)
+5. **Terminal Sink** (Escape hatch routing for infinite loops)
+
+*For a detailed breakdown of the math and implementation, see [docs/neural-universal-machine-architecture.md](docs/neural-universal-machine-architecture.md).*
+
 ---
 
 ## Roadmap
