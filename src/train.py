@@ -12,20 +12,19 @@ from src.models.loss import compute_flow_matching_loss
 from src.models.inference import sample_graph
 from src.models.validation import GraphValidator
 
-def get_curriculum_phase(epoch: int, batch_size: int) -> int:
+def get_curriculum_phase(epoch: int) -> tuple[int, int, int]:
     """
-    Returns the max_nodes limit based on the effective number of optimization steps.
-    Since we dropped batch_size from 32 to 16, we double the epoch thresholds 
-    so the model sees the same amount of gradient updates before advancing.
+    Returns (max_nodes, physical_batch_size, accumulation_steps).
+    Maintains an effective batch size of 16 across all phases to stabilize gradients,
+    while scaling down the physical batch size to prevent OOM errors on 8GB VRAM 
+    when the adjacency matrices grow.
     """
-    # Equivalent to Epoch 50 at BS=32
     if epoch <= 100:
-        return 10  # Phase 1: Physics Engine (Tiny graphs)
-    # Equivalent to Epoch 150 at BS=32
+        return 10, 16, 1   # Phase 1: 10x10 matrices. VRAM is fine.
     elif epoch <= 300:
-        return 30  # Phase 2: Control Flow (Medium graphs)
+        return 30, 4, 4    # Phase 2: 30x30 matrices. Axial attention reshaping spikes VRAM.
     else:
-        return 128 # Phase 3: The Crucible (Full dataset)
+        return 128, 1, 16  # Phase 3: 128x128 matrices. Extremely heavy.
 
 def train():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -48,11 +47,10 @@ def train():
     print(f"TensorBoard logging initialized. Run: `tensorboard --logdir=runs`")
     
     epochs = 400
-    batch_size = 16 # Optimized balance: fits in 8GB VRAM but smooths out the gradient variance better than BS=4
 
     for epoch in range(1, epochs + 1):
         # --- CURRICULUM UPDATE ---
-        current_max_nodes = get_curriculum_phase(epoch, batch_size)
+        current_max_nodes, physical_batch_size, accumulation_steps = get_curriculum_phase(epoch)
         
         # Re-initialize dataset to filter by current_max_nodes
         dataset = ExecutionGraphDataset(
@@ -60,30 +58,34 @@ def train():
             max_nodes=current_max_nodes,
             augment_permutation=True
         )
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        dataloader = DataLoader(dataset, batch_size=physical_batch_size, shuffle=True)
         
-        print(f"\n=== Epoch {epoch}/{epochs} | Phase Max Nodes: {current_max_nodes} | Graphs: {len(dataset)} ===")
+        print(f"\n=== Epoch {epoch}/{epochs} | Phase Max Nodes: {current_max_nodes} | Graphs: {len(dataset)} | Physical BS: {physical_batch_size} | Accumulation: {accumulation_steps} ===")
         
         # --- TRAINING LOOP (Continuous Flow Matching) ---
         model.train()
         total_loss = 0.0
         
+        optimizer.zero_grad() # Move zero_grad outside the batch loop for accumulation
+        
         progress_bar = tqdm(dataloader, desc="Training")
         for batch_idx, batch in enumerate(progress_bar):
-            # Move to device inside the loss function normally, but we can do it here for clarity
             for k in ["adjacency", "motifs", "padding_mask"]:
                 batch[k] = batch[k].to(device)
             
-            optimizer.zero_grad()
-            
-            # compute_flow_matching_loss handles t sampling, x_t interpolation, and masked MSE
+            # compute_flow_matching_loss handles t sampling, x_t interpolation, and masked MSE/CE
             loss = compute_flow_matching_loss(model, batch)
             
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
+            # Scale loss by accumulation steps
+            scaled_loss = loss / accumulation_steps
+            scaled_loss.backward()
             
-            total_loss += loss.item()
+            if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1) == len(dataloader):
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                optimizer.step()
+                optimizer.zero_grad()
+            
+            total_loss += loss.item() # Keep track of unscaled loss for logging
             progress_bar.set_postfix({"loss": f"{loss.item():.4f}"})
             
             # Log batch loss
