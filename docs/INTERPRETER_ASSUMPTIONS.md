@@ -55,12 +55,36 @@ Programs rely on reusable blocks of logic.
 - [ ] **Error Handling (Try/Catch):** Programs can detect runtime errors and gracefully route to a fallback execution path.
   * *Uncovered:* There is no `[Rescue]` or `[Catch]` motif. Any mathematical error (like divide-by-zero in a `[Message]`) instantly fatally crashes the interpreter.
 
+## 5. Discoveries from Traditional Compiler Test Suites
+
+A review of classical interpreter/compiler architectures (e.g., *Crafting Interpreters* (Lox), LLVM IR, Make-A-Lisp) reveals several "everyday assumptions" about runtime execution that traditional syntax trees handle implicitly, but a pure mathematical graph leaves ambiguous.
+
+### Evaluation Order & Short-Circuiting
+- [ ] **Short-Circuit Evaluation:** In the statement `A and B`, if `A` is false, `B` should *never* execute. 
+  * *Uncovered:* In our graph, the DiT wires both `A` and `B` as data inputs to an `[And]` Message node. Our `_resolve_data` method eagerly resolves all incoming data edges before applying the logic. If `B` has a side-effect or a crash (e.g., `x != 0 and 10/x > 1`), our VM will fatally crash, violating short-circuit assumptions.
+- [ ] **Strict Argument Evaluation Order (Left-to-Right):** In `func(a(), b())`, developers assume `a()` is evaluated completely before `b()` begins. 
+  * *Uncovered:* If both arguments mutate state, evaluating them out of order changes the program's output. While our `sorted(keys)` ensures deterministic traversal, our graph does not explicitly force temporal sequencing of data nodes without placing them on the `EXECUTION` path.
+
+### Memory & Resource Management
+- [ ] **Garbage Collection (GC) / Deallocation:** When a variable leaves scope, its memory is freed.
+  * *Uncovered:* Our MVP `self.memory` dictionary grows indefinitely. We have no mechanism to detect when a memory tensor is no longer referenced by any downstream `[State]` read node.
+- [ ] **Call Stack Depth Limits:** Recursive subroutine calls will eventually consume all memory if unconstrained.
+  * *Uncovered:* If a `[Message]` routes back to the entry `[Boundary]` recursively, Python will hit a `RecursionError` and crash the host process rather than throwing a handled VM `StackOverflowError`.
+- [ ] **Shadowing & Closures:** Inner scopes can create variables with the same name as outer scopes without overwriting them, and functions "remember" the state of their creation environment.
+  * *Uncovered:* Because our `literal_pool` maps directly to a flat `self.memory` dictionary, any variable assignment overwrites globally. We lack the concept of Environment Frames (linked lists of scope dictionaries).
+
+### Safety & Undefined Behavior
+- [ ] **Type Promotion vs. Strict Coercion:** Some languages silently convert `5 + "5"` to `"55"`, others throw errors.
+  * *Uncovered:* Our Graph-Walker currently inherits Python's type system by proxy. An AI-native graph needs an explicit internal contract for how multi-dimensional tensors/embeddings coerce types, or we risk Undefined Behavior (UB).
+
 ---
 
 ### Conclusion for Next Steps
 
 The MVP interpreter successfully models pure deterministic logic flows (the "happy path"). 
-However, to make it adversarial-proof against generative noise, the most critical uncovered edge cases to patch are:
+However, to make it adversarial-proof against generative noise and feature-complete compared to traditional VMs, the most critical uncovered edge cases to patch are:
 1. **Entry Point Ambiguity** (Differentiating Start vs. End Boundaries).
 2. **Uninitialized Memory Guards** (Throwing strict VM errors instead of silent `None` propagation).
 3. **Data Node Memoization** (Caching `_resolve_data` per execution step to prevent duplicate side-effects).
+4. **Environment Frames** (Replacing the flat dictionary with a scoped Stack to prevent variable collisions).
+5. **Lazy Evaluation / Short-Circuiting Guards** (Preventing fatal crashes on eagerly evaluated `DATA` edges).
