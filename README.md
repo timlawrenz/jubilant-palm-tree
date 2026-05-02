@@ -78,6 +78,8 @@ We engineered a specialized Diffusion Transformer (DiT) architecture capable of 
 3. **Hybrid Flow Matching & Classification**: The DiT predicts continuous velocity vectors (via masked MSE) for topological routing, alongside categorical logits (via masked Cross-Entropy) to distinctly assign argument indices without continuous rounding collisions.
 4. **Deterministic Inference**: Sampling is performed using a 20-step Euler ODE solver, followed by Sigmoid thresholding to snap the continuous field into topological 1s and 0s, and an argmax over the logit channels to distinctively assign data argument routing.
 
+*(Note: The hyperparameters for this architecture—Effective Batch Size=16, LR=1e-4, Depth=12—were mathematically locked in via an extensive grid search. See the [Hyperparameter Ablation Study](docs/HYPERPARAMETER_ABLATION.md) for data and methodology).*
+
 ### The Validation Harness: 5 Laws of Physics
 To deterministically grade the DiT's output (Syntactic Validity Rate), we implemented a static topological analyzer that enforces 5 absolute graph laws:
 1. **Execution Out-Degree** (Valid branching limits per Motif)
