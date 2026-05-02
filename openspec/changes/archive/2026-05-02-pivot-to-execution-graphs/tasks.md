@@ -18,7 +18,8 @@
 ## 4. MVP Demonstration
 - [ ] 4.1 Define semantic goal for an algorithmic task (e.g., sort array, Fibonacci).
 - [ ] 4.2 Train model on algorithmic task using the Motif matrix.
-- [ ] 4.3 Validate and measure accuracy of the output graphs.
+- [x] 4.3 Validate and measure accuracy of the output graphs.
+- [x] Archive obsolete Phase 4B files to `archive/phase4b/`
 
 ## 5. Dataset Compression (Ruby AST to Universal Motifs)
 - [x] 5.1 Implement a parser to load the 22,452 Ruby AST graphs from the current dataset.

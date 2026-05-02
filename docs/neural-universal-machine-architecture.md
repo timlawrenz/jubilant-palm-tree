@@ -79,4 +79,9 @@ To extract the 1D Motif list from the user's prompt without needing an autoregre
 *   **The Semantic LLM**: Translates human intent into the "Bill of Materials" (the 1D array of Motifs) and populates the Literal Pool.
 *   **The Structural DiT**: Takes the unrouted ingredients and acts as the **Plumber (Executive Branch)**, routing the complex `EXECUTION` and `DATA` edges.
 
-This completely separates semantic reasoning (LLM strength) from rigorous multi-dimensional state management (DiT strength).
+## 8. Dataset / Structural Compression
+
+**`scripts/dataset_prep/compress_ast.py`** extracts human syntax out of AST representations.
+- Reduces massive node vocabularies (e.g., 73 types in Ruby) down to the 6 Motif primitives.
+- Replaces concrete syntax with topological Data routing (e.g., assigning a variable points its data flow edge).
+- Collects and manages strings/numbers as integers mapped into a `literal_pool`.
