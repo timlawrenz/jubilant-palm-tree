@@ -95,9 +95,10 @@ def train(args):
             total_loss += loss.item() # Keep track of unscaled loss for logging
             progress_bar.set_postfix({"loss": f"{loss.item():.4f}"})
             
-            # Log batch loss
-            global_step = (epoch - 1) * len(dataloader) + batch_idx
-            writer.add_scalar("Training/Batch_Loss", loss.item(), global_step)
+            # Log batch loss only when an actual optimization step occurs
+            if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1) == len(dataloader):
+                global_step = (epoch - 1) * (len(dataloader) // accumulation_steps) + (batch_idx // accumulation_steps)
+                writer.add_scalar("Training/Batch_Loss", loss.item(), global_step)
             
         avg_loss = total_loss / len(dataloader)
         print(f"Epoch {epoch} Average Loss: {avg_loss:.4f}")
