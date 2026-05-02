@@ -47,7 +47,7 @@ For the Continuous Channels (0 & 1):
 
 **Masked Loss**: Because our graphs vary in size (padded to 128x128), calculating standard MSE/CE would penalize the model for failing to perfectly denoise the empty void. We use a boolean `padding_mask` to zero out the error in the padded regions, averaging the loss ONLY over the valid node intersections.
 
-## 5. Inference: Euler ODE Solver & Discretization
+## 5. Inference: Euler ODE Solver & The Judicial Constraint Solver
 
 Inference is fully deterministic. We start at pure noise and follow the predicted vector field to $t=1$.
 ```python
@@ -57,13 +57,15 @@ for step in range(num_steps):
     x = x + (velocity * dt) # Euler Step
 ```
 
-**Discretization**: The output of the DiT is continuous. To yield a runnable execution graph:
-1.  **Presence/Type**: Pushed through a `Sigmoid` and thresholded at `0.5`, snapping the vector field back into rigid 1s and 0s.
-2.  **Input Index**: An `argmax` is taken across the 4 logit channels to assign the exact integer routing for arguments and control flow branches.
+**Discretization**: The output of the DiT is a continuous probabilistic heat map. Naive global thresholding (e.g. `> 0.5`) causes catastrophic index collisions. To bridge the continuous-to-discrete gap, we pass the continuous matrix through the **Judicial Constraint Solver**.
+
+Rather than relying on the DiT to perfectly zero out its own noise, the solver reads the probability heatmap and mathematically "snaps" the edges into legal bounds based on the Motif laws:
+1. **Arity Snapping**: A `[Condition]` node must have exactly 2 outgoing edges. The solver isolates the row, selects the `Top-2` highest probability values, snaps them to `1`, and forces the rest to `0`.
+2. **Index Conflict Resolution**: If two arguments on a `[Message]` node both probabilistically claim `input_index = 0`, the solver uses the categorical logits to distinctively enforce mutually exclusive routing (e.g. the edge with the highest magnitude logit wins the slot).
 
 ## 6. The Validation Harness: The 5 Laws of Physics
 
-MSE loss only measures continuous proximity. To measure true Syntactic Validity Rate (SVR), we built a deterministic PyTorch grader that runs 5 strict topological checks against the thresholded matrix:
+To measure true Syntactic Validity Rate (SVR), we built a deterministic PyTorch grader that runs 5 strict topological checks against the thresholded matrix:
 
 1.  **Execution Out-Degree Laws**: E.g., `[Condition]` must have exactly 2 outgoing execution edges (True/False).
 2.  **Data In-Degree (Arity) Laws**: E.g., `[State]` writes must have exactly 1 incoming data edge.
@@ -71,13 +73,12 @@ MSE loss only measures continuous proximity. To measure true Syntactic Validity 
 4.  **Acyclic Data Plane**: A Depth-First Search confirms the data dependencies contain zero paradoxes/cycles.
 5.  **Terminal Sink**: A reverse-BFS ensures no infinite loops exist without an escape path to a `[Boundary]`.
 
-This acts as a passive metric during Flow Matching pre-training, and can be used as an active RLAIF reward signal during fine-tuning.
+## 7. The Workflow: Three Branches of Government
 
-## 7. The Workflow: Two Branches of Government
-
-To extract the 1D Motif list from the user's prompt without needing an autoregressive GNN, we use an LLM as the **Architect (Legislative Branch)**.
-*   **The Semantic LLM**: Translates human intent into the "Bill of Materials" (the 1D array of Motifs) and populates the Literal Pool.
-*   **The Structural DiT**: Takes the unrouted ingredients and acts as the **Plumber (Executive Branch)**, routing the complex `EXECUTION` and `DATA` edges.
+To construct perfectly legal code without an autoregressive token bottleneck, we divide labor strictly along model strengths:
+*   **The Legislative Branch (Semantic LLM)**: Translates human intent into the "Bill of Materials" (the 1D array of Motifs) and populates the Literal Pool.
+*   **The Executive Branch (Structural DiT)**: Takes the unrouted ingredients and predicts a continuous probability heat map for routing the `EXECUTION` and `DATA` edges.
+*   **The Judicial Branch (Constraint Solver)**: Maps the continuous heat map into a mathematically perfect, executable discrete DAG by enforcing strict arity and collision laws.
 
 ## 8. Dataset / Structural Compression
 
