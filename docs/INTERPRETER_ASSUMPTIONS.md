@@ -77,14 +77,34 @@ A review of classical interpreter/compiler architectures (e.g., *Crafting Interp
 - [ ] **Type Promotion vs. Strict Coercion:** Some languages silently convert `5 + "5"` to `"55"`, others throw errors.
   * *Uncovered:* Our Graph-Walker currently inherits Python's type system by proxy. An AI-native graph needs an explicit internal contract for how multi-dimensional tensors/embeddings coerce types, or we risk Undefined Behavior (UB).
 
+### The Human Origin of Subroutines & Scopes
+
+A critical realization during the development of this MVP is that **subroutines, lambdas, closures, and variable scopes are largely artifacts of human cognitive limitations.**
+
+According to the Böhm-Jacopini theorem, all computable functions can be expressed using only Sequence, Selection (`[Condition]`), and Iteration (`[Loop]`). The CPU itself executes a flat sequence of instructions on a flat memory tape. Humans invented "Scope" and "Functions" to compartmentalize logic because our working memory is limited; we need sealed black-boxes to prevent accidentally reusing a variable name like `i` or `temp` in a 10,000-line program.
+
+A Diffusion Transformer with dense self-attention has perfect, simultaneous awareness of 10,000 variables and 100,000 edges. It does not need cognitive compartmentalization. It can natively generate a single, massive, flat logic graph and never accidentally overwrite a `[State]` node, rendering concepts like Scope Isolation entirely unnecessary.
+
+#### The VRAM Boundary & Fractal Matrices
+The only physical limitation to an "infinite flat graph" is the $O(N^2)$ quadratic scaling of the adjacency matrix. A 10,000-node graph requires the DiT to denoise a 100,000,000-element tensor, vastly exceeding GPU VRAM.
+
+To scale the Neural Universal Machine to massive business applications, we do not reintroduce human subroutines. Instead, we use **Fractal Matrices** (conceptually adjacent to structural generation approaches like [frctl](https://github.com/timlawrenz/frctl)). 
+- The DiT generates a 128-node "Master Matrix".
+- A `[Message]` node in the master matrix does not call a human subroutine; it holds a literal pointer to a *sub-matrix*.
+- The Execution Engine pauses the main matrix, drops an execution pointer into the sub-matrix, runs it to its `[Boundary]`, and passes the data edge back.
+
+This preserves the mathematical purity of the flat graph while acting strictly as a data-compression technique to bypass GPU memory limits.
+
 ---
 
 ### Conclusion for Next Steps
 
 The MVP interpreter successfully models pure deterministic logic flows (the "happy path"). 
-However, to make it adversarial-proof against generative noise and feature-complete compared to traditional VMs, the most critical uncovered edge cases to patch are:
+When evaluating edge cases, we must separate *missing VM features* from *human syntactic baggage*. We intentionally reject features like Scope Isolation and closures as unnecessary human crutches.
+
+To make the VM adversarial-proof against generative noise, the most critical true edge cases to patch are:
 1. **Entry Point Ambiguity** (Differentiating Start vs. End Boundaries).
 2. **Uninitialized Memory Guards** (Throwing strict VM errors instead of silent `None` propagation).
 3. **Data Node Memoization** (Caching `_resolve_data` per execution step to prevent duplicate side-effects).
-4. **Environment Frames** (Replacing the flat dictionary with a scoped Stack to prevent variable collisions).
-5. **Lazy Evaluation / Short-Circuiting Guards** (Preventing fatal crashes on eagerly evaluated `DATA` edges).
+4. **Lazy Evaluation / Short-Circuiting Guards** (Preventing fatal crashes on eagerly evaluated `DATA` edges).
+5. **Fractal Matrix Execution** (Allowing `[Message]` motifs to route execution pointers into secondary DiT-generated adjacency matrices).
