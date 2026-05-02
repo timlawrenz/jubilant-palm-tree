@@ -26,7 +26,9 @@ def get_curriculum_phase(epoch: int) -> tuple[int, int, int]:
     else:
         return 128, 1, 16  # Phase 3: 128x128 matrices. Extremely heavy.
 
-def train():
+import argparse
+
+def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Initializing Neural Universal Machine Training on {device}...")
 
@@ -34,23 +36,28 @@ def train():
     model = NeuralUniversalMachineDiT(
         hidden_dim=256, 
         num_heads=8, 
-        depth=12
+        depth=args.depth
     ).to(device)
     
-    optimizer = AdamW(model.parameters(), lr=1e-4, weight_decay=1e-5)
+    optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=1e-5)
     
     # 2. Initialize TensorBoard Writer
-    run_name = f"num_dit_run_{int(time.time())}"
+    run_name = f"{args.run_prefix}_{int(time.time())}"
     log_dir = os.path.join("runs", run_name)
     os.makedirs(log_dir, exist_ok=True)
     writer = SummaryWriter(log_dir=log_dir)
     print(f"TensorBoard logging initialized. Run: `tensorboard --logdir=runs`")
     
-    epochs = 400
+    epochs = args.epochs
 
     for epoch in range(1, epochs + 1):
         # --- CURRICULUM UPDATE ---
-        current_max_nodes, physical_batch_size, accumulation_steps = get_curriculum_phase(epoch)
+        if args.force_phase_1:
+            current_max_nodes = 10
+            physical_batch_size = args.physical_batch_size
+            accumulation_steps = args.grad_accum_steps
+        else:
+            current_max_nodes, physical_batch_size, accumulation_steps = get_curriculum_phase(epoch)
         
         # Re-initialize dataset to filter by current_max_nodes
         dataset = ExecutionGraphDataset(
@@ -127,4 +134,13 @@ def train():
     print("Training complete!")
 
 if __name__ == "__main__":
-    train()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--epochs", type=int, default=400)
+    parser.add_argument("--physical_batch_size", type=int, default=16)
+    parser.add_argument("--grad_accum_steps", type=int, default=1)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--depth", type=int, default=12)
+    parser.add_argument("--run_prefix", type=str, default="num_dit_run")
+    parser.add_argument("--force_phase_1", action="store_true")
+    args = parser.parse_args()
+    train(args)
