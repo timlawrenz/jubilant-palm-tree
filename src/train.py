@@ -90,7 +90,7 @@ def train(args):
             if (batch_idx + 1) % accumulation_steps == 0 or (batch_idx + 1) == len(dataloader):
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
-                optimizer.zero_grad()
+                optimizer.zero_grad(set_to_none=True) # More memory efficient than standard zero_grad()
             
             total_loss += loss.item() # Keep track of unscaled loss for logging
             progress_bar.set_postfix({"loss": f"{loss.item():.4f}"})
