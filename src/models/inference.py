@@ -55,29 +55,50 @@ class JudicialConstraintSolver:
                 allowed_edges = 0
                 if motif in (MotifType.SEQUENCE, MotifType.STATE, MotifType.MESSAGE):
                     allowed_edges = 1
-                elif motif in (MotifType.CONDITION, MotifType.LOOP):
-                    allowed_edges = 2
                     
-                # To enforce the law, we take the Top-K highest probabilities in the row
-                if allowed_edges > 0:
-                    # We only want to select edges where the DiT actually intended an EXECUTION type (type_probs < 0.5)
-                    # We mask out Data edges so we don't accidentally snap a Data edge into an Execution slot
+                    exec_mask = (type_probs[b, i, :] < 0.5).float()
+                    masked_probs = row_probs * exec_mask
+                    top_k_vals, top_k_indices = torch.topk(masked_probs, 1)
+                    
+                    if top_k_vals[0] > 0.05:
+                        target_idx = top_k_indices[0]
+                        discrete_presence[b, i, target_idx] = 1
+                        discrete_type[b, i, target_idx] = 0 # Force to Execution
+                        
+                elif motif in (MotifType.CONDITION, MotifType.LOOP):
+                    # We need exactly 1 True branch (Index 0) and 1 False branch (Index 1)
+                    # We must enforce mutual exclusivity so they don't collapse to the same target node.
+                    
+                    # 1. Mask out Data edges
                     exec_mask = (type_probs[b, i, :] < 0.5).float()
                     masked_probs = row_probs * exec_mask
                     
-                    # Get the Top-K indices
-                    top_k_vals, top_k_indices = torch.topk(masked_probs, allowed_edges)
+                    # 2. Score edges by their categorical logit identities
+                    # logit 0 (True) score for every possible target node in this row
+                    true_scores = masked_probs * torch.sigmoid(index_logits[b, 0, i, :])
+                    # logit 1 (False) score for every possible target node in this row
+                    false_scores = masked_probs * torch.sigmoid(index_logits[b, 1, i, :])
                     
-                    for k in range(allowed_edges):
-                        # Only snap to 1 if the probability isn't completely dead noise
-                        if top_k_vals[k] > 0.1:
-                            target_idx = top_k_indices[k]
-                            discrete_presence[b, i, target_idx] = 1
-                            discrete_type[b, i, target_idx] = 0 # Force to Execution
-                            
-                            # If it's a Condition/Loop, force the indices to be distinct (0 and 1)
-                            if allowed_edges == 2:
-                                index_discrete[b, i, target_idx] = k
+                    # Find the best target for True
+                    best_true_target = torch.argmax(true_scores).item()
+                    
+                    # Temporarily zero out the selected True target so False cannot claim it
+                    false_scores[best_true_target] = -1.0
+                    
+                    # Find the best target for False
+                    best_false_target = torch.argmax(false_scores).item()
+                    
+                    # Snap True Branch
+                    if masked_probs[best_true_target] > 0.05:
+                        discrete_presence[b, i, best_true_target] = 1
+                        discrete_type[b, i, best_true_target] = 0
+                        index_discrete[b, i, best_true_target] = 0
+                        
+                    # Snap False Branch
+                    if masked_probs[best_false_target] > 0.05:
+                        discrete_presence[b, i, best_false_target] = 1
+                        discrete_type[b, i, best_false_target] = 0
+                        index_discrete[b, i, best_false_target] = 1
                                 
                 # Rule 2: In-Degree (Data Edges)
                 # For data edges, the arity rule is based on INCOMING edges (columns), not rows.
