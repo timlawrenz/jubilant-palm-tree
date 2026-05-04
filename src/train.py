@@ -5,6 +5,20 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import os
 import time
+import glob
+
+def get_latest_checkpoint(checkpoint_dir="checkpoints"):
+    if not os.path.exists(checkpoint_dir):
+        return None, 0
+        
+    checkpoints = glob.glob(os.path.join(checkpoint_dir, "num_dit_epoch_*.pt"))
+    if not checkpoints:
+        return None, 0
+        
+    # Sort by epoch number
+    latest_ckpt = max(checkpoints, key=lambda x: int(x.split("_")[-1].split(".")[0]))
+    epoch = int(latest_ckpt.split("_")[-1].split(".")[0])
+    return latest_ckpt, epoch
 
 from src.models.dataset import ExecutionGraphDataset
 from src.models.model import NeuralUniversalMachineDiT
@@ -41,7 +55,22 @@ def train(args):
     
     optimizer = AdamW(model.parameters(), lr=args.lr, weight_decay=1e-5)
     
-    # 2. Initialize TensorBoard Writer
+    # 2. Checkpoint Resumption
+    checkpoint_dir = "checkpoints"
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    latest_ckpt, start_epoch = get_latest_checkpoint(checkpoint_dir)
+    
+    if latest_ckpt and not args.force_phase_1: # Don't resume if we're doing a fresh ablation run
+        print(f"Resuming training from checkpoint: {latest_ckpt}")
+        checkpoint = torch.load(latest_ckpt, map_location=device, weights_only=True)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        print(f"Resumed at Epoch {start_epoch}")
+    else:
+        start_epoch = 0
+        print("Starting fresh training run.")
+    
+    # 3. Initialize TensorBoard Writer
     run_name = f"{args.run_prefix}_{int(time.time())}"
     log_dir = os.path.join("runs", run_name)
     os.makedirs(log_dir, exist_ok=True)
@@ -50,7 +79,7 @@ def train(args):
     
     epochs = args.epochs
 
-    for epoch in range(1, epochs + 1):
+    for epoch in range(start_epoch + 1, epochs + 1):
         # --- CURRICULUM UPDATE ---
         if args.force_phase_1:
             current_max_nodes = 10
@@ -130,6 +159,23 @@ def train(args):
             writer.add_scalar("Validation/No_Orphan_Pass", val_metrics["no_orphan_pass"], epoch)
             writer.add_scalar("Validation/Acyclic_Data_Pass", val_metrics["acyclic_data_pass"], epoch)
             writer.add_scalar("Validation/Terminal_Sink_Pass", val_metrics["terminal_sink_pass"], epoch)
+
+        # --- SAVE CHECKPOINT ---
+        # Save every 10 epochs or on the very last epoch
+        if epoch % 10 == 0 or epoch == epochs:
+            ckpt_path = os.path.join(checkpoint_dir, f"num_dit_epoch_{epoch}.pt")
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': avg_loss,
+            }, ckpt_path)
+            
+            # Keep only the latest 3 checkpoints to save disk space
+            all_ckpts = sorted(glob.glob(os.path.join(checkpoint_dir, "num_dit_epoch_*.pt")), key=os.path.getmtime)
+            if len(all_ckpts) > 3:
+                for old_ckpt in all_ckpts[:-3]:
+                    os.remove(old_ckpt)
 
     writer.close()
     print("Training complete!")
