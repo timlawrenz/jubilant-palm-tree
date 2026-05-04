@@ -161,7 +161,6 @@ def train(args):
             writer.add_scalar("Validation/Terminal_Sink_Pass", val_metrics["terminal_sink_pass"], epoch)
 
         # --- SAVE CHECKPOINT ---
-        # Save every 10 epochs or on the very last epoch
         if epoch % 10 == 0 or epoch == epochs:
             ckpt_path = os.path.join(checkpoint_dir, f"num_dit_epoch_{epoch}.pt")
             torch.save({
@@ -171,11 +170,14 @@ def train(args):
                 'loss': avg_loss,
             }, ckpt_path)
             
-            # Keep only the latest 3 checkpoints to save disk space
             all_ckpts = sorted(glob.glob(os.path.join(checkpoint_dir, "num_dit_epoch_*.pt")), key=os.path.getmtime)
             if len(all_ckpts) > 3:
                 for old_ckpt in all_ckpts[:-3]:
                     os.remove(old_ckpt)
+                    
+        # Force garbage collection and empty CUDA cache at the end of each massive epoch
+        # to prevent VRAM fragmentation OOMs during Phase 3
+        torch.cuda.empty_cache()
 
     writer.close()
     print("Training complete!")
