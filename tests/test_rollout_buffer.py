@@ -64,7 +64,7 @@ class TestRolloutBuffer:
         assert buffer.steps[0].log_prob_old.abs().max() < 1e-5
 
     def test_assign_rewards_and_advantages(self):
-        """Rewards and advantages should be correctly stored."""
+        """Rewards and advantages should be correctly stored and normalized."""
         buffer = self._make_buffer(B=3, num_steps=2)
         rewards = torch.tensor([1.0, -0.5, 2.0])
         baseline = 0.5
@@ -73,8 +73,9 @@ class TestRolloutBuffer:
 
         assert buffer.rewards is not None
         assert buffer.advantages is not None
-        expected_adv = rewards - baseline
-        assert torch.allclose(buffer.advantages, expected_adv)
+        # Advantages should be normalized (zero mean, unit variance)
+        assert abs(buffer.advantages.mean().item()) < 1e-5
+        assert abs(buffer.advantages.std().item() - 1.0) < 0.1
 
     def test_get_step_returns_correct_keys(self):
         """get_step should return all required fields."""

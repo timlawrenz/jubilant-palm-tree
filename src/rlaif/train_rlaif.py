@@ -133,7 +133,7 @@ def train_rlaif(args):
     # --- Training state ---
     sigma = args.sigma
     baseline_ema = 0.0  # Exponential moving average baseline
-    baseline_alpha = 0.99
+    baseline_alpha = 0.9  # Track baseline faster for better advantage signal
     global_rollout = 0
 
     # --- Training loop ---
@@ -249,7 +249,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DDPO-RLAIF Training for Neural Universal Machine")
     parser.add_argument("--checkpoint", type=str, default="checkpoints/num_dit_epoch_340.pt",
                         help="Path to pre-trained DiT checkpoint")
-    parser.add_argument("--batch-size", type=int, default=4,
+    parser.add_argument("--batch-size", type=int, default=16,
                         help="Rollout batch size (graphs per rollout)")
     parser.add_argument("--num-steps", type=int, default=20,
                         help="Number of Euler ODE steps")

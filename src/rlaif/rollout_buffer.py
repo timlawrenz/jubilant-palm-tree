@@ -92,13 +92,19 @@ class RolloutBuffer:
     def assign_rewards(self, rewards: torch.Tensor, baseline: float):
         """
         Assign terminal rewards and compute advantages.
+        Normalizes advantages to zero-mean, unit-variance for stable PPO.
 
         Args:
             rewards: [B] per-graph reward from GraphValidator
             baseline: EMA baseline for advantage computation
         """
         self.rewards = rewards.detach().cpu()
-        self.advantages = (self.rewards - baseline)
+        raw_advantages = self.rewards - baseline
+        # Normalize advantages (standard PPO practice)
+        if raw_advantages.std() > 1e-8:
+            self.advantages = (raw_advantages - raw_advantages.mean()) / (raw_advantages.std() + 1e-8)
+        else:
+            self.advantages = raw_advantages
 
     def num_steps(self) -> int:
         return len(self.steps)
