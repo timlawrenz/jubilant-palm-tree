@@ -15,5 +15,5 @@ At Epoch 343, the model achieved a monumental breakthrough: **100.00% Syntactic 
 ### Next Immediate Technical Step:
 The continuous Flow Matching loss definitively plateaued at ~0.135. The model has extracted maximum topological value from the passive continuous objective. Training was terminated early at Epoch 350 to conserve compute.
 
-1.  **RLAIF Implementation:** Utilize the `num_dit_epoch_340.pt` checkpoint to begin the Reinforcement Learning fine-tuning phase.
+1.  **RLAIF Implementation:** Utilize the epoch 340 checkpoint to begin the Reinforcement Learning fine-tuning phase.
 2.  **Dense Reward Structure:** Deploy PPO to actively punish the network for generating topological errors (e.g. orphans or dead-end terminal sinks) using the `GraphValidator` rules as a direct reward signal. Includes a KL Divergence Anchor to prevent mode-collapse.
