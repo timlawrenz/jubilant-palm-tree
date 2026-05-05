@@ -77,7 +77,7 @@ def train(args):
     writer = SummaryWriter(log_dir=log_dir)
     print(f"TensorBoard logging initialized. Run: `tensorboard --logdir=runs`")
     
-    epochs = args.epochs
+    epochs = 350 # Terminated continuous pre-training early; MSE loss plateaued at ~0.135
 
     for epoch in range(start_epoch + 1, epochs + 1):
         # --- CURRICULUM UPDATE ---
