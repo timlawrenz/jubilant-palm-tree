@@ -261,15 +261,15 @@ if __name__ == "__main__":
                         help="Decay σ every N epochs")
     parser.add_argument("--sigma-min", type=float, default=0.1,
                         help="Minimum σ floor")
-    parser.add_argument("--beta-kl", type=float, default=1.0,
+    parser.add_argument("--beta-kl", type=float, default=0.5,
                         help="KL penalty coefficient β")
     parser.add_argument("--clip-epsilon", type=float, default=0.2,
                         help="PPO clip parameter ε")
-    parser.add_argument("--lr", type=float, default=3e-6,
+    parser.add_argument("--lr", type=float, default=5e-6,
                         help="Learning rate")
     parser.add_argument("--ppo-epochs", type=int, default=4,
                         help="PPO epochs per rollout")
-    parser.add_argument("--kl-early-stop", type=float, default=0.02,
+    parser.add_argument("--kl-early-stop", type=float, default=0.03,
                         help="Stop PPO epoch early if mean KL exceeds this")
     parser.add_argument("--max-epochs", type=int, default=200,
                         help="Maximum training epochs")
