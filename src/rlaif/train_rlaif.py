@@ -249,7 +249,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="DDPO-RLAIF Training for Neural Universal Machine")
     parser.add_argument("--checkpoint", type=str, default="checkpoints/num_dit_epoch_340.pt",
                         help="Path to pre-trained DiT checkpoint")
-    parser.add_argument("--batch-size", type=int, default=16,
+    parser.add_argument("--batch-size", type=int, default=4,
                         help="Rollout batch size (graphs per rollout)")
     parser.add_argument("--num-steps", type=int, default=20,
                         help="Number of Euler ODE steps")
@@ -269,7 +269,7 @@ if __name__ == "__main__":
                         help="Learning rate")
     parser.add_argument("--ppo-epochs", type=int, default=4,
                         help="PPO epochs per rollout")
-    parser.add_argument("--kl-early-stop", type=float, default=0.03,
+    parser.add_argument("--kl-early-stop", type=float, default=0.3,
                         help="Stop PPO epoch early if mean KL exceeds this")
     parser.add_argument("--max-epochs", type=int, default=200,
                         help="Maximum training epochs")
