@@ -6,11 +6,14 @@ def upload_model():
     api = HfApi(token=token)
     repo_id = "timlawrenz/jubilant-palm-tree"
     
-    print(f"Creating repository {repo_id}...")
     try:
-        api.create_repo(repo_id=repo_id, exist_ok=True)
+        print(f"Creating repository {repo_id}...")
+        # create_repo natively returns a URL, let's catch any errors explicitly
+        api.create_repo(repo_id=repo_id, exist_ok=True, repo_type="model")
+        print("Repository verified.")
     except Exception as e:
-        print(f"Repo exists or error: {e}")
+        print(f"Failed to verify/create repo: {e}")
+        return # Do not proceed to upload if creation failed
         
     print("Uploading Epoch 340 pre-trained checkpoint...")
     api.upload_file(
