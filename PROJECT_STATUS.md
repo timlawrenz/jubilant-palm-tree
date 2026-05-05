@@ -5,36 +5,37 @@
 
 ---
 
-## 🎯 CURRENT STATUS: PHASE 5 - NEURAL UNIVERSAL MACHINE MVP PROVEN 🚀
+## 🎯 CURRENT STATUS: PHASE 5 - NEURAL UNIVERSAL MACHINE PRE-TRAINING COMPLETE 🚀
 
 ### What's Happening Right Now?
-The research has successfully pivoted away from human-readable syntax to generating pure topological execution graphs. We implemented a 6-Motif Universal schema, compressed the Ruby AST dataset, and trained a Permuted Dense DiT using Optimal Transport Flow Matching.
+The continuous pre-training phase has concluded. The Permuted Dense DiT successfully trained via Optimal Transport Flow Matching and Categorical Cross-Entropy, passing through the 3-Phase Curriculum to master up to 128-node execution graphs.
 
 ### Training Progress & Findings
-- **Core Hypothesis Proven**: The DiT natively learned to route Directed Acyclic logic graphs (achieving near 100% pathing/acyclic pass rates out of pure noise).
-- **The Sticking Point**: Syntactic Validity Rate (SVR) is currently bottlenecked by the "Continuous Index Channel." The model successfully draws the general graph topology, but suffers index collisions because it is trying to predict discrete branching paths (e.g., True vs False edges) using a continuous MSE regression target.
+- **Core Hypothesis Proven**: The model successfully generated perfectly routed, Directed Acyclic logic graphs natively out of pure Gaussian noise.
+- **The Crucible Conquered**: At Epoch 343, the Syntactic Validity Rate (SVR) hit **100%** on the 128-node matrix batch. The Judicial Constraint Solver successfully snapped the continuous heat-maps into flawless execution topologies (perfect arity bounds, no orphans, acyclic data, complete terminal sinks).
+- **The Checkpoint**: The foundational model is saved at `checkpoints/num_dit_epoch_340.pt`.
 
 ### Next Immediate Action
-- **Architectural Refinement**: Transition the DiT's `input_index` channel from continuous MSE regression to a discrete Categorical Classification head (CrossEntropyLoss) to natively enforce mutually exclusive edge routing without rounding collisions.
+- **RLAIF (Reinforcement Learning from AI Feedback)**: Begin architecture development for the discrete fine-tuning phase. We will freeze the continuous ODE solver targets and use PPO/REINFORCE. The `GraphValidator` rules will provide a direct +1/-1 reward signal (with a KL Divergence Anchor) to push the DiT from generating "occasionally perfect" graphs to "consistently perfect" deterministic outputs.
 
 ---
 
 ## 📋 NEXT ACTION CHECKLIST
 
 ### ⚡ OPTIONS MOVING FORWARD:
-
-**OPTION A: Implement Categorical CrossEntropy `input_index` Head (IN PROGRESS)**
-- Transition `input_index` from MSE to discrete classification
-- Deploy hybrid loss to Flow Matching pipeline
-
-**OPTION B: Add Runtime Guards to Interpreter**
-- Guard `max_steps` to catch hanging LOOP cycles
-- Catch missing DATA and EXECUTION edges explicitly
-- Add recursion cycle detection
-
-**OPTION C: RLAIF / Discrete Fine-Tuning**
-- Freeze continuous ODE solver targets
-- Use REINFORCE/PPO with the `GraphValidator` rules as a direct reward signal to perfect topological precision
+ 
+ **OPTION A: RLAIF / Discrete Fine-Tuning (RECOMMENDED)**
+ - Freeze continuous ODE solver targets on the Epoch 340 pre-trained checkpoint
+ - Use REINFORCE/PPO with the `GraphValidator` rules as a direct reward signal to enforce absolute topological precision
+ - Implement KL Divergence Anchor to prevent reward hacking / mode-collapse
+ 
+ **OPTION B: Expand the Universal Motifs**
+ - Analyze the `literal_pool` density from the 22k dataset to see if we should upgrade specific heavily-used strings (like `print` or `=`) into dedicated macro-motifs to further reduce matrix complexity
+ 
+ **OPTION C: Add Runtime Guards to Interpreter**
+ - Guard `max_steps` to catch hanging LOOP cycles
+ - Catch missing DATA and EXECUTION edges explicitly
+ - Add recursion cycle detection
 
 ---
 

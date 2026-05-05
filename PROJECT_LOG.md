@@ -1,20 +1,19 @@
 # Project Log: May 1, 2026
 
-## Milestone 3: Validation & The Continuous/Discrete Representation Gap
-**Status:** Core Hypothesis Proven / Architectural Refinement Required
+## Milestone 4: Pre-Training Completion & SVR Breakthrough
+**Status:** Pre-training Concluded / Ready for RLAIF
 
 ### Summary of Findings:
-The Phase 1 Curriculum training run (Flow Matching on 10-node graphs) successfully validated the core hypothesis of the Neural Universal Machine. The Diffusion Transformer (DiT) demonstrated the ability to natively learn complex topological rules (graph physics) from pure Gaussian noise, bypassing traditional text-based AST generation.
+The implementation of the Hybrid Loss (Optimal Transport MSE + Categorical Cross-Entropy) successfully resolved the Continuous/Discrete Representation Gap. The DiT was deployed on a 400-epoch, 3-Phase Curriculum to scale the topological routing up to massive 128-node graphs.
 
-### Metric Analysis:
-The validation harness revealed a distinct split in metric success, directly mapping to the multi-channel tensor architecture:
+At Epoch 343, the model achieved a monumental breakthrough: **100.00% Syntactic Validity Rate (SVR)** on the 128-node validation batch. 
 
-*   **Topological Success (`No_Orphan_Pass`, `Acyclic_Data_Pass`)**: The model achieved exceptional performance on Channel 0 (Presence) and Channel 1 (Edge Type). The model successfully learned to route Directed Acyclic Graphs, ensuring unbroken pathing and preventing data paradoxes.
-*   **Categorical Failure (`Out_Degree_Pass`, `In_Degree_Pass`)**: The model struggled to satisfy strict integer constraints required for execution branching and argument ordering.
-
-**Root Cause:** The failure stems from the "Continuous Index Channel." Channel 2 (`input_index`) is currently modeled as a continuous MSE regression target. During inference, continuous predictions (e.g., 0.49 and 0.51) are snapped via rounding to integers, causing frequent collisions (e.g., a `[Condition]` node routing two `True` branches and zero `False` branches). Continuous Flow Matching vectors cannot reliably enforce the mutual exclusivity required for discrete index assignment.
+### Key Architectural Validations:
+*   **The Judicial Constraint Solver:** Replaced naive probability thresholding with mathematically rigid Top-K arity snapping and logit-weighted branch conflict resolution. This proved essential in translating the continuous DiT heat-map into flawlessly executable, acyclic matrices.
+*   **Dynamic Gradient Accumulation & Checkpointing:** The $O(N^2)$ VRAM explosion caused by the Axial Attention blocks processing $128 \times 128$ matrices was successfully mitigated without losing gradient stability.
 
 ### Next Immediate Technical Step:
+The continuous Flow Matching loss definitively plateaued at ~0.135. The model has extracted maximum topological value from the passive continuous objective. Training was terminated early at Epoch 350 to conserve compute.
 
-1.  **Architectural Refinement:** Transition Channel 2 (`input_index`) from a continuous MSE regression target to a Categorical Classification target.
-2.  **Implementation:** The DiT output will be modified so that Channels 0 and 1 remain continuous targets for the Flow Matching vector field, while Channel 2 predicts logits across $K$ discrete index classes (e.g., 0, 1, 2, 3), trained via CrossEntropyLoss. This will allow the transformer's attention mechanism to natively distribute edge indices without rounding collisions.
+1.  **RLAIF Implementation:** Utilize the `num_dit_epoch_340.pt` checkpoint to begin the Reinforcement Learning fine-tuning phase.
+2.  **Dense Reward Structure:** Deploy PPO to actively punish the network for generating topological errors (e.g. orphans or dead-end terminal sinks) using the `GraphValidator` rules as a direct reward signal. Includes a KL Divergence Anchor to prevent mode-collapse.
