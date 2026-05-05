@@ -73,14 +73,26 @@ To measure true Syntactic Validity Rate (SVR), we built a deterministic PyTorch 
 4.  **Acyclic Data Plane**: A Depth-First Search confirms the data dependencies contain zero paradoxes/cycles.
 5.  **Terminal Sink**: A reverse-BFS ensures no infinite loops exist without an escape path to a `[Boundary]`.
 
-## 7. The Workflow: Three Branches of Government
+## 7. RLAIF: Discrete Fine-Tuning with PPO & KL Anchor
+
+Flow Matching (MSE) is blind to graph topology. To push the 128-node graph Syntactic Validity Rate to 100%, the model transitions from continuous generative pre-training to **Reinforcement Learning from AI Feedback (RLAIF)**.
+
+The active policy is trained via PPO using a dense, component-based reward structure built directly from the Validation Harness.
+*   **Topological Base Rewards**: `+0.2` for passing No Orphans, Acyclic Data, and In-Degree rules.
+*   **Load-Bearing Penalties**: `+0.4` for Out-Degree pass (`-0.2` fail) and Terminal Sink pass (`-0.4` fail).
+*   **SVR Multiplier**: If all 5 rules pass, the total reward receives a massive **2.5x Jackpot Bonus**.
+
+**The KL Divergence Anchor**: 
+To prevent the PPO optimizer from hacking the reward function (e.g., mode-collapsing into predicting the exact same hyper-safe, trivial "straight-line" 128-node trunk every single time), the active policy is anchored to the frozen Flow Matching pre-trained weights. A KL Divergence penalty is subtracted from the reward signal, forcing the DiT to maximize the topological jackpot while strictly adhering to the diverse structural routing requested by the Semantic LLM's motif ingredients.
+
+## 8. The Workflow: Three Branches of Government
 
 To construct perfectly legal code without an autoregressive token bottleneck, we divide labor strictly along model strengths:
 *   **The Legislative Branch (Semantic LLM)**: Translates human intent into the "Bill of Materials" (the 1D array of Motifs) and populates the Literal Pool.
 *   **The Executive Branch (Structural DiT)**: Takes the unrouted ingredients and predicts a continuous probability heat map for routing the `EXECUTION` and `DATA` edges.
 *   **The Judicial Branch (Constraint Solver)**: Maps the continuous heat map into a mathematically perfect, executable discrete DAG by enforcing strict arity and collision laws.
 
-## 8. Dataset / Structural Compression
+## 9. Dataset / Structural Compression
 
 **`scripts/dataset_prep/compress_ast.py`** extracts human syntax out of AST representations.
 - Reduces massive node vocabularies (e.g., 73 types in Ruby) down to the 6 Motif primitives.
