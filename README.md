@@ -71,7 +71,7 @@ When run against complex, real-world examples (like the 144-node `structure` met
 
 This proves we can mathematically separate logic from semantics on a massive scale, producing perfectly dense matrices for the Diffusion Transformer.
 
-**[Hugging Face Hub Repository: timlawrenz/neural-universal-machine-dit](https://huggingface.co/timlawrenz)** (Model tracking pending API auth)
+**[Hugging Face Hub Repository: timlawrenz/jubilant-palm-tree](https://huggingface.co/timlawrenz/jubilant-palm-tree)**
 
 ### Generative Model: Permuted Dense DiT & Flow Matching
 We engineered a specialized Diffusion Transformer (DiT) architecture capable of native graph generation without spatial biases:

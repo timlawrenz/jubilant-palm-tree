@@ -1,9 +1,10 @@
 import os
-from huggingface_hub import HfApi, Repository
+from huggingface_hub import HfApi
 
 def upload_model():
-    api = HfApi()
-    repo_id = "timlawrenz/neural-universal-machine-dit"
+    token = os.environ.get("HF_TOKEN")
+    api = HfApi(token=token)
+    repo_id = "timlawrenz/jubilant-palm-tree"
     
     print(f"Creating repository {repo_id}...")
     try:
@@ -14,7 +15,7 @@ def upload_model():
     print("Uploading Epoch 340 pre-trained checkpoint...")
     api.upload_file(
         path_or_fileobj="checkpoints/num_dit_epoch_340.pt",
-        path_in_repo="num_dit_epoch_340.pt",
+        path_in_repo="models/num_dit_epoch_340.pt",
         repo_id=repo_id,
         commit_message="Add 128-node Continuous Pre-Trained DiT Checkpoint (Epoch 340)"
     )
