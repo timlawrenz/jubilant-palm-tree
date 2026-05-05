@@ -156,7 +156,7 @@ class RolloutBuffer:
 
         # Apply padding mask if available
         if self.padding_mask is not None:
-            mask = self.padding_mask.unsqueeze(1).expand_as(sq_diff)  # [B, 2, N, N]
+            mask = self.padding_mask.to(sq_diff.device).unsqueeze(1).expand_as(sq_diff)  # [B, 2, N, N]
             sq_diff = sq_diff * mask
 
         # Sum over all dimensions except batch, then normalize
@@ -193,7 +193,7 @@ class RolloutBuffer:
 
         # Apply padding mask and sum
         if self.padding_mask is not None:
-            chosen_log_probs = chosen_log_probs * self.padding_mask
+            chosen_log_probs = chosen_log_probs * self.padding_mask.to(chosen_log_probs.device)
 
         log_prob_per_graph = chosen_log_probs.sum(dim=(1, 2))  # [B]
 
