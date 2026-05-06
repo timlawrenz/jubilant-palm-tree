@@ -5,26 +5,36 @@
 
 ---
 
-## 🎯 CURRENT STATUS: PHASE 6 - RLAIF FINE-TUNING (DDPO) 🚀
+## 🎯 CURRENT STATUS: PHASE 6 - RLAIF FINE-TUNING (RWR) 🚀
 
 ### What's Happening Right Now?
-The continuous pre-training phase is complete. The Permuted Dense DiT achieves 100% SVR on 128-node graphs **with** the Judicial Constraint Solver. We are now implementing DDPO (Denoising Diffusion Policy Optimization) to make the DiT produce valid graphs **without** any post-hoc snapping.
+After 7 failed PPO training runs (KL explosion, flat SVR due to credit assignment issues), we pivoted to **Reward-Weighted Regression (RWR)** — a simpler REINFORCE-style approach that avoids the structural problems of per-step PPO on our 20-step ODE.
 
-### Architecture: DDPO-RLAIF
-The 20-step Euler ODE is reframed as a 20-step MDP:
-- **Policy**: π_θ(v_t | x_t, t) = N(v_θ(x_t, t), σ²I) — Gaussian around DiT velocity
-- **Log-prob**: -||v_sampled - v_mean||² / (2σ²) — just negative MSE!
-- **KL anchor**: ||v_policy - v_ref||² / (2σ²) — MSE vs frozen reference
-- **Reward**: GraphValidator's 5 Laws of Physics with weighted decomposed signal + 2.5× jackpot
-- **Optimizer**: PPO with clipped surrogate objective
+**RWR is currently training** (PID 955623, started 2025-07-05 22:02 UTC).
+
+### Architecture: RLAIF-RWR
+The 20-step Euler ODE generates a graph, we score it, then reinforce the good trajectories:
+- **Rollout**: Run ODE with no grad, adding σ noise at each step
+- **Reward**: GraphValidator's 5 Laws of Physics with weighted signal + 2.5× jackpot
+- **Update**: Pick random subset of steps, backprop advantage-weighted MSE
+- **KL anchor**: ||v_policy - v_ref||² — MSE vs frozen reference (β=0.01)
+- **Key advantage over PPO**: single optimizer.step() per accumulation window, no ratio/clip machinery
+
+### Why PPO Failed (7 runs)
+1. All 20 ODE steps get identical scalar advantage — dilutes gradient signal
+2. Per-batch normalization with batch_size=4 gives garbage signal
+3. PPO ratio machinery adds complexity without helping when signal is weak
+4. KL exploded or clip fraction collapsed to 0 in every configuration tried
 
 ### Published Blog Post
 [Eradicating Syntax: The Neural Universal Machine](https://lawrenz.com/2026/05/05/eradicating-syntax-the-neural-universal-machine.html) — documents the full Phase 5 results.
 
 ### Next Immediate Action
-- **Run RLAIF training**: `python -m src.rlaif.train_rlaif --checkpoint checkpoints/num_dit_epoch_340.pt`
-- Monitor SVR without Constraint Solver rising toward >90%
-- Tune σ annealing and β (KL coefficient) based on reward curves
+- **Monitor RWR training**: `tail -f runs/rwr_training.log` or TensorBoard `runs/rlaif_rwr_*`
+- Watch for SVR trending upward from ~30% baseline
+- KL should stay < 0.1 (currently 0.003 at step 2 — healthy)
+- If SVR improves: let it run, potentially tune sigma schedule
+- If SVR flat after 50+ steps: investigate naive_discretizer as bottleneck
 
 ---
 
