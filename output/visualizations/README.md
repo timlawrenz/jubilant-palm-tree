@@ -16,11 +16,20 @@ These visualizations show the Neural Universal Machine's ODE denoising process �
 
 ## Files
 
-| File | Description |
-|------|-------------|
-| `denoising_heatmap_filmstrip.png` | Adjacency matrix (presence logits) at steps 0, 5, 10, 15, 19, and discretized. Shows structure emerging from noise. |
-| `denoising_graph_evolution.gif` | 21-frame animation of the graph topology crystallizing. Blue edges = execution flow, red dashed = data dependencies. |
-| `denoising_metrics_curve.png` | Edge count convergence (183 → 21) and sharpness over ODE steps. |
+### Adjacency Heatmap Filmstrip
+![Heatmap Filmstrip](denoising_heatmap_filmstrip.png)
+
+Presence logits at steps 0, 5, 10, 15, 19, and discretized. Shows structure emerging from noise.
+
+### Graph Layout Evolution
+![Graph Evolution](denoising_graph_evolution.gif)
+
+21-frame animation of the graph topology crystallizing. Blue edges = execution flow, red dashed = data dependencies.
+
+### Denoising Metrics
+![Metrics Curve](denoising_metrics_curve.png)
+
+Edge count convergence (183 → 21) and sharpness over ODE steps.
 
 ## Reproduction
 
