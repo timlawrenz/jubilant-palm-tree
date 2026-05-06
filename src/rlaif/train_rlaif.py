@@ -116,6 +116,7 @@ def train_rlaif(args):
     print(f"{'='*60}\n")
 
     for epoch in range(start_epoch, args.max_epochs + 1):
+        epoch_start_time = time.time()
         epoch_struct_losses = []
         epoch_kl_losses = []
         epoch_svr = []
@@ -237,10 +238,11 @@ def train_rlaif(args):
             torch.cuda.empty_cache()
 
         # === EPOCH SUMMARY ===
+        epoch_duration = time.time() - epoch_start_time
         avg_struct = sum(epoch_struct_losses) / len(epoch_struct_losses)
         avg_kl = sum(epoch_kl_losses) / len(epoch_kl_losses)
         avg_svr = sum(epoch_svr) / len(epoch_svr) if epoch_svr else 0
-        print(f"\nEpoch {epoch} | Struct: {avg_struct:.4f} | KL: {avg_kl:.4f} | SVR: {avg_svr:.1%}")
+        print(f"\nEpoch {epoch} | Struct: {avg_struct:.4f} | KL: {avg_kl:.4f} | SVR: {avg_svr:.1%} | Time: {epoch_duration/60:.1f}min")
 
         writer.add_scalar("Epoch/Avg_Structural", avg_struct, epoch)
         writer.add_scalar("Epoch/Avg_KL", avg_kl, epoch)
