@@ -5,36 +5,44 @@
 
 ---
 
-## 🎯 CURRENT STATUS: PHASE 6 - RLAIF FINE-TUNING (RWR) 🚀
+## 🎯 CURRENT STATUS: PHASE 6 - RLAIF FINE-TUNING (Structural Loss) 🚀
 
 ### What's Happening Right Now?
-After 7 failed PPO training runs (KL explosion, flat SVR due to credit assignment issues), we pivoted to **Reward-Weighted Regression (RWR)** — a simpler REINFORCE-style approach that avoids the structural problems of per-step PPO on our 20-step ODE.
+After PPO (7 runs, all failed) and REINFORCE/RWR (flat SVR), we pivoted to **differentiable structural loss** — directly backpropagating structural constraint violations through the last ODE step. **This is working: SVR jumped from 30% to 70%.**
 
-**RWR is currently training** (PID 955623, started 2025-07-05 22:02 UTC).
+**Training is running** (PID 1096151, started 2025-07-05 23:14 UTC).
 
-### Architecture: RLAIF-RWR
-The 20-step Euler ODE generates a graph, we score it, then reinforce the good trajectories:
-- **Rollout**: Run ODE with no grad, adding σ noise at each step
-- **Reward**: GraphValidator's 5 Laws of Physics with weighted signal + 2.5× jackpot
-- **Update**: Pick random subset of steps, backprop advantage-weighted MSE
-- **KL anchor**: ||v_policy - v_ref||² — MSE vs frozen reference (β=0.01)
-- **Key advantage over PPO**: single optimizer.step() per accumulation window, no ratio/clip machinery
+### Architecture: Differentiable Structural Loss
+Instead of REINFORCE (sample + scalar reward + high-variance gradient), we compute differentiable versions of the 5 structural constraints on the continuous ODE output:
+- **Execution out-degree**: soft degree must match motif type (1 for sequence, 2 for conditional, etc.)
+- **Edge sharpness**: push presence logits away from 0.5 ambiguity zone
+- **Terminal sink**: at least one node with near-zero exec out-degree
+- **No orphans**: all nodes must have total degree ≥ 1
+- **Data in-degree**: condition/loop nodes need exactly 1 data input
+- **KL anchor**: MSE between policy velocity and frozen reference velocity
 
-### Why PPO Failed (7 runs)
-1. All 20 ODE steps get identical scalar advantage — dilutes gradient signal
-2. Per-batch normalization with batch_size=4 gives garbage signal
-3. PPO ratio machinery adds complexity without helping when signal is weak
-4. KL exploded or clip fraction collapsed to 0 in every configuration tried
+### Key Results (first 110 batches)
+| Metric | Start | Current | Status |
+|--------|-------|---------|--------|
+| SVR | ~30% | **~70%** | ✅ **Improving!** |
+| KL | 0.000 | 0.011 | ✅ Rock-solid |
+| Struct Loss | ~56 | ~10 | ✅ Trending down |
+
+### Why This Works (and REINFORCE didn't)
+1. **Dense gradients**: every element of the output gets a gradient, not just a scalar advantage
+2. **No noise**: no σ noise in rollout = no 98K-dimensional variance problem
+3. **No credit assignment**: loss is computed directly on x_final, gradients flow through one model call
+4. **Cheap**: ~11s/batch vs 82s/step for RWR — 7× faster per gradient update
 
 ### Published Blog Post
 [Eradicating Syntax: The Neural Universal Machine](https://lawrenz.com/2026/05/05/eradicating-syntax-the-neural-universal-machine.html) — documents the full Phase 5 results.
 
 ### Next Immediate Action
-- **Monitor RWR training**: `tail -f runs/rwr_training.log` or TensorBoard `runs/rlaif_rwr_*`
-- Watch for SVR trending upward from ~30% baseline
-- KL should stay < 0.1 (currently 0.003 at step 2 — healthy)
-- If SVR improves: let it run, potentially tune sigma schedule
-- If SVR flat after 50+ steps: investigate naive_discretizer as bottleneck
+- **Monitor training**: `tail -f runs/struct_training.log` or TensorBoard `runs/rlaif_struct_*`
+- Watch for SVR continuing to climb toward >90%
+- Structural loss should keep decreasing
+- KL should stay < 0.1
+- If SVR plateaus at ~70%: try increasing β_struct or reducing β_kl
 
 ---
 
