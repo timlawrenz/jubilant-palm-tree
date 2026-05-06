@@ -231,3 +231,135 @@ def _categorical_kl(
     if padding_mask is not None:
         kl = kl * padding_mask
     return kl.sum(dim=(1, 2))  # [B]
+
+
+def ppo_update_multi(
+    policy_model: NeuralUniversalMachineDiT,
+    ref_model: NeuralUniversalMachineDiT,
+    buffers: list,
+    optimizer: torch.optim.Optimizer,
+    device: torch.device,
+    sigma: float = 1.0,
+    clip_epsilon: float = 0.2,
+    beta_kl: float = 0.1,
+    ppo_epochs: int = 4,
+    max_grad_norm: float = 1.0,
+    kl_early_stop: float = 0.3,
+) -> Dict[str, float]:
+    """
+    PPO update over multiple accumulated rollout buffers.
+    Processes each buffer's steps sequentially to keep VRAM low,
+    but accumulates gradients across all before stepping.
+    """
+    policy_model.train()
+    ref_model.eval()
+
+    metrics = {
+        "ppo_loss": 0.0,
+        "clip_fraction": 0.0,
+        "kl_mean": 0.0,
+        "surrogate_loss": 0.0,
+        "kl_loss": 0.0,
+        "epochs_completed": 0,
+    }
+
+    total_steps = 0
+    early_stopped = False
+    # Total number of gradient steps per epoch (for averaging)
+    steps_per_epoch = sum(buf.num_steps() for buf in buffers)
+
+    for ppo_epoch in range(ppo_epochs):
+        epoch_kl_sum = 0.0
+        epoch_steps = 0
+
+        optimizer.zero_grad()
+        accum_loss = 0.0
+
+        for buffer in buffers:
+            for step_data in buffer.iterate_steps(device, shuffle=True):
+                x_t = step_data["x_t"]
+                v_sampled = step_data["v_sampled"]
+                log_prob_old = step_data["log_prob_old"]
+                log_prob_cat_old = step_data["log_prob_cat_old"]
+                t_val = step_data["t_val"]
+                motifs = step_data["motifs"]
+                advantages = step_data["advantages"]
+
+                B = x_t.shape[0]
+                t_tensor = torch.full((B,), t_val, device=device)
+
+                # Recompute v_new with gradients
+                v_new = policy_model(x_t, t_tensor, motifs)
+
+                # Log-prob new (continuous + categorical)
+                log_prob_cont_new = _continuous_log_prob(
+                    v_sampled[:, :2, :, :], v_new[:, :2, :, :],
+                    sigma, buffer.padding_mask.to(device) if buffer.padding_mask is not None else None
+                )
+                log_prob_cat_new = _categorical_log_prob(
+                    v_sampled[:, 2:, :, :], v_new[:, 2:, :, :],
+                    buffer.padding_mask.to(device) if buffer.padding_mask is not None else None
+                )
+
+                log_prob_new_total = log_prob_cont_new + log_prob_cat_new
+                log_prob_old_total = log_prob_old + log_prob_cat_old
+
+                # Importance sampling ratio
+                log_ratio = log_prob_new_total - log_prob_old_total
+                ratio = torch.exp(log_ratio)
+
+                # Clipped surrogate
+                surr1 = ratio * advantages
+                surr2 = torch.clamp(ratio, 1.0 - clip_epsilon, 1.0 + clip_epsilon) * advantages
+                surrogate_loss = -torch.min(surr1, surr2).mean()
+
+                # KL penalty
+                with torch.no_grad():
+                    v_ref = ref_model(x_t, t_tensor, motifs)
+
+                kl_continuous = _continuous_kl(v_new[:, :2, :, :], v_ref[:, :2, :, :], sigma,
+                                              buffer.padding_mask.to(device) if buffer.padding_mask is not None else None)
+                kl_categorical = _categorical_kl(v_new[:, 2:, :, :], v_ref[:, 2:, :, :],
+                                                 buffer.padding_mask.to(device) if buffer.padding_mask is not None else None)
+                kl_total = (kl_continuous + kl_categorical).mean()
+
+                # Loss (scaled by number of steps for proper gradient averaging)
+                loss = (surrogate_loss + beta_kl * kl_total) / steps_per_epoch
+                loss.backward()
+
+                # Metrics
+                clip_fraction = ((ratio - 1.0).abs() > clip_epsilon).float().mean().item()
+                metrics["ppo_loss"] += (surrogate_loss + beta_kl * kl_total).item()
+                metrics["surrogate_loss"] += surrogate_loss.item()
+                metrics["kl_loss"] += kl_total.item()
+                metrics["clip_fraction"] += clip_fraction
+
+                epoch_kl_sum += kl_total.item()
+                epoch_steps += 1
+                total_steps += 1
+
+        # Step optimizer after processing all buffers
+        torch.nn.utils.clip_grad_norm_(policy_model.parameters(), max_grad_norm)
+        optimizer.step()
+        optimizer.zero_grad()
+
+        metrics["epochs_completed"] = ppo_epoch + 1
+
+        # Early stopping on KL
+        if epoch_steps > 0:
+            epoch_kl_mean = epoch_kl_sum / epoch_steps
+            if epoch_kl_mean > kl_early_stop:
+                early_stopped = True
+                break
+
+    # Normalize metrics
+    if total_steps > 0:
+        metrics["ppo_loss"] /= total_steps
+        metrics["surrogate_loss"] /= total_steps
+        metrics["kl_loss"] /= total_steps
+        metrics["kl_mean"] = metrics["kl_loss"]
+        metrics["clip_fraction"] /= total_steps
+
+    metrics["early_stopped"] = early_stopped
+
+    return metrics
