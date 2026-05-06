@@ -19,6 +19,7 @@ Usage:
     python -m src.rlaif.train_rlaif [--checkpoint PATH] [--lr FLOAT] ...
 """
 
+import copy
 import torch
 import argparse
 import os
@@ -47,8 +48,10 @@ def train_rlaif(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"RLAIF Structural Loss Training on {device}")
     print(f"  Checkpoint: {args.checkpoint}")
+    print(f"  Resume: {args.resume or 'None (fresh start)'}")
     print(f"  β_kl (KL weight): {args.beta_kl}")
     print(f"  β_struct (structural weight): {args.beta_struct}")
+    print(f"  KL clamp: {args.kl_clamp}")
     print(f"  LR: {args.lr}")
     print(f"  ODE steps: {args.num_steps}")
     print(f"  Grad steps: {args.grad_steps} (last N steps with grad)")
@@ -62,11 +65,32 @@ def train_rlaif(args):
     for param in ref_model.parameters():
         param.requires_grad = False
 
+    # --- Resume from RLAIF checkpoint if provided ---
+    start_epoch = 1
+    global_step = 0
+    if args.resume:
+        print(f"  Resuming from: {args.resume}")
+        resume_ckpt = torch.load(args.resume, map_location=device, weights_only=True)
+        policy_model.load_state_dict(resume_ckpt["model_state_dict"])
+        start_epoch = resume_ckpt["epoch"] + 1
+        global_step = resume_ckpt.get("global_step", 0)
+        print(f"  Resuming at epoch {start_epoch}, global_step {global_step}")
+
     print(f"  Policy params: {sum(p.numel() for p in policy_model.parameters()):,}")
     print(f"  Reference frozen: {sum(p.numel() for p in ref_model.parameters()):,}")
 
+    # --- EMA model ---
+    ema_model = copy.deepcopy(policy_model)
+    ema_model.eval()
+    for param in ema_model.parameters():
+        param.requires_grad = False
+    ema_decay = args.ema_decay
+    print(f"  EMA decay: {ema_decay}")
+
     # --- Optimizer ---
     optimizer = AdamW(policy_model.parameters(), lr=args.lr, weight_decay=1e-5)
+    if args.resume and "optimizer_state_dict" in resume_ckpt:
+        optimizer.load_state_dict(resume_ckpt["optimizer_state_dict"])
 
     # --- Dataset ---
     dataset = ExecutionGraphDataset(
@@ -87,14 +111,11 @@ def train_rlaif(args):
     ckpt_dir = "checkpoints/rlaif"
     os.makedirs(ckpt_dir, exist_ok=True)
 
-    # --- Training state ---
-    global_step = 0
-
     print(f"\n{'='*60}")
     print("Starting RLAIF Structural Loss Training")
     print(f"{'='*60}\n")
 
-    for epoch in range(1, args.max_epochs + 1):
+    for epoch in range(start_epoch, args.max_epochs + 1):
         epoch_struct_losses = []
         epoch_kl_losses = []
         epoch_svr = []
@@ -153,8 +174,9 @@ def train_rlaif(args):
             struct_losses = compute_structural_loss(x_final, motifs)
             struct_loss = struct_losses["total"].mean()
 
-            # === KL loss ===
+            # === KL loss (clamped to prevent explosion) ===
             kl_loss = sum(kl_losses) / len(kl_losses) if kl_losses else torch.tensor(0.0)
+            kl_loss = torch.clamp(kl_loss, max=args.kl_clamp)
 
             # === Combined loss ===
             total_loss = args.beta_struct * struct_loss + args.beta_kl * kl_loss
@@ -162,6 +184,11 @@ def train_rlaif(args):
 
             torch.nn.utils.clip_grad_norm_(policy_model.parameters(), 1.0)
             optimizer.step()
+
+            # === EMA update ===
+            with torch.no_grad():
+                for p_ema, p_policy in zip(ema_model.parameters(), policy_model.parameters()):
+                    p_ema.mul_(ema_decay).add_(p_policy, alpha=1.0 - ema_decay)
 
             # === Discrete SVR evaluation (every eval_every batches) ===
             svr = 0.0
@@ -219,13 +246,14 @@ def train_rlaif(args):
         writer.add_scalar("Epoch/Avg_KL", avg_kl, epoch)
         writer.add_scalar("Epoch/Avg_SVR", avg_svr, epoch)
 
-        # === CHECKPOINT ===
+        # === CHECKPOINT (every epoch) ===
         if epoch % args.save_every == 0:
             ckpt_path = os.path.join(ckpt_dir, f"rlaif_struct_epoch_{epoch}.pt")
             torch.save({
                 "epoch": epoch,
                 "global_step": global_step,
                 "model_state_dict": policy_model.state_dict(),
+                "ema_state_dict": ema_model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
             }, ckpt_path)
             print(f"  Checkpoint saved: {ckpt_path}")
@@ -239,7 +267,9 @@ def train_rlaif(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RLAIF Structural Loss Training")
     parser.add_argument("--checkpoint", type=str, default="checkpoints/num_dit_epoch_340.pt",
-                        help="Path to pre-trained DiT checkpoint")
+                        help="Path to pre-trained DiT checkpoint (reference model)")
+    parser.add_argument("--resume", type=str, default=None,
+                        help="Path to RLAIF checkpoint to resume from")
     parser.add_argument("--batch-size", type=int, default=4,
                         help="Batch size (graphs per step)")
     parser.add_argument("--num-steps", type=int, default=20,
@@ -250,13 +280,17 @@ if __name__ == "__main__":
                         help="KL penalty coefficient (MSE to reference velocity)")
     parser.add_argument("--beta-struct", type=float, default=0.1,
                         help="Structural loss coefficient")
+    parser.add_argument("--kl-clamp", type=float, default=10.0,
+                        help="Maximum KL loss value (clamp to prevent explosions)")
+    parser.add_argument("--ema-decay", type=float, default=0.999,
+                        help="EMA decay rate for model weights")
     parser.add_argument("--lr", type=float, default=1e-6,
                         help="Learning rate")
     parser.add_argument("--eval-every", type=int, default=10,
                         help="Evaluate discrete SVR every N batches")
     parser.add_argument("--max-epochs", type=int, default=5,
                         help="Maximum training epochs")
-    parser.add_argument("--save-every", type=int, default=5,
+    parser.add_argument("--save-every", type=int, default=1,
                         help="Save checkpoint every N epochs")
     args = parser.parse_args()
 
