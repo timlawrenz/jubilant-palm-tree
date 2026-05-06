@@ -254,7 +254,7 @@ if __name__ == "__main__":
                         help="Learning rate")
     parser.add_argument("--eval-every", type=int, default=10,
                         help="Evaluate discrete SVR every N batches")
-    parser.add_argument("--max-epochs", type=int, default=200,
+    parser.add_argument("--max-epochs", type=int, default=5,
                         help="Maximum training epochs")
     parser.add_argument("--save-every", type=int, default=5,
                         help="Save checkpoint every N epochs")
