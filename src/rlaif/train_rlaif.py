@@ -181,6 +181,13 @@ def train_rlaif(args):
 
             # === Combined loss ===
             total_loss = args.beta_struct * struct_loss + args.beta_kl * kl_loss
+
+            # Skip batch if loss is NaN or Inf (prevents weight corruption)
+            if torch.isnan(total_loss) or torch.isinf(total_loss):
+                optimizer.zero_grad()
+                global_step += 1
+                continue
+
             total_loss.backward()
 
             torch.nn.utils.clip_grad_norm_(policy_model.parameters(), 1.0)
