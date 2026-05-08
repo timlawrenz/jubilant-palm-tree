@@ -32,7 +32,7 @@ from tqdm import tqdm
 from src.models.model import NeuralUniversalMachineDiT
 from src.models.dataset import ExecutionGraphDataset
 from src.rlaif.naive_discretizer import naive_discretize
-from src.rlaif.reward import compute_reward
+from src.models.validation import GraphValidator
 from src.rlaif.structural_loss import compute_structural_loss
 
 
@@ -213,11 +213,13 @@ def train_rlaif(args):
                         x_eval = torch.cat([x_cont, x_cat], dim=1)
 
                     discrete = naive_discretize(x_eval, motifs)
-                    rewards = compute_reward(discrete, motifs)
-                    svr = (rewards > 0).float().mean().item()
+                    val_results = GraphValidator.evaluate_batch(discrete, motifs)
+                    svr = val_results["perfect_graphs"] / 100.0
 
                 writer.add_scalar("Eval/SVR", svr, global_step)
-                writer.add_scalar("Eval/Reward_Mean", rewards.mean().item(), global_step)
+                for law_key in ["out_degree_pass", "in_degree_pass", "no_orphan_pass",
+                                "acyclic_data_pass", "terminal_sink_pass"]:
+                    writer.add_scalar(f"Eval/{law_key}", val_results[law_key], global_step)
 
             # === Logging ===
             sl = struct_loss.item()
@@ -232,8 +234,9 @@ def train_rlaif(args):
             writer.add_scalar("Loss/Total", sl + args.beta_kl * kl, global_step)
 
             # Log individual structural components
-            for key in ["out_degree", "sharpness", "type_sharpness", "terminal", "orphan", "data_in"]:
-                writer.add_scalar(f"Structural/{key}", struct_losses[key].mean().item(), global_step)
+            for key in ["out_degree", "sharpness", "type_sharpness", "terminal", "orphan", "data_in", "density"]:
+                if key in struct_losses:
+                    writer.add_scalar(f"Structural/{key}", struct_losses[key].mean().item(), global_step)
 
             progress.set_postfix({
                 "struct": f"{sl:.4f}",

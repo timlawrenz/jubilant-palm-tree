@@ -72,14 +72,15 @@ def compute_structural_loss(x_final: torch.Tensor, motifs: torch.Tensor) -> dict
     out_degree_loss = ((exec_out_degree - target_out) ** 2 * padding_mask).sum(dim=1) / n_valid
 
     # === 2. EDGE SHARPNESS LOSS ===
-    # Encourage presence values to be close to 0 or 1 (reduce discretization noise)
-    # sharpness = p * (1 - p), maximum at p=0.5, zero at p=0 or p=1
-    sharpness = soft_presence * (1.0 - soft_presence) * mask_2d
-    sharpness_loss = sharpness.sum(dim=(1, 2)) / mask_2d.sum(dim=(1, 2)).clamp(min=1)
+    # Only penalize ambiguity on edges that EXIST (presence > 0.5).
+    # This prevents the model from collapsing to "no edges" to minimize sharpness.
+    present_edges = (soft_presence > 0.5).float() * mask_2d
+    sharpness = soft_presence * (1.0 - soft_presence) * present_edges
+    sharpness_loss = sharpness.sum(dim=(1, 2)) / present_edges.sum(dim=(1, 2)).clamp(min=1)
 
-    # Same for edge type — should be clearly exec or data
-    type_sharpness = soft_data_type * soft_exec_type * mask_2d * soft_presence
-    type_sharpness_loss = type_sharpness.sum(dim=(1, 2)) / (soft_presence * mask_2d).sum(dim=(1, 2)).clamp(min=1)
+    # Same for edge type — only on present edges
+    type_sharpness = soft_data_type * soft_exec_type * present_edges * soft_presence
+    type_sharpness_loss = type_sharpness.sum(dim=(1, 2)) / present_edges.sum(dim=(1, 2)).clamp(min=1)
 
     # === 3. TERMINAL SINK LOSS ===
     # At least one valid node should have near-zero exec out-degree (= exit node)
@@ -104,14 +105,24 @@ def compute_structural_loss(x_final: torch.Tensor, motifs: torch.Tensor) -> dict
     cond_loop_mask = ((motifs == 3) | (motifs == 4)).float()
     cond_loop_in_loss = ((data_in_degree - 1.0) ** 2 * cond_loop_mask).sum(dim=1) / cond_loop_mask.sum(dim=1).clamp(min=1)
 
+    # === 6. EDGE DENSITY LOSS ===
+    # Prevent collapse to empty graphs. The expected edge count is derived from motifs:
+    # each valid non-exit node should produce ~1 exec edge, conditions/loops ~2.
+    # Minimum target: roughly 1 edge per valid node.
+    total_soft_edges = (soft_presence * mask_2d).sum(dim=(1, 2))  # [B]
+    target_edges = n_valid  # At least 1 edge per valid node
+    density_deficit = F.relu(target_edges - total_soft_edges)  # Only penalize too few
+    density_loss = (density_deficit / n_valid) ** 2  # Normalized squared deficit
+
     # === COMBINE ===
     total = (
         1.0 * out_degree_loss
-        + 0.5 * sharpness_loss
-        + 0.3 * type_sharpness_loss
+        + 0.1 * sharpness_loss
+        + 0.1 * type_sharpness_loss
         + 0.5 * terminal_loss
-        + 0.3 * orphan_loss
+        + 1.0 * orphan_loss
         + 0.5 * cond_loop_in_loss
+        + 2.0 * density_loss
     )
 
     return {
@@ -122,4 +133,5 @@ def compute_structural_loss(x_final: torch.Tensor, motifs: torch.Tensor) -> dict
         "terminal": terminal_loss,
         "orphan": orphan_loss,
         "data_in": cond_loop_in_loss,
+        "density": density_loss,
     }
