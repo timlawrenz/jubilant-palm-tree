@@ -5,49 +5,32 @@
 
 ---
 
-## 🎯 CURRENT STATUS: PHASE 6 - RLAIF COMPLETE ✅ 100% SVR ACHIEVED
+## 🎯 CURRENT STATUS: PHASE 6B - FIXING EDGE COLLAPSE, RE-TRAINING NEEDED
 
 ### Summary
-After PPO (7 runs, all failed) and REINFORCE/RWR (flat SVR), we pivoted to **differentiable structural loss** — directly backpropagating structural constraint violations through the last ODE step. After stabilization work (KL clamp, NaN guard, EMA), a full 10-epoch training run on a rented RTX 4090 (vast.ai) achieved **100% Structural Validation Rate sustained for 6 consecutive epochs**.
+The first RLAIF training run (10 epochs on vast.ai RTX 4090) reported "100% SVR" but this metric was **misleading** — it measured `reward > 0` (partial credit), not all-5-laws-pass. Independent evaluation revealed the model collapsed to generating **0-1 edges** (empty graphs) that trivially pass out-degree and terminal sink but fail orphan/acyclic checks. **True SVR was 0% for active weights, 2.3% for EMA weights.**
 
-### Architecture: Differentiable Structural Loss
-Instead of REINFORCE (sample + scalar reward + high-variance gradient), we compute differentiable versions of the 5 structural constraints on the continuous ODE output:
-- **Execution out-degree**: soft degree must match motif type (1 for sequence, 2 for conditional, etc.)
-- **Edge sharpness**: push presence logits away from 0.5 ambiguity zone
-- **Terminal sink**: at least one node with near-zero exec out-degree
-- **No orphans**: all nodes must have total degree ≥ 1
-- **Data in-degree**: condition/loop nodes need exactly 1 data input
-- **KL anchor**: MSE between policy velocity and frozen reference velocity (clamped at 10.0)
+### Root Cause: Reward Hacking via Edge Collapse
+1. Sharpness loss (weight 0.5) rewarded pushing ALL presence logits to 0 or 1 — pushing to 0 (no edges) was the path of least resistance
+2. Orphan loss (weight 0.3) was too weak to counteract sharpness
+3. SVR metric used `reward > 0` instead of `GraphValidator.evaluate_batch`
+4. KL clamped at 10.0 allowed the model to diverge far enough to reach the degenerate minimum
 
-### Final Training Results (vast.ai RTX 4090, 10 epochs)
-| Epoch | SVR | Struct Loss | KL | Time |
-|-------|-----|-------------|-----|------|
-| 1 | 86.8% | 60.88 | 0.12 | 61 min |
-| 2 | 87.8% | 40.87 | 2.27 | 61 min |
-| 3 | 89.2% | 30.98 | 4.06 | 61 min |
-| 4 | 89.6% | 9.62 | 8.05 | 53 min |
-| 5 | 100.0% | 0.89 | 10.00 | 48 min |
-| 6 | 100.0% | 0.91 | 10.00 | 48 min |
-| **7** | **100.0%** | **0.78** | 10.00 | 48 min |
-| 8 | 100.0% | 0.90 | 10.00 | 49 min |
-| 9 | 100.0% | 0.85 | 10.00 | 48 min |
-| 10 | 100.0% | 0.92 | 10.00 | 49 min |
+### Fixes Applied (commit 9586f28)
+1. **Edge density loss** (weight 2.0): penalizes when total edges < valid node count
+2. **Sharpness only on present edges**: no longer rewards collapsing to zero
+3. **Reweighted losses**: orphan 0.3→1.0, sharpness 0.5→0.1
+4. **Fixed SVR metric**: now uses `GraphValidator.evaluate_batch` (true all-5-laws pass rate)
+5. **Per-law logging**: TensorBoard now tracks each law's pass rate individually
 
-**Best checkpoint: Epoch 7** (lowest structural loss 0.78)  
-**Total training time**: ~8.7 hours (~$3-4 on vast.ai)
-
-### Why This Works (and REINFORCE didn't)
-1. **Dense gradients**: every element of the output gets a gradient, not just a scalar advantage
-2. **No noise**: no σ noise in rollout = no 98K-dimensional variance problem
-3. **No credit assignment**: loss is computed directly on x_final, gradients flow through one model call
-4. **Cheap**: ~7s/batch on 4090
-5. **KL clamp**: prevents catastrophic divergence that caused NaN explosions on local GPU
-
-### Key Stabilization Techniques
-- **KL clamp at 10.0**: prevents explosive KL from destabilizing weights
-- **NaN guard**: skips batches with NaN/Inf total loss before calling .backward()
-- **EMA (0.999 decay)**: exponential moving average of weights for robust final model
-- **Per-epoch checkpointing**: every epoch saved, enabling recovery from any failure
+### Honest Evaluation Results (from evaluate_checkpoints.py)
+| Metric | Baseline (E340) | RLAIF Active | RLAIF EMA |
+|--------|-----------------|-------------|-----------|
+| True SVR (all 5 laws) | 0.3% | 0.0% | 2.3% |
+| Avg edges | 474 | 0-1 | 27 |
+| Out-degree pass | 7% | 100% | 81% |
+| Orphan pass | 100% | 6.7% | 75% |
+| Acyclic pass | 99% | 13% | 96% |
 
 ### Published Blog Post
 [Eradicating Syntax: The Neural Universal Machine](https://lawrenz.com/2026/05/05/eradicating-syntax-the-neural-universal-machine.html) — documents the Phase 5 results.
@@ -56,23 +39,18 @@ Instead of REINFORCE (sample + scalar reward + high-variance gradient), we compu
 
 ## 📋 NEXT ACTION CHECKLIST
 
-### After RLAIF Convergence (NOW):
- **OPTION A: Evaluate Raw SVR on Held-Out Data**
- - Load best checkpoint (epoch 7 or EMA weights from epoch 10)
- - Measure naive-threshold SVR (no Constraint Solver) on held-out motif sequences
- - Compare to baseline (pre-RLAIF naive SVR ~30%)
+### After Fixing Edge Collapse (NOW):
+ **Re-train on vast.ai** with corrected structural loss
+ - Density loss prevents empty-graph collapse
+ - True SVR metric via GraphValidator  
+ - Start from base DiT (epoch 340) — collapsed checkpoints are not useful
  
- **OPTION B: σ→0 Deterministic Evaluation**
- - Set σ=0 (purely deterministic ODE) and evaluate SVR
- - This is the ultimate test: can the model generate perfect graphs without any stochasticity?
+ **Evaluate new checkpoints** using `scripts/evaluate_checkpoints.py`
+ - True all-5-laws SVR, per-law pass rates, edge statistics
  
- **OPTION C: Expand the Universal Motifs**
- - Analyze the `literal_pool` density from the 22k dataset
- - Upgrade heavily-used strings into dedicated macro-motifs
-
- **OPTION D: Upload Best Model to HuggingFace**
- - Push epoch 7 checkpoint and/or EMA weights
- - Update model card with RLAIF training details
+ **Redo visualizations** once a valid checkpoint is found
+ 
+ **Update blog post** with honest results
 
 ---
 
@@ -129,7 +107,7 @@ python -m pytest tests/ -v
 | ODE steps | 20 | Full denoising trajectory |
 
 ### Key Questions to Ask AI Assistant
-- "What phase am I in?" → Phase 6: RLAIF complete, 100% SVR achieved
-- "What should I do next?" → Evaluate on held-out data, upload to HuggingFace
+- "What phase am I in?" → Phase 6B: Fixing edge collapse, re-training needed
+- "What should I do next?" → Re-train with corrected loss on vast.ai
 - "Is pre-training complete?" → Yes, Epoch 343, 100% SVR with Constraint Solver
-- "Best checkpoint?" → `checkpoints/rlaif/vastai_run/rlaif_struct_epoch_7.pt`
+- "Best checkpoint?" → Base DiT `checkpoints/num_dit_epoch_340.pt` (previous RLAIF checkpoints are collapsed)
