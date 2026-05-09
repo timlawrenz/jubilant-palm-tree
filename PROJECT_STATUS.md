@@ -1,56 +1,53 @@
 # Project Status Tracker
 
-**Last Updated**: 2026-05-07 20:20 UTC  
+**Last Updated**: 2026-05-09 19:30 UTC  
 **Purpose**: Quick orientation guide to understand current state and next actions
 
 ---
 
-## 🎯 CURRENT STATUS: PHASE 6B - FIXING EDGE COLLAPSE, RE-TRAINING NEEDED
+## 🎯 CURRENT STATUS: PHASE 6C — ACYCLIC LOSS TRAINING (RUN 5)
 
 ### Summary
-The first RLAIF training run (10 epochs on vast.ai RTX 4090) reported "100% SVR" but this metric was **misleading** — it measured `reward > 0` (partial credit), not all-5-laws-pass. Independent evaluation revealed the model collapsed to generating **0-1 edges** (empty graphs) that trivially pass out-degree and terminal sink but fail orphan/acyclic checks. **True SVR was 0% for active weights, 2.3% for EMA weights.**
+Three critical validator bugs were discovered and fixed (commit e7cb6aa):
+1. `_check_acyclic_data` returned inverted results (True for cyclic, False for acyclic)
+2. `_check_in_degree` required exactly 1 data input for COND/LOOP (should be ≥1)
+3. `_check_out_degree` disallowed COND with 1 exec out (valid in compressed format)
 
-### Root Cause: Reward Hacking via Edge Collapse
-1. Sharpness loss (weight 0.5) rewarded pushing ALL presence logits to 0 or 1 — pushing to 0 (no edges) was the path of least resistance
-2. Orphan loss (weight 0.3) was too weak to counteract sharpness
-3. SVR metric used `reward > 0` instead of `GraphValidator.evaluate_batch`
-4. KL clamped at 10.0 allowed the model to diverge far enough to reach the degenerate minimum
+The training dataset now validates at **83.2% SVR** (was 0% with buggy validator). All prior SVR measurements were inflated.
 
-### Fixes Applied (commit 9586f28)
-1. **Edge density loss** (weight 2.0): penalizes when total edges < valid node count
-2. **Sharpness only on present edges**: no longer rewards collapsing to zero
-3. **Reweighted losses**: orphan 0.3→1.0, sharpness 0.5→0.1
-4. **Fixed SVR metric**: now uses `GraphValidator.evaluate_batch` (true all-5-laws pass rate)
-5. **Per-law logging**: TensorBoard now tracks each law's pass rate individually
+### Corrected Evaluation (Run 4 checkpoints, fixed validator)
+| Metric | Dataset | Baseline | Best Run4 |
+|--------|---------|----------|-----------|
+| **SVR** | **83.2%** | 0% | 0% |
+| out_degree | 91.8% | 3.8% | 27.5% |
+| in_degree | 89.8% | 2.5% | 2.5% |
+| orphan | 100% | 100% | 96.2% |
+| **acyclic** | **100%** | **2.5%** | **0%** |
+| terminal | 100% | 25% | 70% |
 
-### Honest Evaluation Results (from evaluate_checkpoints.py)
-| Metric | Baseline (E340) | RLAIF Active | RLAIF EMA |
-|--------|-----------------|-------------|-----------|
-| True SVR (all 5 laws) | 0.3% | 0.0% | 2.3% |
-| Avg edges | 474 | 0-1 | 27 |
-| Out-degree pass | 7% | 100% | 81% |
-| Orphan pass | 100% | 6.7% | 75% |
-| Acyclic pass | 99% | 13% | 96% |
+**Key insight:** acyclic_data was the #1 bottleneck (0% pass rate) with NO structural loss term.
 
-### Published Blog Post
-[Eradicating Syntax: The Neural Universal Machine](https://lawrenz.com/2026/05/05/eradicating-syntax-the-neural-universal-machine.html) — documents the Phase 5 results.
+### Current Training: Run 5
+- **Config:** β_struct=0.01, β_recon=1.0, β_kl=1.0, lr=1e-5, 10 epochs
+- **New:** NOTEARS acyclic loss (tr(exp(A))-n via power series k=2..4, weight 2.0)
+- **New:** Expanded in-degree loss covers STATE writes, targets ≥1 instead of ==1
+- **Running on:** vast.ai RTX 4090 (ssh -p 32809 root@23.158.136.85)
+- **Evacuating to:** checkpoints/rlaif/vastai_run5/
 
 ---
 
 ## 📋 NEXT ACTION CHECKLIST
 
-### After Fixing Edge Collapse (NOW):
- **Re-train on vast.ai** with corrected structural loss
- - Density loss prevents empty-graph collapse
- - True SVR metric via GraphValidator  
- - Start from base DiT (epoch 340) — collapsed checkpoints are not useful
- 
- **Evaluate new checkpoints** using `scripts/evaluate_checkpoints.py`
- - True all-5-laws SVR, per-law pass rates, edge statistics
- 
- **Redo visualizations** once a valid checkpoint is found
- 
- **Update blog post** with honest results
+### Active (Run 5):
+- [ ] Monitor Run 5 training (10 epochs, ~14 hours)
+- [ ] Evaluate checkpoints with corrected validator
+- [ ] Compare acyclic_data pass rates vs Run 4 (expect significant improvement)
+
+### After Run 5:
+- [ ] If acyclic improves but SVR still 0%: tune β_struct or add per-law weighting
+- [ ] If SVR > 0%: evaluate best checkpoint thoroughly (>200 samples)
+- [ ] Update blog post with corrected results and validator bug discovery
+- [ ] Create visualizations of improved graphs
 
 ---
 
@@ -66,26 +63,17 @@ The first RLAIF training run (10 epochs on vast.ai RTX 4090) reported "100% SVR"
 - **src/rlaif/structural_loss.py**: Differentiable structural constraints
 
 ### Key Checkpoints
-- **Base DiT**: `checkpoints/num_dit_epoch_340.pt` (pre-RLAIF, ~30% naive SVR)
-- **Best RLAIF**: `checkpoints/rlaif/vastai_run/rlaif_struct_epoch_7.pt` (100% SVR, lowest struct loss)
-- **Final RLAIF**: `checkpoints/rlaif/vastai_run/rlaif_struct_epoch_10.pt` (100% SVR, includes EMA)
-- All 10 epoch checkpoints in `checkpoints/rlaif/vastai_run/`
+- **Base DiT**: `checkpoints/num_dit_epoch_340.pt` (pre-RLAIF, 0% SVR with corrected validator)
+- **Best Run 4**: `checkpoints/rlaif/vastai_run4/rlaif_struct_epoch_3.pt` (EMA, best out_degree/terminal but 0% acyclic)
+- **Run 5 (in progress)**: `checkpoints/rlaif/vastai_run5/` (with acyclic loss)
 
 ### Key Commands
 ```bash
-# RLAIF Training (with all stabilization)
-python -m src.rlaif.train_rlaif \
+# RLAIF Training (current config — Run 5)
+PYTHONPATH=. python3 src/rlaif/train_rlaif.py \
   --checkpoint checkpoints/num_dit_epoch_340.pt \
-  --lr 1e-6 --kl-clamp 10.0 --max-epochs 10 \
-  --batch-size 8 --grad-steps 1 --save-every 1
-
-# Resume from checkpoint
-python -m src.rlaif.train_rlaif \
-  --checkpoint checkpoints/num_dit_epoch_340.pt \
-  --resume checkpoints/rlaif/vastai_run/rlaif_struct_epoch_7.pt
-
-# Visualization
-python -m scripts.visualize_denoising --checkpoint checkpoints/rlaif/vastai_run/rlaif_struct_epoch_7.pt
+  --beta-struct 0.01 --beta-recon 1.0 --beta-kl 1.0 \
+  --lr 1e-5 --max-epochs 10 --batch-size 4
 
 # Pre-training (Phase 5, complete)
 python src/train.py
@@ -94,20 +82,33 @@ python src/train.py
 python -m pytest tests/ -v
 ```
 
-### RLAIF Hyperparameters (Final)
+### RLAIF Hyperparameters (Run 5 — Current)
 | Parameter | Value | Notes |
 |-----------|-------|-------|
 | β_kl (KL weight) | 1.0 | Anchors to reference model |
-| β_struct (structural weight) | 0.1 | Structural loss coefficient |
+| β_struct (structural weight) | 0.01 | Low: reconstruction dominates |
+| β_recon (reconstruction weight) | 1.0 | MSE to ground truth graph |
 | KL clamp | 10.0 | Prevents explosive KL |
-| LR | 1e-6 | Low for stable RLAIF |
+| LR | 1e-5 | Higher than Run 1-3 for faster learning |
 | EMA decay | 0.999 | Smoothed weight tracking |
-| Grad steps | 1 | Last ODE step only (memory) |
-| Batch size | 8 | On 24GB GPU (4 on 8GB) |
+| Grad steps | 3 | Last 3 ODE steps with grad |
+| Batch size | 4 | On RTX 4090 |
 | ODE steps | 20 | Full denoising trajectory |
 
+### Structural Loss Weights (Run 5)
+| Component | Weight | Notes |
+|-----------|--------|-------|
+| out_degree | 1.0 | Exec out-degree per motif type |
+| sharpness | 0.1 | Only on present edges |
+| type_sharpness | 0.1 | Edge type decisiveness |
+| terminal | 0.5 | At least one exit node |
+| orphan | 1.0 | All nodes connected |
+| data_in | 1.0 | COND/LOOP/STATE-write need ≥1 data input |
+| **acyclic** | **2.0** | **NEW: NOTEARS tr(exp(A))-n, k=2..4** |
+| density | 2.0 | Prevent edge collapse |
+
 ### Key Questions to Ask AI Assistant
-- "What phase am I in?" → Phase 6B: Fixing edge collapse, re-training needed
-- "What should I do next?" → Re-train with corrected loss on vast.ai
-- "Is pre-training complete?" → Yes, Epoch 343, 100% SVR with Constraint Solver
-- "Best checkpoint?" → Base DiT `checkpoints/num_dit_epoch_340.pt` (previous RLAIF checkpoints are collapsed)
+- "What phase am I in?" → Phase 6C: Acyclic loss training (Run 5 active)
+- "What should I do next?" → Monitor Run 5, evaluate checkpoints
+- "What bugs were found?" → 3 validator bugs (acyclic inverted, in_degree too strict, out_degree too strict)
+- "Best checkpoint?" → Run 4 E3 EMA for out_degree/terminal, but 0% acyclic with corrected validator
