@@ -51,6 +51,7 @@ def train_rlaif(args):
     print(f"  Resume: {args.resume or 'None (fresh start)'}")
     print(f"  β_kl (KL weight): {args.beta_kl}")
     print(f"  β_struct (structural weight): {args.beta_struct}")
+    print(f"  β_recon (reconstruction weight): {args.beta_recon}")
     print(f"  KL clamp: {args.kl_clamp}")
     print(f"  LR: {args.lr}")
     print(f"  ODE steps: {args.num_steps}")
@@ -126,6 +127,7 @@ def train_rlaif(args):
         for batch_idx, batch in enumerate(progress):
             motifs = batch["motifs"].to(device)
             padding_mask = batch["padding_mask"].to(device)
+            x_target = batch["adjacency"].to(device)  # Ground truth graph
             B, N = motifs.shape
             dt = 1.0 / args.num_steps
             no_grad_steps = args.num_steps - args.grad_steps
@@ -175,12 +177,32 @@ def train_rlaif(args):
             struct_losses = compute_structural_loss(x_final, motifs)
             struct_loss = struct_losses["total"].mean()
 
+            # === Reconstruction loss (MSE to ground truth graph) ===
+            # x_target is [B, 3, N, N]: ch0=presence, ch1=edge_type, ch2=input_index
+            # x_final is [B, 6, N, N]: ch0=presence, ch1=data_type, ch2:6=input_index_logits
+            # Expand target to 6 channels to match model output
+            target_6ch = torch.zeros_like(x_final)
+            target_6ch[:, 0] = x_target[:, 0]  # presence
+            target_6ch[:, 1] = x_target[:, 1]  # edge/data type
+            # One-hot encode input_index (0-3) into channels 2-5
+            idx = x_target[:, 2].long().clamp(0, 3)  # [B, N, N]
+            target_6ch[:, 2:].scatter_(1, idx.unsqueeze(1), 1.0)
+
+            mask_2d = padding_mask  # [B, N, N] — already 2D mask from dataset
+            mask_6d = mask_2d.unsqueeze(1).expand_as(x_final)  # [B, 6, N, N]
+            recon_diff = (x_final - target_6ch) ** 2 * mask_6d
+            recon_loss = recon_diff.sum() / mask_6d.sum().clamp(min=1)
+
             # === KL loss (clamped to prevent explosion) ===
             kl_loss = sum(kl_losses) / len(kl_losses) if kl_losses else torch.tensor(0.0)
             kl_loss = torch.clamp(kl_loss, max=args.kl_clamp)
 
             # === Combined loss ===
-            total_loss = args.beta_struct * struct_loss + args.beta_kl * kl_loss
+            total_loss = (
+                args.beta_struct * struct_loss
+                + args.beta_recon * recon_loss
+                + args.beta_kl * kl_loss
+            )
 
             # Skip batch if loss is NaN or Inf (prevents weight corruption)
             if torch.isnan(total_loss) or torch.isinf(total_loss):
@@ -223,6 +245,7 @@ def train_rlaif(args):
 
             # === Logging ===
             sl = struct_loss.item()
+            rl = recon_loss.item()
             kl = kl_loss.item() if isinstance(kl_loss, torch.Tensor) else kl_loss
             epoch_struct_losses.append(sl)
             epoch_kl_losses.append(kl)
@@ -230,8 +253,9 @@ def train_rlaif(args):
                 epoch_svr.append(svr)
 
             writer.add_scalar("Loss/Structural", sl, global_step)
+            writer.add_scalar("Loss/Reconstruction", rl, global_step)
             writer.add_scalar("Loss/KL", kl, global_step)
-            writer.add_scalar("Loss/Total", sl + args.beta_kl * kl, global_step)
+            writer.add_scalar("Loss/Total", args.beta_struct * sl + args.beta_recon * rl + args.beta_kl * kl, global_step)
 
             # Log individual structural components
             for key in ["out_degree", "sharpness", "type_sharpness", "terminal", "orphan", "data_in", "density"]:
@@ -240,6 +264,7 @@ def train_rlaif(args):
 
             progress.set_postfix({
                 "struct": f"{sl:.4f}",
+                "recon": f"{rl:.4f}",
                 "kl": f"{kl:.4f}",
                 "svr": f"{svr:.1%}" if batch_idx % args.eval_every == 0 else "—",
             })
@@ -292,6 +317,8 @@ if __name__ == "__main__":
                         help="KL penalty coefficient (MSE to reference velocity)")
     parser.add_argument("--beta-struct", type=float, default=0.1,
                         help="Structural loss coefficient")
+    parser.add_argument("--beta-recon", type=float, default=1.0,
+                        help="Reconstruction loss coefficient (MSE to target graph)")
     parser.add_argument("--kl-clamp", type=float, default=10.0,
                         help="Maximum KL loss value (clamp to prevent explosions)")
     parser.add_argument("--ema-decay", type=float, default=0.999,
