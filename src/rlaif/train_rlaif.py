@@ -258,7 +258,7 @@ def train_rlaif(args):
             writer.add_scalar("Loss/Total", args.beta_struct * sl + args.beta_recon * rl + args.beta_kl * kl, global_step)
 
             # Log individual structural components
-            for key in ["out_degree", "sharpness", "type_sharpness", "terminal", "orphan", "data_in", "density"]:
+            for key in ["out_degree", "sharpness", "type_sharpness", "terminal", "orphan", "data_in", "acyclic", "density"]:
                 if key in struct_losses:
                     writer.add_scalar(f"Structural/{key}", struct_losses[key].mean().item(), global_step)
 

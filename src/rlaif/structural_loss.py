@@ -100,12 +100,35 @@ def compute_structural_loss(x_final: torch.Tensor, motifs: torch.Tensor) -> dict
     orphan_loss = orphan_deficit.sum(dim=1) / n_valid
 
     # === 5. DATA IN-DEGREE LOSS ===
-    # CONDITION/LOOP (3,4) should have exactly 1 data input
+    # CONDITION/LOOP (3,4) need at least 1 data input
+    # STATE (5) "writes" (exec_out > 0) need at least 1 data input
     data_in_degree = soft_data.sum(dim=1)  # [B, N] — sum over sources
-    cond_loop_mask = ((motifs == 3) | (motifs == 4)).float()
-    cond_loop_in_loss = ((data_in_degree - 1.0) ** 2 * cond_loop_mask).sum(dim=1) / cond_loop_mask.sum(dim=1).clamp(min=1)
+    data_in_deficit = F.relu(1.0 - data_in_degree)  # penalize < 1, allow >= 1
 
-    # === 6. EDGE DENSITY LOSS ===
+    cond_loop_mask = ((motifs == 3) | (motifs == 4)).float()
+    # STATE writes: use soft exec out-degree as write indicator
+    state_mask = (motifs == 5).float()
+    state_write_weight = state_mask * torch.sigmoid(10.0 * (exec_out_degree - 0.5))
+    in_degree_mask = cond_loop_mask + state_write_weight  # combined mask
+    data_in_loss = (data_in_deficit ** 2 * in_degree_mask).sum(dim=1) / in_degree_mask.sum(dim=1).clamp(min=1)
+
+    # === 6. ACYCLIC DATA LOSS (NOTEARS) ===
+    # Penalize cycles in the data-edge subgraph using trace(exp(A)) - n.
+    # Uses truncated matrix power series: sum_k tr(A^k)/k! for k=2..K
+    # Any non-zero diagonal in A^k indicates a k-length cycle.
+    A = soft_data  # [B, N, N] — soft data adjacency
+    acyclic_loss = torch.zeros(B, device=device)
+    A_power = A  # A^1
+    for k in range(2, 9):  # detect cycles up to length 8
+        A_power = torch.bmm(A_power, A)  # A^k, [B, N, N]
+        trace_k = torch.diagonal(A_power, dim1=-2, dim2=-1).sum(dim=-1)  # [B]
+        factorial_k = 1.0
+        for j in range(2, k + 1):
+            factorial_k *= j
+        acyclic_loss = acyclic_loss + trace_k / factorial_k
+    acyclic_loss = acyclic_loss / n_valid  # normalize by graph size
+
+    # === 7. EDGE DENSITY LOSS ===
     # Prevent collapse to empty graphs. The expected edge count is derived from motifs:
     # each valid non-exit node should produce ~1 exec edge, conditions/loops ~2.
     # Minimum target: roughly 1 edge per valid node.
@@ -121,7 +144,8 @@ def compute_structural_loss(x_final: torch.Tensor, motifs: torch.Tensor) -> dict
         + 0.1 * type_sharpness_loss
         + 0.5 * terminal_loss
         + 1.0 * orphan_loss
-        + 0.5 * cond_loop_in_loss
+        + 1.0 * data_in_loss
+        + 2.0 * acyclic_loss
         + 2.0 * density_loss
     )
 
@@ -132,6 +156,7 @@ def compute_structural_loss(x_final: torch.Tensor, motifs: torch.Tensor) -> dict
         "type_sharpness": type_sharpness_loss,
         "terminal": terminal_loss,
         "orphan": orphan_loss,
-        "data_in": cond_loop_in_loss,
+        "data_in": data_in_loss,
+        "acyclic": acyclic_loss,
         "density": density_loss,
     }

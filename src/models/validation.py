@@ -99,7 +99,7 @@ class GraphValidator:
                 # (We relax this slightly: if it has 0 exec out, it must just be a data provider)
                 if out_count > 1: return False
             elif motif in (MotifType.CONDITION, MotifType.LOOP):
-                if out_count not in (0, 2): return False # 0 if just broken, 2 if valid
+                if out_count > 2: return False # max 2 branches
                 if out_count == 2:
                     indices = set([idx for idx, tgt in out_edges])
                     # Strict validation currently demands EXACTLY 0 and 1.
@@ -116,11 +116,11 @@ class GraphValidator:
             in_count = len(in_edges)
             
             if motif in (MotifType.CONDITION, MotifType.LOOP):
-                if in_count != 1: return False
+                if in_count < 1: return False
             elif motif == MotifType.STATE:
                 # If it's in the execution path, it's a Write, needs 1 data in.
                 is_write = len(exec_out[n]) > 0
-                if is_write and in_count != 1: return False
+                if is_write and in_count < 1: return False
             elif motif == MotifType.MESSAGE:
                 # Indices must be sequential: 0, 1, 2...
                 indices = sorted([idx for idx, src in in_edges])
@@ -179,8 +179,8 @@ class GraphValidator:
             
         for n in valid_nodes:
             if n not in visited:
-                if is_cyclic(n): return True
-        return False
+                if is_cyclic(n): return False
+        return True
 
     @classmethod
     def _check_terminal_sink(cls, valid_nodes, motif_seq, exec_out) -> bool:

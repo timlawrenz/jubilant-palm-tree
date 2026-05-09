@@ -167,4 +167,68 @@ Second vast.ai run (10 epochs, ~8 hours). The density loss successfully prevente
 - Masked MSE over valid node pairs only (padding_mask)
 - Clean separation: reconstruction is plain MSE, no per-channel weighting (structural loss already handles that)
 
+### Run 3: Hybrid β_struct=0.1 (May 8)
+
+- Reconstruction loss dropped 20.2 → 0.46 over 10 epochs
+- KL hit 10.0 clamp by epoch 3 (same divergence issue as Runs 1-2)
+- **Result:** Active E10 had 27 edges (still sparse), EMA E10 had 169 edges, 2.5% SVR EMA
+- **Root cause:** Structural loss at β=0.1 still dominated and pushed toward sparsity
+
+### Run 4: Hybrid β_struct=0.01 — Best Run (May 8-9, vast.ai RTX 4090)
+
+Configuration: β_struct=0.01, β_recon=1.0, β_kl=1.0. Let reconstruction dominate.
+
+**Key improvement:** KL stayed at 2.6-5.0, never hit 10.0 clamp. Reconstruction anchor kept model grounded.
+
+Results (80 samples, 10 batches of 8) — these used the **buggy** validator (see below):
+
+| Metric | Baseline | E3 Act | E5 EMA | E7 Act | E10 Act |
+|--------|----------|--------|--------|--------|---------|
+| SVR | 0% | 1.2% | 1.2% | 0% | 1.2% |
+| Edges | 8,110 | 5,268 | 5,647 | 3,368 | 3,480 |
+| out_degree | 1% | 19% | 21% | 36% | 35% |
+| terminal | 24% | 54% | 74% | 78% | 70% |
+
+No collapse. Genuine structural improvements. But in_degree stuck at 0-5%.
+
+### Milestone 6: Validator Bug Discovery (May 9)
+
+**Three bugs found in `validation.py` that corrupted ALL prior SVR measurements:**
+
+#### Bug 1: `_check_acyclic_data` inverted (critical)
+The function returned `True` when cycles were found and `False` when acyclic — exactly backwards. `acyclic_data_pass` was counting cyclic graphs as passing. The "99% acyclic" on baseline was actually "1% acyclic" — the model generates tons of data-plane cycles.
+
+Fix: Invert return values (`return False` when cycle found, `return True` when no cycle).
+
+#### Bug 2: `_check_in_degree` too strict for CONDITION/LOOP
+Required exactly 1 data input, but 255/256 CONDITION nodes in the dataset have 2+ inputs (conditions evaluate multi-operand expressions). Changed to `>= 1`.
+
+#### Bug 3: `_check_out_degree` too strict for CONDITION
+Required exactly 0 or 2 exec outputs, but compressed motif format can have 1 (partial branch visibility). Changed to allow 0, 1, or 2.
+
+**Corrected dataset validation:** 83.2% SVR (was 0% with buggy validator). The training data itself is now mostly valid.
+
+**Re-evaluation with corrected validator (Run 4):**
+
+| Metric | Dataset | Baseline | E3 EMA | E5 EMA | E7 Act | E10 Act |
+|--------|---------|----------|--------|--------|--------|---------|
+| SVR | 83.2% | 0% | 0% | 0% | 0% | 0% |
+| out_degree | 91.8% | 3.8% | 12.5% | 16.2% | 23.8% | 27.5% |
+| in_degree | 89.8% | 2.5% | 6.2% | 3.8% | 0% | 2.5% |
+| orphan | 100% | 100% | 100% | 100% | 97.5% | 96.2% |
+| acyclic | 100% | 2.5% | 1.2% | 0% | 0% | 0% |
+| terminal | 100% | 25% | 28.8% | 63.8% | 65% | 70% |
+
+**The real bottleneck is acyclic_data (0%)** — there was NO structural loss term for data-plane acyclicity. The model had zero gradient signal to avoid data cycles.
+
+### NOTEARS Acyclic Loss + Expanded In-Degree (May 9)
+
+**Three fixes to `structural_loss.py`:**
+
+1. **NOTEARS acyclic loss (weight 2.0):** Uses the trace of the matrix exponential: `h(A) = tr(exp(A)) - n`. Computed via truncated power series `sum_k tr(A^k)/k!` for k=2..8. Each non-zero diagonal in A^k indicates a k-length cycle. Differentiable, efficient (128×128 bmm × 7 iterations), only 2.7GB VRAM.
+
+2. **Expanded in-degree loss (weight 0.5→1.0):** Now covers STATE write nodes (motif=5 with exec_out > 0) in addition to CONDITION/LOOP. Uses soft exec out-degree as differentiable write indicator via `sigmoid(10 × (exec_out - 0.5))`.
+
+3. **Changed in-degree target from "exactly 1" to "at least 1":** Uses `ReLU(1 - data_in)²` instead of `(data_in - 1)²`. Allows multiple data inputs (matching the relaxed validator rules).
+
 **Run 3 started** on same vast.ai instance with hybrid loss. Early signs: recon=20.1 (high initially, will drop), struct=64.1, ~7s/batch.
