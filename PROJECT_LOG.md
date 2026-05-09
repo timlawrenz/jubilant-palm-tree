@@ -126,3 +126,45 @@ New vast.ai RTX 4090 instance. Training from base DiT (epoch 340) with corrected
 3. **Loss weight ratios matter enormously.** Sharpness at 0.5 vs orphan at 0.3 meant the model was *incentivized* to kill edges.
 4. **Edge density is a necessary structural constraint.** Without a floor on edge count, the model will always find the empty-graph shortcut.
 5. **Ephemeral GPU workflow works.** The vast.ai + rsync evacuation pattern is reliable and cost-effective for ~10hr training runs.
+
+### Run 2 Results: Density Loss Prevents Zero-Edge Collapse, But Finds New Degenerate Minimum (May 8)
+Second vast.ai run (10 epochs, ~8 hours). The density loss successfully prevented the zero-edge collapse from Run 1, but the model found a new degenerate minimum.
+
+**Active weights evaluation (40 samples each):**
+| Metric | Epoch 5 | Epoch 7 | Epoch 10 | Trend |
+|--------|---------|---------|----------|-------|
+| True SVR | 0% | 0% | 0% | Flat |
+| Avg edges | 114.9 | 52.2 | **16.6** | 📉 Still shrinking |
+| out_degree | 100% | 100% | 100% | ✅ Trivially satisfied |
+| orphan | 12.5% | 10% | 5% | 📉 Getting worse |
+| acyclic | 20% | 20% | 20% | Flat — never learned |
+| terminal | 100% | 100% | 100% | ✅ Trivially satisfied |
+
+**EMA weights** stayed near baseline (~2,300 edges, 0% SVR) — EMA decay 0.999 is too slow to incorporate the active policy's changes.
+
+**Root cause:** The density loss floor was set to `n_valid_nodes` (~10-20 nodes), but real graphs need ~400-500 edges. The model converged to the floor and sat there. Without any positive signal pulling toward realistic graphs, only penalty terms pushing away from violations, the model has no reason to produce more edges than the bare minimum.
+
+**The key insight (from the user):** "Why can't we compare the resulting graph to the expected graph?" The training loop generates from random noise with NO reference to the ground truth graph. The structural-only loss defines what's *wrong* but never shows what's *right*.
+
+### The Hybrid Loss: Reconstruction + Structure (May 8, commit 992fb24)
+
+**The fix:** Add MSE reconstruction loss against the ground truth graph alongside structural loss.
+
+**Division of labor:**
+- **Reconstruction loss (β=1.0):** "generate graphs that *look* like real graphs" — anchors edge density, shape, and scale to the training distribution
+- **Structural loss (β=0.1):** "generate graphs that *pass the validator*" — sharpens specific validity rules (degree, cycles, orphans)
+- **KL anchor (β=1.0):** prevents catastrophic divergence from the pre-trained reference
+
+**Why this should work:**
+1. The flow-matching pre-training used exactly this reconstruction objective and maintained ~474 edges per graph — it never collapsed
+2. It plateaued at 0.135 MSE because it treats all matrix elements equally — structural loss knows *which* edges matter
+3. Together: reconstruction prevents collapse, structure pushes toward validity
+4. Only ONE hyperparameter to tune (β_recon) instead of complex density/orphan weight ratios
+
+**Implementation details:**
+- Ground truth is [B, 3, N, N] (presence, edge_type, input_index) but model outputs [B, 6, N, N] (presence, data_type, 4× input_index logits)
+- Expand target to 6 channels: one-hot encode input_index into channels 2-5
+- Masked MSE over valid node pairs only (padding_mask)
+- Clean separation: reconstruction is plain MSE, no per-channel weighting (structural loss already handles that)
+
+**Run 3 started** on same vast.ai instance with hybrid loss. Early signs: recon=20.1 (high initially, will drop), struct=64.1, ~7s/batch.
