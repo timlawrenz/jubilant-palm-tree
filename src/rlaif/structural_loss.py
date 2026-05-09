@@ -113,13 +113,14 @@ def compute_structural_loss(x_final: torch.Tensor, motifs: torch.Tensor) -> dict
     data_in_loss = (data_in_deficit ** 2 * in_degree_mask).sum(dim=1) / in_degree_mask.sum(dim=1).clamp(min=1)
 
     # === 6. ACYCLIC DATA LOSS (NOTEARS) ===
-    # Penalize cycles in the data-edge subgraph using trace(exp(A)) - n.
-    # Uses truncated matrix power series: sum_k tr(A^k)/k! for k=2..K
-    # Any non-zero diagonal in A^k indicates a k-length cycle.
-    A = soft_data  # [B, N, N] — soft data adjacency
+    # Penalize cycles in the data-edge subgraph using tr(exp(A)) - n.
+    # Truncated power series: sum_k tr(A^k)/k! for k=2..4.
+    # k=2 catches 2-cycles, k=3 catches 3-cycles, k=4 catches 4-cycles.
+    # Higher k explodes numerically for dense soft matrices, so we stop at 4.
+    A = soft_data  # [B, N, N] — soft data adjacency, entries in [0, 1]
     acyclic_loss = torch.zeros(B, device=device)
     A_power = A  # A^1
-    for k in range(2, 9):  # detect cycles up to length 8
+    for k in range(2, 5):  # detect cycles up to length 4
         A_power = torch.bmm(A_power, A)  # A^k, [B, N, N]
         trace_k = torch.diagonal(A_power, dim1=-2, dim2=-1).sum(dim=-1)  # [B]
         factorial_k = 1.0
@@ -127,6 +128,7 @@ def compute_structural_loss(x_final: torch.Tensor, motifs: torch.Tensor) -> dict
             factorial_k *= j
         acyclic_loss = acyclic_loss + trace_k / factorial_k
     acyclic_loss = acyclic_loss / n_valid  # normalize by graph size
+    acyclic_loss = torch.clamp(acyclic_loss, max=50.0)  # prevent gradient explosion
 
     # === 7. EDGE DENSITY LOSS ===
     # Prevent collapse to empty graphs. The expected edge count is derived from motifs:
