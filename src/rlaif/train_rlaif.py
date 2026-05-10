@@ -198,6 +198,9 @@ def train_rlaif(args):
             kl_loss = sum(kl_losses) / len(kl_losses) if kl_losses else torch.tensor(0.0)
             kl_loss = torch.clamp(kl_loss, max=args.kl_clamp)
 
+            # Clamp structural loss to prevent wild oscillations from sharpened NOTEARS
+            struct_loss = torch.clamp(struct_loss, max=50.0)
+
             # === Combined loss ===
             total_loss = (
                 args.beta_struct * struct_loss
