@@ -315,9 +315,9 @@ if __name__ == "__main__":
                         help="Number of LAST ODE steps to backprop through")
     parser.add_argument("--beta-kl", type=float, default=1.0,
                         help="KL penalty coefficient (MSE to reference velocity)")
-    parser.add_argument("--beta-struct", type=float, default=0.1,
+    parser.add_argument("--beta-struct", type=float, default=0.5,
                         help="Structural loss coefficient")
-    parser.add_argument("--beta-recon", type=float, default=1.0,
+    parser.add_argument("--beta-recon", type=float, default=0.5,
                         help="Reconstruction loss coefficient (MSE to target graph)")
     parser.add_argument("--kl-clamp", type=float, default=10.0,
                         help="Maximum KL loss value (clamp to prevent explosions)")

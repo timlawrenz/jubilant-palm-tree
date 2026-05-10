@@ -112,12 +112,16 @@ def compute_structural_loss(x_final: torch.Tensor, motifs: torch.Tensor) -> dict
     in_degree_mask = cond_loop_mask + state_write_weight  # combined mask
     data_in_loss = (data_in_deficit ** 2 * in_degree_mask).sum(dim=1) / in_degree_mask.sum(dim=1).clamp(min=1)
 
-    # === 6. ACYCLIC DATA LOSS (NOTEARS) ===
+    # === 6. ACYCLIC DATA LOSS (NOTEARS with sharpened adjacency) ===
     # Penalize cycles in the data-edge subgraph using tr(exp(A)) - n.
     # Truncated power series: sum_k tr(A^k)/k! for k=2..4.
-    # k=2 catches 2-cycles, k=3 catches 3-cycles, k=4 catches 4-cycles.
-    # Higher k explodes numerically for dense soft matrices, so we stop at 4.
-    A = soft_data  # [B, N, N] — soft data adjacency, entries in [0, 1]
+    #
+    # Key insight: On the raw soft_data (~0.25 everywhere), NOTEARS produces
+    # uniform gradient that can't target specific cycles. We SHARPEN first:
+    # sigmoid(τ*(x - 0.5)) concentrates probability mass on likely edges,
+    # so the cycle penalty focuses on actual predicted cycles.
+    A_sharp = torch.sigmoid(10.0 * (soft_data - 0.5))  # sharpen: edges > 0.5 → ~1, < 0.5 → ~0
+    A = A_sharp * mask_2d  # [B, N, N] — sharpened soft data adjacency
     acyclic_loss = torch.zeros(B, device=device)
     A_power = A  # A^1
     for k in range(2, 5):  # detect cycles up to length 4
@@ -147,7 +151,7 @@ def compute_structural_loss(x_final: torch.Tensor, motifs: torch.Tensor) -> dict
         + 0.5 * terminal_loss
         + 1.0 * orphan_loss
         + 1.0 * data_in_loss
-        + 2.0 * acyclic_loss
+        + 5.0 * acyclic_loss
         + 2.0 * density_loss
     )
 
