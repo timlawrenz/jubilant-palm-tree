@@ -192,6 +192,7 @@ def train_rlaif(args):
             mask_6d = mask_2d.unsqueeze(1).expand_as(x_final)  # [B, 6, N, N]
             recon_diff = (x_final - target_6ch) ** 2 * mask_6d
             recon_loss = recon_diff.sum() / mask_6d.sum().clamp(min=1)
+            recon_loss = torch.clamp(recon_loss, max=100.0)  # prevent explosion
 
             # === KL loss (clamped to prevent explosion) ===
             kl_loss = sum(kl_losses) / len(kl_losses) if kl_losses else torch.tensor(0.0)
@@ -206,6 +207,7 @@ def train_rlaif(args):
 
             # Skip batch if loss is NaN or Inf (prevents weight corruption)
             if torch.isnan(total_loss) or torch.isinf(total_loss):
+                print(f"  ⚠ Batch {batch_idx}: NaN/Inf loss (struct={struct_loss.item():.2f}, recon={recon_loss.item():.2f}, kl={kl_loss.item() if isinstance(kl_loss, torch.Tensor) else kl_loss:.2f}) — skipping")
                 optimizer.zero_grad()
                 global_step += 1
                 continue
@@ -274,10 +276,11 @@ def train_rlaif(args):
 
         # === EPOCH SUMMARY ===
         epoch_duration = time.time() - epoch_start_time
-        avg_struct = sum(epoch_struct_losses) / len(epoch_struct_losses)
-        avg_kl = sum(epoch_kl_losses) / len(epoch_kl_losses)
+        avg_struct = sum(epoch_struct_losses) / len(epoch_struct_losses) if epoch_struct_losses else float('nan')
+        avg_kl = sum(epoch_kl_losses) / len(epoch_kl_losses) if epoch_kl_losses else float('nan')
         avg_svr = sum(epoch_svr) / len(epoch_svr) if epoch_svr else 0
-        print(f"\nEpoch {epoch} | Struct: {avg_struct:.4f} | KL: {avg_kl:.4f} | SVR: {avg_svr:.1%} | Time: {epoch_duration/60:.1f}min")
+        n_skipped = len(dataloader) - len(epoch_struct_losses)
+        print(f"\nEpoch {epoch} | Struct: {avg_struct:.4f} | KL: {avg_kl:.4f} | SVR: {avg_svr:.1%} | Time: {epoch_duration/60:.1f}min | Skipped: {n_skipped}")
 
         writer.add_scalar("Epoch/Avg_Structural", avg_struct, epoch)
         writer.add_scalar("Epoch/Avg_KL", avg_kl, epoch)
