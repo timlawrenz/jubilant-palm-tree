@@ -67,23 +67,24 @@ Rather than relying on the DiT to perfectly zero out its own noise, the solver r
 
 To measure true Syntactic Validity Rate (SVR), we built a deterministic PyTorch grader that runs 5 strict topological checks against the thresholded matrix:
 
-1.  **Execution Out-Degree Laws**: E.g., `[Condition]` must have exactly 2 outgoing execution edges (True/False).
-2.  **Data In-Degree (Arity) Laws**: E.g., `[State]` writes must have exactly 1 incoming data edge.
+1.  **Execution Out-Degree Laws**: E.g., `[Condition]` must have 0, 1, or 2 outgoing execution edges (True/False). *(Originally required exactly 0 or 2; relaxed to allow 1 for compressed motifs where one branch is outside the compression window.)*
+2.  **Data In-Degree (Arity) Laws**: E.g., `[Condition]` and `[Loop]` must have at least 1 incoming data edge. `[State]` writes must have at least 1 incoming data edge. *(Originally required exactly 1; relaxed because real conditions evaluate multi-operand expressions.)*
 3.  **No Orphans (Reachability)**: A Breadth-First Search confirms no disconnected logic islands.
 4.  **Acyclic Data Plane**: A Depth-First Search confirms the data dependencies contain zero paradoxes/cycles.
 5.  **Terminal Sink**: A reverse-BFS ensures no infinite loops exist without an escape path to a `[Boundary]`.
 
-## 7. RLAIF: Discrete Fine-Tuning with PPO & KL Anchor
+## 7. RLAIF: Differentiable Structural Loss Fine-Tuning
 
-Flow Matching (MSE) is blind to graph topology. To push the 128-node graph Syntactic Validity Rate to 100%, the model transitions from continuous generative pre-training to **Reinforcement Learning from AI Feedback (RLAIF)**.
+Flow Matching (MSE) is blind to graph topology. To push the 128-node graph Syntactic Validity Rate toward 100%, the model transitions from continuous generative pre-training to **Reinforcement Learning from AI Feedback (RLAIF)**.
 
-The active policy is trained via PPO using a dense, component-based reward structure built directly from the Validation Harness.
-*   **Topological Base Rewards**: `+0.2` for passing No Orphans, Acyclic Data, and In-Degree rules.
-*   **Load-Bearing Penalties**: `+0.4` for Out-Degree pass (`-0.2` fail) and Terminal Sink pass (`-0.4` fail).
-*   **SVR Multiplier**: If all 5 rules pass, the total reward receives a massive **2.5x Jackpot Bonus**.
+> **Note (May 2026):** The originally planned PPO approach was abandoned because computing exact log-likelihoods of 20-step ODE trajectories is computationally intractable. Instead, we use **differentiable structural losses** computed directly on the continuous model output, combined with reconstruction MSE and a KL anchor to the pre-trained reference. See PROJECT_LOG.md for the full evolution.
 
-**The KL Divergence Anchor**: 
-To prevent the PPO optimizer from hacking the reward function (e.g., mode-collapsing into predicting the exact same hyper-safe, trivial "straight-line" 128-node trunk every single time), the active policy is anchored to the frozen Flow Matching pre-trained weights. A KL Divergence penalty is subtracted from the reward signal, forcing the DiT to maximize the topological jackpot while strictly adhering to the diverse structural routing requested by the Semantic LLM's motif ingredients.
+The current approach uses three loss components:
+*   **Reconstruction Loss (β=1.0):** MSE to the ground truth graph — anchors edge density and shape to the training distribution.
+*   **Structural Loss (β=0.01):** Differentiable versions of the 5 Laws of Physics, including a NOTEARS acyclic penalty (tr(exp(A))-n), out-degree/in-degree losses, orphan detection, and edge density.
+*   **KL Divergence Anchor (β=1.0):** MSE between active policy and frozen reference velocities — prevents catastrophic forgetting.
+
+> **Errata (May 9, 2026):** Three bugs were discovered in the `GraphValidator` that invalidated all prior SVR measurements. See "Milestone 6: Validator Bug Discovery" in PROJECT_LOG.md. The `_check_acyclic_data` function was inverted (returned True for cyclic graphs), `_check_in_degree` was too strict (required exactly 1 instead of ≥1), and `_check_out_degree` disallowed valid CONDITION configurations. The training dataset validates at 83.2% SVR with the corrected validator.
 
 ## 8. The Workflow: Three Branches of Government
 

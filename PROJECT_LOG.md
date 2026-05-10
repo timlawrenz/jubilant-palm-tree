@@ -231,4 +231,39 @@ Required exactly 0 or 2 exec outputs, but compressed motif format can have 1 (pa
 
 3. **Changed in-degree target from "exactly 1" to "at least 1":** Uses `ReLU(1 - data_in)²` instead of `(data_in - 1)²`. Allows multiple data inputs (matching the relaxed validator rules).
 
+---
+
+## Errata: Published Materials Corrections (May 10, 2026)
+
+The validator bugs discovered in Milestone 6 affect claims in the following published materials. This section documents the specific corrections needed.
+
+### 1. Published Blog Post: "Eradicating Syntax: The Neural Universal Machine"
+**URL:** https://lawrenz.com/2026/05/05/eradicating-syntax-the-neural-universal-machine.html
+
+**Affected claims:**
+
+| Section | Original Claim | Correction |
+|---------|---------------|------------|
+| Title area | "100% Syntactic Validity" | Measured with buggy validator (acyclic check inverted). The Judicial Constraint Solver post-processing still achieved high structural quality, but the 100% SVR figure is unreliable. Dataset itself validates at 83.2% with the corrected validator. |
+| "The Breakthrough: 100% SVR at 128 Nodes" | "100.00% Syntactic Validity Rate" | Same as above. The pre-training + Constraint Solver pipeline produces high-quality graphs, but the measurement was inflated by the `_check_acyclic_data` bug returning `True` for cyclic graphs. |
+| Law 2: Data In-Degree | "Condition and Loop nodes require **exactly 1** incoming data edge" | Corrected to **≥1**. 255/256 COND nodes in the training dataset have 2+ data inputs (conditions evaluate multi-operand expressions like `a < b`). |
+| Law 1: Execution Out-Degree | "Condition, Loop: Exactly 0 or 2" | Corrected to allow 0, 1, or 2. Compressed motifs can legitimately have 1 exec output when one branch falls outside the compression window. |
+| "What's Next: RLAIF" section | Describes PPO with base rewards and jackpot multiplier | PPO/REINFORCE approach was abandoned as intractable. Actual approach uses differentiable structural losses (NOTEARS acyclic, degree constraints, density) combined with reconstruction MSE and KL anchor. |
+
+### 2. In-Repo Documents (Corrected)
+- **README.md**: Roadmap items 3-4 updated to reflect corrected SVR and actual RLAIF approach.
+- **docs/neural-universal-machine-architecture.md**: Section 7 rewritten for differentiable structural loss. Laws 1-2 descriptions corrected. Errata note added.
+
+### 3. PROJECT_LOG.md — Milestone 4 (This File)
+- The "100.00% SVR" claim in Milestone 4 was measured with the buggy validator. The Constraint Solver was doing real work (arity snapping, conflict resolution), so the graphs were structurally sound in most respects, but data-plane acyclicity was not being checked correctly. This does NOT invalidate the pre-training work — only the specific SVR measurement.
+- The "Deploy PPO" plan in Milestone 4's next steps was abandoned (see Milestone 5).
+
+### What Remains Valid
+- The execution engine, Fibonacci proof, and Turing-completeness argument are unaffected.
+- The dataset compression pipeline (74→6 motifs, literal extraction) is unaffected.
+- The DiT architecture (permutation, cross-hatch, axial attention) is unaffected.
+- The Judicial Constraint Solver's arity snapping and conflict resolution logic is unaffected.
+- The pre-training loss convergence (~0.135) is unaffected.
+- Only the SVR measurement (which depends on the validator) was corrupted.
+
 **Run 3 started** on same vast.ai instance with hybrid loss. Early signs: recon=20.1 (high initially, will drop), struct=64.1, ~7s/batch.
