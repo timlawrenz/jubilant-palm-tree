@@ -29,7 +29,8 @@ EXPECTED_EXEC_OUT = {
 }
 
 
-def compute_structural_loss(x_final: torch.Tensor, motifs: torch.Tensor) -> dict:
+def compute_structural_loss(x_final: torch.Tensor, motifs: torch.Tensor,
+                            target_edge_count: torch.Tensor = None) -> dict:
     """
     Compute differentiable structural losses on the continuous ODE output.
 
@@ -39,6 +40,8 @@ def compute_structural_loss(x_final: torch.Tensor, motifs: torch.Tensor) -> dict
             Channel 1: edge type logit (0=exec, 1=data)
             Channels 2-5: input_index logits
         motifs: [B, N] — motif type IDs (0 = padding).
+        target_edge_count: [B] — number of edges in the ground truth graph.
+            If provided, used as the density floor instead of heuristic.
 
     Returns:
         Dictionary with individual loss components and total loss (all [B]).
@@ -135,13 +138,16 @@ def compute_structural_loss(x_final: torch.Tensor, motifs: torch.Tensor) -> dict
     acyclic_loss = torch.clamp(acyclic_loss, max=50.0)  # prevent gradient explosion
 
     # === 7. EDGE DENSITY LOSS ===
-    # Prevent collapse to empty graphs. The expected edge count is derived from motifs:
-    # each valid non-exit node should produce ~1 exec edge, conditions/loops ~2.
-    # Minimum target: roughly 1 edge per valid node.
+    # Prevent collapse to empty graphs.
+    # If target_edge_count is provided, match the ground truth edge count.
+    # Otherwise fall back to heuristic (1 edge per valid node).
     total_soft_edges = (soft_presence * mask_2d).sum(dim=(1, 2))  # [B]
-    target_edges = n_valid  # At least 1 edge per valid node
+    if target_edge_count is not None:
+        target_edges = target_edge_count.float()
+    else:
+        target_edges = n_valid  # At least 1 edge per valid node
     density_deficit = F.relu(target_edges - total_soft_edges)  # Only penalize too few
-    density_loss = (density_deficit / n_valid) ** 2  # Normalized squared deficit
+    density_loss = (density_deficit / n_valid.clamp(min=1)) ** 2  # Normalized squared deficit
 
     # === COMBINE ===
     total = (

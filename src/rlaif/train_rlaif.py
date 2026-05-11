@@ -174,7 +174,8 @@ def train_rlaif(args):
             x_final = x  # [B, 6, N, N] — final output, has grad
 
             # === Structural loss on final output ===
-            struct_losses = compute_structural_loss(x_final, motifs)
+            target_edge_count = (x_target[:, 0] > 0.5).float().sum(dim=(1, 2))  # [B]
+            struct_losses = compute_structural_loss(x_final, motifs, target_edge_count)
             struct_loss = struct_losses["total"].mean()
 
             # === Reconstruction loss (MSE to ground truth graph) ===
