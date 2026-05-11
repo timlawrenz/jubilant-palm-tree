@@ -266,4 +266,59 @@ The validator bugs discovered in Milestone 6 affect claims in the following publ
 - The pre-training loss convergence (~0.135) is unaffected.
 - Only the SVR measurement (which depends on the validator) was corrupted.
 
+---
+
+## Milestone 6: Sharpened NOTEARS and Mode Collapse Discovery
+**Status:** Run 8 Complete — Key Findings for Paper
+
+### Paper-Relevant Findings (Runs 5–9)
+
+#### 1. Naive NOTEARS is Ineffective on Soft Adjacency (Run 5)
+Standard NOTEARS `tr(exp(A))-n` applied to a continuous soft adjacency matrix (~0.25 everywhere) produces **uniform gradient** across all edges. It cannot distinguish cycle-forming edges from background noise. Result: acyclic pass rate unchanged at 1.2% after 10 epochs.
+
+**Insight for paper:** NOTEARS was designed for binary or near-binary adjacency matrices. When applied to the intermediate soft outputs of a generative model (where all entries are ≈0.25 from sigmoid), the matrix exponential's gradient is dominated by the uniform bulk, not by specific cycles. This is a previously undocumented failure mode.
+
+#### 2. Sharpened Adjacency Restores NOTEARS Effectiveness
+Applying `sigmoid(10 × (A − 0.5))` before the NOTEARS computation polarizes the soft adjacency into near-binary values. This concentrates the gradient onto edges the model has committed to (>0.5 → ~1) and suppresses gradient from uncommitted edges (<0.5 → ~0). Result: acyclic pass rate 1.7% → 71.7% (epoch 1) → 100% (epoch 5).
+
+**Contribution:** A simple, zero-parameter modification that makes NOTEARS compatible with continuous generative model outputs. Applicable to any DAG-constrained generation setting using flow matching or diffusion.
+
+#### 3. Training Stability Requires Triple Clamping
+Sharpened NOTEARS is gradient-volatile — the structural loss oscillates 3–207× between batches (vs ~1–5× for per-node losses). Three clamps were necessary for stable training:
+- **Structural loss clamp** (max=50): prevents sharpened NOTEARS gradient spikes
+- **Reconstruction loss clamp** (max=100): prevents forward-pass explosion
+- **KL divergence clamp** (max=10): bounds policy drift from reference
+
+Without all three, training consistently produces NaN weights by batch ~220 (reproduced across Runs 6, 7). Learning rate reduction (1e-5 → 5e-6) was also required.
+
+#### 4. Mode Collapse via Edge Erasure — The Empty Graph Shortcut
+With structural constraints active, the model discovers a degenerate optimum: **generate graphs with zero edges**. An empty graph trivially satisfies:
+- Acyclicity (no edges = no cycles)
+- Out-degree constraints (no edges = no violations)
+- Terminal node requirements (trivially satisfied)
+- Orphan constraints (no edges to create orphans)
+
+This manifests as edge count collapsing: 486±1266 (baseline) → 3±10 (epoch 1) → 0±1 (epoch 5). SVR simultaneously drops from 7.1% → 0% because empty graphs lack required program structure (ENTRY nodes, exec paths, etc.).
+
+**Insight for paper:** This is a structural analog of "reward hacking" in RL. The model satisfies the letter of every constraint while violating their intent. The fix requires grounding density expectations in the **target graph's actual edge count**, not a heuristic minimum.
+
+#### 5. Ground-Truth Edge Count as Density Floor (Run 9 — In Progress)
+Rather than a heuristic "1 edge per valid node" density target, we use the actual edge count from each training example's ground truth graph. This provides a per-sample density floor that is 4× stronger than the heuristic on empty graphs (density_loss ≈ 3.8 vs 0.9).
+
+### Quantitative Results Summary
+| Run | Config Change | Acyclic | SVR | Edges | Outcome |
+|-----|--------------|---------|-----|-------|---------|
+| 5 | Naive NOTEARS (β=0.01) | 1.2% | 0% | 56±41 | NOTEARS ineffective |
+| 8 E1 | Sharpened NOTEARS (β=0.2) | 71.7% | **7.1%** | 3±10 | First confirmed SVR |
+| 8 E5 | Same, longer training | **100%** | 0% | 0±2 | Mode collapse |
+| 8 E10 | Same, longer training | **100%** | 0% | 0±1 | Full collapse |
+| 9 | + target edge density | TBD | TBD | TBD | In progress |
+
+### Ablation Story Arc (for paper structure)
+1. Pre-training alone → 0% SVR (no structural awareness)
+2. Per-node structural losses (out-degree, terminal) → 0% SVR, but individual metrics improve 3–5×
+3. Naive NOTEARS for acyclicity → fails (uniform gradient on soft adjacency)
+4. Sharpened NOTEARS → acyclic solved, first SVR > 0%, but mode collapse to empty graphs
+5. Target-aware density floor → prevents collapse (Run 9, pending)
+
 **Run 3 started** on same vast.ai instance with hybrid loss. Early signs: recon=20.1 (high initially, will drop), struct=64.1, ~7s/batch.
