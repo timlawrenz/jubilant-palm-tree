@@ -70,4 +70,3 @@ dataset/*.backup/
 dataset/hierarchical.backup/
 .worktrees/
 .hermes/
-ablation_plots/
