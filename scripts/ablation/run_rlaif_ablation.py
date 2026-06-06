@@ -55,7 +55,7 @@ def main():
         print(f"={'='*49}")
         
         cmd = [
-            "python", "src/rlaif/train_rlaif.py",
+            ".venv/bin/python", "src/rlaif/train_rlaif.py",
             "--beta-struct", str(config["beta_struct"]),
             "--beta-recon", str(config["beta_recon"]),
             "--max-epochs", str(MAX_EPOCHS),
