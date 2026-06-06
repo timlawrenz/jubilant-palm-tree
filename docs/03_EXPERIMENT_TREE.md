@@ -32,6 +32,7 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
     project onto the feasible set deterministically. Extend the Judicial Constraint
     Solver to guarantee acyclicity (topological edge-ordering / cycle-breaking) and
     degree laws by construction.
+  - *Plan:* [.hermes/plans/2026-06-05_baseline_svr_measurement.md](../.hermes/plans/2026-06-05_baseline_svr_measurement.md)
   - *Why now:* Hard combinatorial constraints are cheap to enforce by projection,
     brutal to learn by penalty (proven by the RLAIF negative result).
   - *Success metric:* `pretrained DiT + full solver` SVR measured with the corrected validator.
