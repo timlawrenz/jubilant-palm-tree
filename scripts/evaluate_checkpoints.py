@@ -211,7 +211,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
 
-    dataset = ExecutionGraphDataset(jsonl_path=args.dataset, max_nodes=128)
+    dataset = ExecutionGraphDataset(jsonl_path=args.dataset, max_nodes=64)
     print(f"Dataset: {len(dataset)} graphs\n")
 
     all_results = []

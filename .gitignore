@@ -68,3 +68,4 @@ dataset/hierarchical/
 # Training data backups
 dataset/*.backup/
 dataset/hierarchical.backup/
+.worktrees/

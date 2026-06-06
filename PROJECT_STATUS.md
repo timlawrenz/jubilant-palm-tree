@@ -1,11 +1,21 @@
 # Project Status Tracker
 
-**Last Updated**: 2026-05-11 12:00 UTC  
+**Last Updated**: 2026-05-17 02:15 UTC  
 **Purpose**: Quick orientation guide to understand current state and next actions
 
 ---
 
-## 🎯 CURRENT STATUS: PHASE 6D — SHARPENED NOTEARS (RUN 8 COMPLETE)
+## 🎯 CURRENT STATUS: PHASE 6E — RUN 9 BLOCKED (OOM Crashes)
+
+### Summary
+Run 9 training on Vast.ai repeatedly failed due to CUDA Out-Of-Memory (OOM) errors during axial attention QKV projections. 
+An AMP fix (bfloat16 autocast + `use_reentrant=True` for gradient checkpointing) has been implemented in the local working tree (`src/models/dit.py` and `src/rlaif/train_rlaif.py`) but remains **uncommitted** and has not yet produced a fully successful run.
+
+**Immediate blockers**: 
+1. **Critical Technical Debt**: The `GraphValidator` (which defines the SVR metric) lacks unit tests. Given a history of severe bugs in the validator skewing results, building a test suite is the highest priority before analyzing further SVR metrics.
+2. Validate and commit the Run 9 AMP fix, and confirm successful training.
+
+GPU usage during failed runs: crashed at >24GB.
 
 ### Summary
 Run 8 completed all 10 epochs — first stable full training run with sharpened NOTEARS.
@@ -34,6 +44,28 @@ The model discovered: fewer edges = easier to satisfy ALL structural constraints
 - No cycles → acyclic=100%, no out-degree violations → out_degree=100%, etc.
 - The density loss (weight=2.0) was insufficient to counteract this
 - KL clamp at 10.0 couldn't prevent drift once saturated
+
+---
+
+## 🆕 Run 8 Remote Evaluation (RTX 4090, 50 samples, epochs 2-9)
+### Completed: 2026-05-18
+Full evaluation on remote RTX 4090 (epoch 10 was corrupted). Results saved to `eval_results_epoch2-9.txt`.
+
+**Best checkpoint**: Epoch 9 EMA — SVR 6.0% ± 2.8%
+
+| Epoch | Weights | SVR% | ± | Acyclic% | Term% | Edges | Orphan% |
+|-------|---------|------|---|----------|-------|-------|---------|
+| base | active | 0.0 | 0.0 | 2.0 | 27.3 | 201±337 | 100.0 |
+| 2 | active | 4.7 | 2.5 | 71.3 | 98.0 | 2±2 | 13.3 |
+| 2 | ema | 4.0 | 2.8 | 66.7 | 100.0 | 2±2 | 14.7 |
+| 5 | ema | 6.0 | 3.3 | 71.3 | 100.0 | 2±2 | 17.3 |
+| 7 | active | 4.0 | 2.8 | 75.3 | 100.0 | 1±2 | 13.3 |
+| 9 | active | 4.7 | 0.9 | 76.7 | 99.3 | 1±2 | 15.3 |
+| 9 | ema | **6.0** | **2.8** | **76.7** | **99.3** | 2±2 | 16.0 |
+
+**Consistency with Run 8 local eval**: Confirms SVR peaks early then plateaus.
+Edge count collapsed to 1-2 (from 201 baseline). Acyclic 65-77% (from 1.7% baseline).
+Epoch 9 EMA is the recommended checkpoint.
 
 ---
 
