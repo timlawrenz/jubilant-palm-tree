@@ -109,13 +109,13 @@ def train_rlaif(args):
     print(f"  Dataset: {len(dataset)} graphs")
 
     # --- TensorBoard ---
-    run_name = f"rlaif_struct_{int(time.time())}"
+    run_name = args.run_name if args.run_name else f"rlaif_struct_{int(time.time())}"
     log_dir = os.path.join("runs", run_name)
     writer = SummaryWriter(log_dir=log_dir)
     print(f"  TensorBoard: runs/{run_name}")
 
     # --- Checkpointing ---
-    ckpt_dir = "checkpoints/rlaif"
+    ckpt_dir = args.ckpt_dir
     os.makedirs(ckpt_dir, exist_ok=True)
 
     print(f"\n{'='*60}")
@@ -345,6 +345,10 @@ if __name__ == "__main__":
                         help="Maximum training epochs")
     parser.add_argument("--save-every", type=int, default=1,
                         help="Save checkpoint every N epochs")
+    parser.add_argument("--run-name", type=str, default=None,
+                        help="Custom TensorBoard run name")
+    parser.add_argument("--ckpt-dir", type=str, default="checkpoints/rlaif",
+                        help="Directory to save checkpoints")
     args = parser.parse_args()
 
     train_rlaif(args)
