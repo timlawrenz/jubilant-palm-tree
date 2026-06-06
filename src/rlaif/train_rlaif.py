@@ -229,6 +229,19 @@ def train_rlaif(args):
 
             total_loss.backward()
 
+            # --- Check for NaN/Inf gradients before stepping ---
+            has_nan_grad = False
+            for p in policy_model.parameters():
+                if p.grad is not None and (torch.isnan(p.grad).any() or torch.isinf(p.grad).any()):
+                    has_nan_grad = True
+                    break
+            
+            if has_nan_grad:
+                print(f"  ⚠ Batch {batch_idx}: NaN/Inf GRADIENT detected — skipping optimizer step")
+                optimizer.zero_grad()
+                global_step += 1
+                continue
+
             torch.nn.utils.clip_grad_norm_(policy_model.parameters(), 1.0)
             optimizer.step()
 
