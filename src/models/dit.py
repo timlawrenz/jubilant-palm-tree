@@ -101,17 +101,20 @@ class GraphDiTBlock(nn.Module):
         x_conditioned = self.adaln(x, t_emb)
         
         def run_row_attn(x_in):
-            x_r = x_in.permute(0, 2, 3, 1).reshape(B * H, W, C)
-            x_r_out, _ = self.row_attn(x_r, x_r, x_r, need_weights=False)
-            return x_r_out.reshape(B, H, W, C).permute(0, 3, 1, 2)
+            with torch.amp.autocast("cuda", dtype=torch.bfloat16):
+                x_r = x_in.permute(0, 2, 3, 1).reshape(B * H, W, C)
+                x_r_out, _ = self.row_attn(x_r, x_r, x_r, need_weights=False)
+                return x_r_out.reshape(B, H, W, C).permute(0, 3, 1, 2)
             
         def run_col_attn(x_in):
-            x_c = x_in.permute(0, 3, 2, 1).reshape(B * W, H, C)
-            x_c_out, _ = self.col_attn(x_c, x_c, x_c, need_weights=False)
-            return x_c_out.reshape(B, W, H, C).permute(0, 3, 2, 1)
+            with torch.amp.autocast("cuda", dtype=torch.bfloat16):
+                x_c = x_in.permute(0, 3, 2, 1).reshape(B * W, H, C)
+                x_c_out, _ = self.col_attn(x_c, x_c, x_c, need_weights=False)
+                return x_c_out.reshape(B, W, H, C).permute(0, 3, 2, 1)
             
         def run_mlp(x_in):
-            return self.mlp(x_in.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+            with torch.amp.autocast("cuda", dtype=torch.bfloat16):
+                return self.mlp(x_in.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
         
         # 2-4. Checkpointed blocks — use_reentrant=True correctly inherits ambient autocast
         #      context during backward recompute, avoiding shape-mismatch with bfloat16 AMP.
