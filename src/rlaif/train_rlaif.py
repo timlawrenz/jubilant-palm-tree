@@ -140,43 +140,47 @@ def train_rlaif(args):
 
             optimizer.zero_grad()
 
-            with autocast("cuda", dtype=torch.bfloat16):
-                # === Phase 1: No-grad rollout (steps 0 to no_grad_steps-1) ===
-                policy_model.eval()
-                x = torch.randn((B, 6, N, N), device=device)
-                with torch.no_grad():
-                    for step in range(no_grad_steps):
-                        t_val = step * dt
-                        t_tensor = torch.full((B,), t_val, device=device)
-                        v = policy_model(x, t_tensor, motifs)
-                        x_cont = x[:, :2] + v[:, :2] * dt
-                        x_cat = v[:, 2:]
-                        x = torch.cat([x_cont, x_cat], dim=1)
-
-                # === Phase 2: Grad rollout (last grad_steps steps) ===
-                policy_model.train()
-                x = x.detach()  # Cut gradient tape at boundary
-                kl_losses = []
-
-                for step in range(no_grad_steps, args.num_steps):
+            # === Phase 1: No-grad rollout (steps 0 to no_grad_steps-1) ===
+            policy_model.eval()
+            x = torch.randn((B, 6, N, N), device=device, dtype=torch.float32)
+            with torch.no_grad():
+                for step in range(no_grad_steps):
                     t_val = step * dt
                     t_tensor = torch.full((B,), t_val, device=device)
-                    v_policy = policy_model(x, t_tensor, motifs)
-
-                    # KL anchor: MSE to reference velocity
-                    with torch.no_grad():
-                        v_ref = ref_model(x, t_tensor, motifs)
-
-                    kl_per_elem = (v_policy - v_ref) ** 2
-                    mask_exp = padding_mask.unsqueeze(1).expand_as(kl_per_elem)
-                    kl_per_elem = kl_per_elem * mask_exp
-                    kl = kl_per_elem.sum(dim=(1, 2, 3)) / mask_exp.sum(dim=(1, 2, 3)).clamp(min=1)
-                    kl_losses.append(kl.mean())
-
-                    # Euler step (with grad flowing through v_policy)
-                    x_cont = x[:, :2] + v_policy[:, :2] * dt
-                    x_cat = v_policy[:, 2:]
+                    with autocast("cuda", dtype=torch.bfloat16):
+                        v = policy_model(x, t_tensor, motifs).float()
+                    # Euler step in full precision
+                    x_cont = x[:, :2] + v[:, :2] * dt
+                    x_cat = v[:, 2:]
                     x = torch.cat([x_cont, x_cat], dim=1)
+
+            # === Phase 2: Grad rollout (last grad_steps steps) ===
+            policy_model.train()
+            x = x.detach().requires_grad_(True)  # Cut gradient tape at boundary
+            kl_losses = []
+
+            for step in range(no_grad_steps, args.num_steps):
+                t_val = step * dt
+                t_tensor = torch.full((B,), t_val, device=device)
+                
+                with autocast("cuda", dtype=torch.bfloat16):
+                    v_policy = policy_model(x, t_tensor, motifs).float()
+
+                # KL anchor: MSE to reference velocity
+                with torch.no_grad():
+                    with autocast("cuda", dtype=torch.bfloat16):
+                        v_ref = ref_model(x, t_tensor, motifs).float()
+
+                kl_per_elem = (v_policy - v_ref) ** 2
+                mask_exp = padding_mask.unsqueeze(1).expand_as(kl_per_elem)
+                kl_per_elem = kl_per_elem * mask_exp
+                kl = kl_per_elem.sum(dim=(1, 2, 3)) / mask_exp.sum(dim=(1, 2, 3)).clamp(min=1)
+                kl_losses.append(kl.mean())
+
+                # Euler step in full precision (with grad flowing through v_policy)
+                x_cont = x[:, :2] + v_policy[:, :2] * dt
+                x_cat = v_policy[:, 2:]
+                x = torch.cat([x_cont, x_cat], dim=1)
 
             x_final = x  # [B, 6, N, N] — final output, has grad
 
