@@ -97,42 +97,31 @@ class GraphDiTBlock(nn.Module):
         # x shape: [B, C, 128, 128]
         B, C, H, W = x.shape
         
-        # We use gradient checkpointing to avoid caching the massive intermediate 
-        # Axial Attention activation tensors (e.g. [1*128*128, 35]) in VRAM during the forward pass.
-        # This trades 20-30% compute time for massive memory savings.
-        
         # 1. Condition on Timestep
         x_conditioned = self.adaln(x, t_emb)
         
         def run_row_attn(x_in):
             x_r = x_in.permute(0, 2, 3, 1).reshape(B * H, W, C)
-            x_r_out, _ = self.row_attn(x_r, x_r, x_r)
+            x_r_out, _ = self.row_attn(x_r, x_r, x_r, need_weights=False)
             return x_r_out.reshape(B, H, W, C).permute(0, 3, 1, 2)
             
         def run_col_attn(x_in):
             x_c = x_in.permute(0, 3, 2, 1).reshape(B * W, H, C)
-            x_c_out, _ = self.col_attn(x_c, x_c, x_c)
+            x_c_out, _ = self.col_attn(x_c, x_c, x_c, need_weights=False)
             return x_c_out.reshape(B, W, H, C).permute(0, 3, 2, 1)
             
         def run_mlp(x_in):
             return self.mlp(x_in.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
         
-        # 2. Row Attention (Outgoing Edges) - Checkpointed
+        # 2-4. Checkpointed blocks — use_reentrant=True correctly inherits ambient autocast
+        #      context during backward recompute, avoiding shape-mismatch with bfloat16 AMP.
         if x.requires_grad:
-            x = x + checkpoint(run_row_attn, x_conditioned, use_reentrant=False)
+            x = x + checkpoint(run_row_attn, x_conditioned, use_reentrant=True)
+            x = x + checkpoint(run_col_attn, x, use_reentrant=True)
+            x = x + checkpoint(run_mlp, x, use_reentrant=True)
         else:
             x = x + run_row_attn(x_conditioned)
-        
-        # 3. Column Attention (Incoming Edges) - Checkpointed
-        if x.requires_grad:
-            x = x + checkpoint(run_col_attn, x, use_reentrant=False)
-        else:
             x = x + run_col_attn(x)
-        
-        # 4. Standard MLP - Checkpointed
-        if x.requires_grad:
-            x = x + checkpoint(run_mlp, x, use_reentrant=False)
-        else:
             x = x + run_mlp(x)
         
         return x

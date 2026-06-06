@@ -25,6 +25,8 @@ import argparse
 import os
 import time
 from torch.optim import AdamW
+from torch.amp.autocast_mode import autocast
+from torch.amp.grad_scaler import GradScaler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -93,6 +95,10 @@ def train_rlaif(args):
     if args.resume and "optimizer_state_dict" in resume_ckpt:
         optimizer.load_state_dict(resume_ckpt["optimizer_state_dict"])
 
+    # --- AMP GradScaler (bfloat16 doesn't overflow so scaler is a no-op multiplier,
+    #     but keeping it consistent and explicit) ---
+    scaler = GradScaler(device="cuda")
+
     # --- Dataset ---
     dataset = ExecutionGraphDataset(
         jsonl_path="dataset/compressed/compressed_motifs.jsonl",
@@ -134,42 +140,43 @@ def train_rlaif(args):
 
             optimizer.zero_grad()
 
-            # === Phase 1: No-grad rollout (steps 0 to no_grad_steps-1) ===
-            policy_model.eval()
-            x = torch.randn((B, 6, N, N), device=device)
-            with torch.no_grad():
-                for step in range(no_grad_steps):
+            with autocast("cuda", dtype=torch.bfloat16):
+                # === Phase 1: No-grad rollout (steps 0 to no_grad_steps-1) ===
+                policy_model.eval()
+                x = torch.randn((B, 6, N, N), device=device)
+                with torch.no_grad():
+                    for step in range(no_grad_steps):
+                        t_val = step * dt
+                        t_tensor = torch.full((B,), t_val, device=device)
+                        v = policy_model(x, t_tensor, motifs)
+                        x_cont = x[:, :2] + v[:, :2] * dt
+                        x_cat = v[:, 2:]
+                        x = torch.cat([x_cont, x_cat], dim=1)
+
+                # === Phase 2: Grad rollout (last grad_steps steps) ===
+                policy_model.train()
+                x = x.detach()  # Cut gradient tape at boundary
+                kl_losses = []
+
+                for step in range(no_grad_steps, args.num_steps):
                     t_val = step * dt
                     t_tensor = torch.full((B,), t_val, device=device)
-                    v = policy_model(x, t_tensor, motifs)
-                    x_cont = x[:, :2] + v[:, :2] * dt
-                    x_cat = v[:, 2:]
+                    v_policy = policy_model(x, t_tensor, motifs)
+
+                    # KL anchor: MSE to reference velocity
+                    with torch.no_grad():
+                        v_ref = ref_model(x, t_tensor, motifs)
+
+                    kl_per_elem = (v_policy - v_ref) ** 2
+                    mask_exp = padding_mask.unsqueeze(1).expand_as(kl_per_elem)
+                    kl_per_elem = kl_per_elem * mask_exp
+                    kl = kl_per_elem.sum(dim=(1, 2, 3)) / mask_exp.sum(dim=(1, 2, 3)).clamp(min=1)
+                    kl_losses.append(kl.mean())
+
+                    # Euler step (with grad flowing through v_policy)
+                    x_cont = x[:, :2] + v_policy[:, :2] * dt
+                    x_cat = v_policy[:, 2:]
                     x = torch.cat([x_cont, x_cat], dim=1)
-
-            # === Phase 2: Grad rollout (last grad_steps steps) ===
-            policy_model.train()
-            x = x.detach()  # Cut gradient tape at boundary
-            kl_losses = []
-
-            for step in range(no_grad_steps, args.num_steps):
-                t_val = step * dt
-                t_tensor = torch.full((B,), t_val, device=device)
-                v_policy = policy_model(x, t_tensor, motifs)
-
-                # KL anchor: MSE to reference velocity
-                with torch.no_grad():
-                    v_ref = ref_model(x, t_tensor, motifs)
-
-                kl_per_elem = (v_policy - v_ref) ** 2
-                mask_exp = padding_mask.unsqueeze(1).expand_as(kl_per_elem)
-                kl_per_elem = kl_per_elem * mask_exp
-                kl = kl_per_elem.sum(dim=(1, 2, 3)) / mask_exp.sum(dim=(1, 2, 3)).clamp(min=1)
-                kl_losses.append(kl.mean())
-
-                # Euler step (with grad flowing through v_policy)
-                x_cont = x[:, :2] + v_policy[:, :2] * dt
-                x_cat = v_policy[:, 2:]
-                x = torch.cat([x_cont, x_cat], dim=1)
 
             x_final = x  # [B, 6, N, N] — final output, has grad
 
