@@ -4,18 +4,29 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from tbparse import SummaryReader
 
+TARGET_RUNS = [
+    "ablation_recon_dom_01_10",
+    "ablation_balanced_05_05",
+    "ablation_struct_dom_02_08",
+    "ablation_struct_only_10_00"
+]
+
 def extract_and_plot():
     runs_dir = "runs"
     all_data = []
     
     # Extract
     for d in os.listdir(runs_dir):
-        if d.startswith("ablation_"):
+        if d in TARGET_RUNS:
             run_path = os.path.join(runs_dir, d)
             print(f"Reading {run_path}...")
             reader = SummaryReader(run_path)
             df = reader.scalars
             if df.empty: continue
+            
+            # If a run was interrupted and resumed, there may be duplicate steps.
+            # Keep the last logged value for each (step, tag) combination.
+            df = df.drop_duplicates(subset=['step', 'tag'], keep='last')
                 
             df_pivot = df.pivot(index='step', columns='tag', values='value').reset_index()
             df_pivot['run_name'] = d.replace("ablation_", "")
