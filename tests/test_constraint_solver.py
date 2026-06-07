@@ -86,3 +86,30 @@ def test_repair_data_in_degree():
     # The others remain 0
     assert repaired_adj[0, 0, 1].item() == 0
     assert repaired_adj[0, 3, 1].item() == 0
+
+def test_repair_index_collisions():
+    # Node 0 has 2 outgoing exec edges to 1 and 2. Both currently claim index 0.
+    adj = torch.zeros(3, 3, 3)
+    adj[0, 0, 1] = 1; adj[1, 0, 1] = 0; adj[2, 0, 1] = 0
+    adj[0, 0, 2] = 1; adj[1, 0, 2] = 0; adj[2, 0, 2] = 0
+    
+    valid_nodes = [0, 1, 2]
+    
+    # 0->1 is the stronger edge (0.9 vs 0.6)
+    soft_presence = torch.zeros(3, 3)
+    soft_presence[0, 1] = 0.9
+    soft_presence[0, 2] = 0.6
+    
+    # Provide categorical logits (4 channels)
+    index_logits = torch.zeros(4, 3, 3)
+    # Edge 0->1 strongly prefers index 0
+    index_logits[:, 0, 1] = torch.tensor([5.0, 1.0, 0.0, 0.0])
+    # Edge 0->2 prefers index 0, but its second choice is index 1
+    index_logits[:, 0, 2] = torch.tensor([4.0, 3.0, 0.0, 0.0])
+    
+    repaired_adj = ConstraintSolver._repair_index_collisions(adj, index_logits, soft_presence, valid_nodes)
+    
+    # The stronger edge (0->1) keeps index 0
+    assert repaired_adj[2, 0, 1].item() == 0
+    # The weaker edge (0->2) should be bumped to its second choice, index 1
+    assert repaired_adj[2, 0, 2].item() == 1

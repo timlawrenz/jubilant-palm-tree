@@ -13,6 +13,7 @@ class ConstraintSolver:
         # 2. Extract soft probabilities to resolve conflicts
         soft_presence = torch.sigmoid(continuous_matrix[:, 0]) # [B, N, N]
         soft_data_type = torch.sigmoid(continuous_matrix[:, 1]) # [B, N, N]
+        index_logits = continuous_matrix[:, 2:6] # [B, 4, N, N]
         
         B = discrete.shape[0]
         
@@ -24,6 +25,7 @@ class ConstraintSolver:
                 
             discrete[b] = cls._repair_exec_out_degree(discrete[b], soft_presence[b], valid_nodes, motifs[b].tolist())
             discrete[b] = cls._repair_data_in_degree(discrete[b], soft_presence[b], soft_data_type[b], valid_nodes, motifs[b].tolist())
+            discrete[b] = cls._repair_index_collisions(discrete[b], index_logits[b], soft_presence[b], valid_nodes)
             discrete[b] = cls._repair_acyclicity(discrete[b], soft_presence[b], valid_nodes)
             
         return discrete
@@ -111,6 +113,82 @@ class ConstraintSolver:
                     adj[1, best_u, v] = 1 # Type = Data
                     # Let the argmax index logits stay as they are in adj[2]
                     
+        return adj
+
+    @classmethod
+    def _repair_index_collisions(cls, adj: torch.Tensor, index_logits: torch.Tensor, soft_presence: torch.Tensor, valid_nodes: list) -> torch.Tensor:
+        """
+        Resolves input_index collisions for execution and data edges using categorical logits.
+        adj is [3, N, N]. Channel 0 = presence, Channel 1 = type, Channel 2 = input_index.
+        index_logits is [4, N, N].
+        """
+        presence = adj[0].bool()
+        edge_type = adj[1].int()
+        input_index = adj[2].int()
+
+        is_exec = presence & (edge_type == 0)
+        is_data = presence & (edge_type == 1)
+
+        def resolve_collisions(edges, is_source_grouped=True):
+            # Group edges by source (for exec out) or by target (for data in)
+            groups = {n: [] for n in valid_nodes}
+            for u in valid_nodes:
+                for v in valid_nodes:
+                    if edges[u, v]:
+                        key = u if is_source_grouped else v
+                        groups[key].append((u, v))
+
+            for key, edge_list in groups.items():
+                if len(edge_list) <= 1:
+                    continue
+
+                # Check for collisions
+                used_indices = {}
+                for u, v in edge_list:
+                    idx = input_index[u, v].item()
+                    if idx not in used_indices:
+                        used_indices[idx] = []
+                    used_indices[idx].append((u, v))
+
+                for idx, colliding_edges in used_indices.items():
+                    if len(colliding_edges) <= 1:
+                        continue
+
+                    # Collision detected! Sort by presence probability descending
+                    colliding_edges.sort(key=lambda e: soft_presence[e[0], e[1]].item(), reverse=True)
+                    
+                    # The strongest edge gets to keep the index
+                    winner = colliding_edges[0]
+                    losers = colliding_edges[1:]
+
+                    # Reassign losers using their next best logits
+                    occupied = set(input_index[u, v].item() for u, v in edge_list)
+                    
+                    for lu, lv in losers:
+                        logits = index_logits[:, lu, lv]
+                        # Sort indices by logit score descending
+                        sorted_indices = torch.argsort(logits, descending=True).tolist()
+                        
+                        # Find the highest scored index that isn't occupied
+                        new_idx = None
+                        for candidate_idx in sorted_indices:
+                            if candidate_idx not in occupied:
+                                new_idx = candidate_idx
+                                break
+                                
+                        # If all 4 slots are occupied (rare), force an arbitrary unused one
+                        if new_idx is None:
+                            new_idx = max(occupied) + 1 if occupied else 0
+                            
+                        input_index[lu, lv] = new_idx
+                        occupied.add(new_idx)
+
+        # Apply to Execution Out-Edges (grouped by source node)
+        resolve_collisions(is_exec, is_source_grouped=True)
+        # Apply to Data In-Edges (grouped by target node)
+        resolve_collisions(is_data, is_source_grouped=False)
+
+        adj[2] = input_index
         return adj
 
     @classmethod
