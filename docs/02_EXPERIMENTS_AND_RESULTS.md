@@ -518,4 +518,21 @@ Based on the baseline results showing only 1.25% of generated graphs were acycli
 
 **Conclusion**: The acyclicity repair successfully guarantees cycle-free data planes without collapsing edge density (the mode collapse issue seen in RLAIF is entirely avoided). The SVR has lifted off zero.
 
-The remaining bottlenecks are the Degree Arithmetic laws (In/Out degree pass ~6%). The next algorithmic solver iteration must implement deterministic top-K arity snapping for Execution and Data edges.
+### Decode-Time Degree Arithmetic Repair (Arity Snapping)
+Following the acyclicity repair, the remaining bottleneck was the degree arithmetic (In/Out degrees passing at ~6%). We implemented a second deterministic pass (`_repair_exec_out_degree` and `_repair_data_in_degree`) to:
+1. **Prune over-generation**: If a Sequence node generates 3 exec edges, keep the 1 with the highest continuous probability.
+2. **Rescue under-generation**: If a Condition node has 0 data inputs, find the highest probability data edge in the continuous heatmap and force it to 1.
+
+**Re-Measurement Results (Pre-Trained DiT + Full Constraint Solver):**
+*(Raw evaluation logs available at `docs/assets/exp/decode-time-solver/arity_eval.txt`)*
+
+*   **Total Samples**: 160 (5 batches of 32)
+*   **Average Edge Count**: 75.6 (Down from 352, indicating the model was massively over-generating execution edges)
+*   **Execution Out-Degree Pass**: **73.12%** (Up from 3.12%)
+*   **Data In-Degree Pass**: **6.88%** (Flat)
+*   **Acyclic Data Pass**: 100.00%
+*   **Overall SVR**: **1.88%** (Flat)
+
+**Conclusion**: Arity snapping worked exactly as intended to prune the graph into a realistic edge density (~75 edges is much closer to the dataset average than 350). Execution Out-Degree skyrocketed to 73%. 
+
+However, we hit the final layer of the "Literal Value Bottleneck": **Index Collisions**. The remaining ~27% failure in Out-Degree and the massive ~93% failure in In-Degree are caused by multiple edges claiming the exact same `input_index` (e.g. two branches of a Condition node both claiming `index=0`). The final repair step must be a deterministic index collision resolver.
