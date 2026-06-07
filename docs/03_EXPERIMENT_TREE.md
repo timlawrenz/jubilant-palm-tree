@@ -24,9 +24,13 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
 ---
 
 ## Macro-Question 1: Structural Validity
+ 
+ > Goal: SVR approaching the dataset ceiling (~83%) on generated graphs.
 
-> Goal: SVR approaching the dataset ceiling (~83%) on generated graphs.
-
+- **[ACTIVE] The 6th Law (Global Spine Validator)**
+  - *Concept:* Update the `GraphValidator` to explicitly require exactly one Entry boundary and a fully connected macroscopic execution path, patching the specification gap discovered in the executability audit.
+  - *Branch:* `exp/validator-6th-law`
+  - *Plan:* [.hermes/plans/2026-06-05_validator_6th_law.md](../.hermes/plans/2026-06-05_validator_6th_law.md)
 - **[CONCLUDED] Decode-Time Constraint Solving** — `exp/decode-time-solver` (merged to `main`)
   - *Concept:* Move hard-validity enforcement (acyclicity, exact degree) to a deterministic decode-time projector, applied *after* the DiT generates the continuous heatmap.
   - *Result:* End-to-end SVR 0% → **10%** with the corrected validator, no mode collapse. Acyclicity and Out-Degree mathematically guaranteed at 100%. Comprises the three sub-arms below.
