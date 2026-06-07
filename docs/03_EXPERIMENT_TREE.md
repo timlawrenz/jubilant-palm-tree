@@ -30,8 +30,9 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
 - **[ACTIVE] Decode-Time Constraint Solving**
   - *Concept:* Move hard-validity enforcement (acyclicity, exact degree) to a deterministic decode-time projector, applied *after* the DiT generates the continuous heatmap.
   - *Branch:* `exp/decode-time-solver`
-- **[NEXT] Degree Arithmetic Repair (Arity Snapping)**
+- **[ACTIVE] Degree Arithmetic Repair (Arity Snapping)**
   - *Concept:* Within the solver, implement deterministic top-K arity snapping for Execution and Data edges based on the specific Motif laws.
+  - *Plan:* [.hermes/plans/2026-06-05_arity_snapping.md](../.hermes/plans/2026-06-05_arity_snapping.md)
   - *Depends on:* the successful completion of the acyclicity repair.
 - **[CONCLUDED] Acyclicity Repair Algorithm**
   - *Concept:* Within the solver, implement deterministic cycle-breaking on the data plane (e.g., DFS back-edge removal ranked by lowest edge probability).
