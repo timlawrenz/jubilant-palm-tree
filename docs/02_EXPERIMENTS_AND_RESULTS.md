@@ -555,4 +555,21 @@ We implemented `_repair_index_collisions`, the final layer of the solver. When m
 
 The final SVR (10.0%) represents a **1000x improvement over the 0.00% baseline**, and cleanly outperforms the peak 6.0% SVR achieved by RLAIF while completely avoiding the empty-graph mode collapse. 
 
-The remaining failure modes (Terminal Sink and Data In-Degree gaps) indicate that while the solver resolves local arithmetic, the DiT still occasionally fails to draw the global macroscopic paths (e.g., a path to an exit boundary node) strongly enough for the solver to rescue them.
+### Executability Audit of Generated Graphs (Macro-Question 2)
+After achieving 10% SVR with the decode-time solver, we audited the structurally perfect graphs to determine if they actually computed anything when passed to the Graph-Walk Interpreter. Because the Semantic LLM is not yet attached, we used a `DummySemanticCustodian` to map safe mock variables and math operations to the valid topologies.
+
+**Audit Results (512 generated graphs → 36 perfect graphs):**
+*(Raw evaluation logs available at `docs/assets/exp/executability-audit/executability_eval.txt`)*
+
+*   **Total Structurally Perfect Graphs Evaluated**: 36
+*   **Halted (Valid execution)**: 0 (0.0%)
+*   **Infinite Loop (Hit 1000 step limit)**: 0 (0.0%)
+*   **Error: No Entry Boundary**: 29 (80.6%)
+*   **Error: Unexpected Sink**: 7 (19.4%)
+*   **Python Crash/TypeError**: 0 (0.0%)
+
+**Conclusion**: This is the most crucial negative result of the project to date. While the `ConstraintSolver` mathematically forces the graphs to pass the 5 local Laws of Physics (Degree arithmetic, acyclicity), **0% of the "valid" graphs possess a coherent global execution path**. 
+
+The overwhelming failure mode (80.6%) is the lack of an Entry Boundary (a Boundary motif with no incoming execution edges). The DiT is connecting *everything* into internal loops. The remaining 19.4% have an entry point but fail to route to an Exit Boundary before running out of execution edges. 
+
+This proves that **Structural Validity (SVR) ≠ Semantic Executability**. The local, deterministic constraints cannot fake a macroscopic global execution path if the generative model failed to draw one.

@@ -61,13 +61,9 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
 > Goal: A structurally-valid generated graph, when executed, produces correct output.
 > **This is the project's largest untested assumption.** Validity ≠ meaning.
 
-- **[ACTIVE] Executability Audit of Generated Graphs**
-  - *Concept:* Take structurally-valid generated graphs and actually run them through
-    the Graph-Walk Interpreter. Measure: do they halt? do they produce *any* output?
-    This is distinct from SVR and currently completely unmeasured.
-  - *Why it matters:* The Fibonacci demo was hand-built. We have zero evidence that a
-    *generated* graph computes anything coherent. This experiment de-risks the thesis.
-  - *Plan:* [.hermes/plans/2026-06-05_executability_audit.md](../.hermes/plans/2026-06-05_executability_audit.md)
+- **[CONCLUDED] Executability Audit of Generated Graphs**
+  - *Concept:* Take structurally-valid generated graphs and actually run them through the Graph-Walk Interpreter using dummy operations.
+  - *Result:* **0% Halting Rate.** 80.6% of structurally perfect graphs lacked an entry node; 19.4% died in unexpected sinks. Proved that local SVR constraints do not guarantee a globally executable macroscopic path.
 
 - **[TBD] Conditional Generation (Intent → Topology)**
   - *Concept:* Currently the DiT generates from noise + a motif sequence. To be useful
