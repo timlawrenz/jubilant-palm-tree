@@ -27,9 +27,9 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
 
 > Goal: SVR approaching the dataset ceiling (~83%) on generated graphs.
 
-- **[ACTIVE] Decode-Time Constraint Solving**
+- **[CONCLUDED] Decode-Time Constraint Solving** — `exp/decode-time-solver` (merged to `main`)
   - *Concept:* Move hard-validity enforcement (acyclicity, exact degree) to a deterministic decode-time projector, applied *after* the DiT generates the continuous heatmap.
-  - *Branch:* `exp/decode-time-solver`
+  - *Result:* End-to-end SVR 0% → **10%** with the corrected validator, no mode collapse. Acyclicity and Out-Degree mathematically guaranteed at 100%. Comprises the three sub-arms below.
 - **[CONCLUDED] Index Collision Resolution**
   - *Concept:* Within the solver, resolve `input_index` collisions. If a Condition node has 2 exec edges claiming `index=0`, use the DiT's categorical logits to reassign one to `index=1`. 
   - *Result:* Resolved index collisions successfully. Execution Out-Degree hit 100%, and Data In-Degree climbed to ~57%. Final SVR reached 10.0%, doubling the best RLAIF performance without mode collapse.
@@ -50,7 +50,7 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
   - *Result:* Mode collapse / reward hacking. A stiff exponential penalty (NOTEARS
     `tr(e^A)`) cannot be statically balanced against quadratic reconstruction MSE; the
     model erases edges to trivially satisfy constraints. See `02_EXPERIMENTS_AND_RESULTS.md`
-    and `docs/assets/rlaif_ablation/`.
+    and `docs/assets/feat/rlaif-ablation/`.
   - *Salvaged finding:* "Sharpened NOTEARS" makes the acyclic penalty effective on soft
     adjacency — a reusable, publishable result even though the training arm failed.
 
