@@ -44,6 +44,7 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
   - *Concept:* Within the solver, implement deterministic cycle-breaking on the data
     plane (e.g. DFS back-edge removal ranked by lowest edge probability).
   - *Depends on:* the baseline measurement above isolating acyclicity as the dominant failure.
+  - *Plan:* [.hermes/plans/2026-06-05_acyclicity_solver.md](../.hermes/plans/2026-06-05_acyclicity_solver.md)
 
 - **[TBD] Solver-in-the-Loop Sampling**
   - *Concept:* Apply lightweight projection *between* ODE steps, not just at the end,
