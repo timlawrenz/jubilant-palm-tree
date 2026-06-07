@@ -30,9 +30,9 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
 - **[CONCLUDED] The 6th Law (Global Spine Validator)**
   - *Concept:* Update the `GraphValidator` to explicitly require exactly one Entry boundary and a fully connected macroscopic execution path, patching the specification gap discovered in the executability audit.
   - *Result:* Re-evaluation of the 10% solver dropped SVR to **3.12%**, isolating the truly executable scaffolds and filtering out locally-perfect but disconnected loops.
-- **[ACTIVE] Decode-Time Spine Repair**
+- **[PAUSED] Decode-Time Spine Repair**
   - *Concept:* Extend the Constraint Solver to deterministically assign an Entry node based on probability heatmaps and prune unreachable islands, lifting the global 6th Law pass rate.
-  - *Depends on:* the 6th law evaluation baseline.
+  - *Depends on:* Verification that 6-Law graphs actually execute. Paused to prevent the solver from over-writing the model's fundamental failure to learn global control flow.
 - **[CONCLUDED] Decode-Time Constraint Solving** — `exp/decode-time-solver` (merged to `main`)
   - *Concept:* Move hard-validity enforcement (acyclicity, exact degree) to a deterministic decode-time projector, applied *after* the DiT generates the continuous heatmap.
   - *Result:* End-to-end SVR 0% → **10%** with the corrected validator, no mode collapse. Acyclicity and Out-Degree mathematically guaranteed at 100%. Comprises the three sub-arms below.
@@ -62,11 +62,10 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
 
 ---
 
-## Macro-Question 2: Semantic Correctness
-
-> Goal: A structurally-valid generated graph, when executed, produces correct output.
-> **This is the project's largest untested assumption.** Validity ≠ meaning.
-
+## 2. Semantics & Execution
+- **[CONCLUDED] Large-N Executability Audit on 6-Law Graphs**
+  - *Concept:* Generate 1,000+ samples, run them through the full Constraint Solver + 6th Law Validator. For the truly perfect ones (expected ~3%), run them in the Graph-Walk Interpreter to see if they halt.
+  - *Result:* **0% Halting Rate on 20 perfect graphs (SVR 1.95%).** Closes the loop. Even 6-Law graphs do not halt (failing mostly on missing entry boundaries and unexpected sinks). This proves the generative model fails at global control flow, and ensures we don't build more repairs optimizing a broken metric.
 - **[CONCLUDED] Executability Audit of Generated Graphs**
   - *Concept:* Take structurally-valid generated graphs and actually run them through the Graph-Walk Interpreter using dummy operations.
   - *Result:* **0% Halting Rate.** 80.6% of structurally perfect graphs lacked an entry node; 19.4% died in unexpected sinks. Proved that local SVR constraints do not guarantee a globally executable macroscopic path.
