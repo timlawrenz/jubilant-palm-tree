@@ -573,9 +573,24 @@ This result initially appeared as a fatal generative failure, but deeper analysi
 
 The overwhelming failure mode (80.6%) is the lack of an Entry Boundary (a Boundary motif with no incoming execution edges). The remaining 19.4% have an entry point but fail to route to an Exit Boundary before running out of execution edges.
 
-**The Critical Insight**: The 5 Laws of Physics are an *incomplete* specification of executability. They guarantee local structure but completely omit the global control-flow reachability requirement. A graph can satisfy all 5 Laws and still lack a valid execution spine. This proves that **Structural Validity (SVR), as currently defined, ≠ Semantic Executability**.
+**The Critical Insight**: The 5 Laws of Physics are an *incomplete* specification of executability. They guarantee local structure but completely omit the global control-flow reachability requirement. A graph can satisfy all 5 Laws and still lack a valid execution spine. 
 
-Before attempting to change the generative model or adding new loss penalties, the immediate next steps are:
-1. **Calibrate against ground truth:** Run the hand-built, known-good Fibonacci graph through the `GraphValidator`. If it passes, the validator is under-specified. If it fails, the validator is mis-calibrated.
-2. **Formulate a 6th Law:** Expand the validator to strictly require a single entry node and a globally connected execution spine.
-3. **Decode-Time Spine Repair:** Extend the deterministic solver to enforce this new law (e.g., force-designating a Boundary as entry and pruning its incoming exec edges).
+### The 6th Law: Global Spine Specification (Macro-Question 1)
+Following the Executability Audit, we formally implemented the 6th Law of Physics in the `GraphValidator` (`_check_global_spine`). This explicitly requires that every valid graph has exactly one Entry Boundary, and that all execution nodes are connected on a path originating from that entry point.
+
+We re-evaluated the `ConstraintSolver`'s performance against this new, strict standard. 
+
+**Re-Measurement Results (Pre-Trained DiT + Solver + 6th Law Validator):**
+*(Raw evaluation logs available at `docs/assets/exp/validator-6th-law/strict_eval.txt`)*
+
+*   **Total Samples**: 160 (5 batches of 32)
+*   **Execution Out-Degree Pass**: 100.00%
+*   **Acyclic Data Pass**: 100.00%
+*   **Data In-Degree Pass**: 60.00%
+*   **Terminal Sink Pass**: 11.25%
+*   **Global Spine Pass**: *(Implied bound by perfect_graphs)*
+*   **Overall SVR**: **3.12%** (Down from 10.00%)
+
+**Conclusion**: As expected, the "perfect" SVR fell from 10.0% to ~3% when held to the stricter standard. The 7% of graphs that were previously passing were "spineless garbage" (lacking entry boundaries or generating disconnected execution loops). The 3.12% that still pass the 6th Law are truly connected, structurally sound directed acyclic logic scaffolds. 
+
+The next algorithmic step is to extend the `ConstraintSolver` to deterministically repair the spine (e.g. force-designating an Entry Boundary and pruning unreachable loops) at decode time, similar to the arity and acyclicity repairs.

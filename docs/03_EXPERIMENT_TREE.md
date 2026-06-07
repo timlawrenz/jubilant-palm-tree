@@ -27,10 +27,12 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
  
  > Goal: SVR approaching the dataset ceiling (~83%) on generated graphs.
 
-- **[ACTIVE] The 6th Law (Global Spine Validator)**
+- **[CONCLUDED] The 6th Law (Global Spine Validator)**
   - *Concept:* Update the `GraphValidator` to explicitly require exactly one Entry boundary and a fully connected macroscopic execution path, patching the specification gap discovered in the executability audit.
-  - *Branch:* `exp/validator-6th-law`
-  - *Plan:* [.hermes/plans/2026-06-05_validator_6th_law.md](../.hermes/plans/2026-06-05_validator_6th_law.md)
+  - *Result:* Re-evaluation of the 10% solver dropped SVR to **3.12%**, isolating the truly executable scaffolds and filtering out locally-perfect but disconnected loops.
+- **[ACTIVE] Decode-Time Spine Repair**
+  - *Concept:* Extend the Constraint Solver to deterministically assign an Entry node based on probability heatmaps and prune unreachable islands, lifting the global 6th Law pass rate.
+  - *Depends on:* the 6th law evaluation baseline.
 - **[CONCLUDED] Decode-Time Constraint Solving** — `exp/decode-time-solver` (merged to `main`)
   - *Concept:* Move hard-validity enforcement (acyclicity, exact degree) to a deterministic decode-time projector, applied *after* the DiT generates the continuous heatmap.
   - *Result:* End-to-end SVR 0% → **10%** with the corrected validator, no mode collapse. Acyclicity and Out-Degree mathematically guaranteed at 100%. Comprises the three sub-arms below.
