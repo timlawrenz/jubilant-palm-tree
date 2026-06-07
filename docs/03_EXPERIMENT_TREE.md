@@ -32,6 +32,7 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
   - *Branch:* `exp/decode-time-solver`
 - **[ACTIVE] Index Collision Resolution**
   - *Concept:* Within the solver, resolve `input_index` collisions. If a Condition node has 2 exec edges claiming `index=0`, use the DiT's categorical logits to reassign one to `index=1`. 
+  - *Plan:* [.hermes/plans/2026-06-05_index_collision_resolution.md](../.hermes/plans/2026-06-05_index_collision_resolution.md)
   - *Depends on:* the successful completion of the Arity Snapping repair.
 - **[CONCLUDED] Degree Arithmetic Repair (Arity Snapping)**
   - *Concept:* Within the solver, implement deterministic top-K arity snapping for Execution and Data edges based on the specific Motif laws.
