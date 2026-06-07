@@ -568,8 +568,14 @@ After achieving 10% SVR with the decode-time solver, we audited the structurally
 *   **Error: Unexpected Sink**: 7 (19.4%)
 *   **Python Crash/TypeError**: 0 (0.0%)
 
-**Conclusion**: This is the most crucial negative result of the project to date. While the `ConstraintSolver` mathematically forces the graphs to pass the 5 local Laws of Physics (Degree arithmetic, acyclicity), **0% of the "valid" graphs possess a coherent global execution path**. 
+**Strategic Analysis & Conclusion**: 
+This result initially appeared as a fatal generative failure, but deeper analysis reveals it is primarily a **specification gap**. While the `ConstraintSolver` mathematically forces the graphs to pass the 5 local Laws of Physics (Degree arithmetic, acyclicity), **0% of the "valid" graphs possess a coherent global execution path** (Entry -> Exit). 
 
-The overwhelming failure mode (80.6%) is the lack of an Entry Boundary (a Boundary motif with no incoming execution edges). The DiT is connecting *everything* into internal loops. The remaining 19.4% have an entry point but fail to route to an Exit Boundary before running out of execution edges. 
+The overwhelming failure mode (80.6%) is the lack of an Entry Boundary (a Boundary motif with no incoming execution edges). The remaining 19.4% have an entry point but fail to route to an Exit Boundary before running out of execution edges.
 
-This proves that **Structural Validity (SVR) ≠ Semantic Executability**. The local, deterministic constraints cannot fake a macroscopic global execution path if the generative model failed to draw one.
+**The Critical Insight**: The 5 Laws of Physics are an *incomplete* specification of executability. They guarantee local structure but completely omit the global control-flow reachability requirement. A graph can satisfy all 5 Laws and still lack a valid execution spine. This proves that **Structural Validity (SVR), as currently defined, ≠ Semantic Executability**.
+
+Before attempting to change the generative model or adding new loss penalties, the immediate next steps are:
+1. **Calibrate against ground truth:** Run the hand-built, known-good Fibonacci graph through the `GraphValidator`. If it passes, the validator is under-specified. If it fails, the validator is mis-calibrated.
+2. **Formulate a 6th Law:** Expand the validator to strictly require a single entry node and a globally connected execution spine.
+3. **Decode-Time Spine Repair:** Extend the deterministic solver to enforce this new law (e.g., force-designating a Boundary as entry and pruning its incoming exec edges).
