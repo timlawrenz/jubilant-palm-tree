@@ -27,24 +27,15 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
 
 > Goal: SVR approaching the dataset ceiling (~83%) on generated graphs.
 
-- **[ACTIVE] Decode-Time Constraint Solving** — `exp/decode-time-solver`
-  - *Concept:* Let the DiT emit a continuous probability heatmap (its strength), then
-    project onto the feasible set deterministically. Extend the Judicial Constraint
-    Solver to guarantee acyclicity (topological edge-ordering / cycle-breaking) and
-    degree laws by construction.
-  - *Plan:* [.hermes/plans/2026-06-05_baseline_svr_measurement.md](../.hermes/plans/2026-06-05_baseline_svr_measurement.md)
-  - *Why now:* Hard combinatorial constraints are cheap to enforce by projection,
-    brutal to learn by penalty (proven by the RLAIF negative result).
-  - *Success metric:* `pretrained DiT + full solver` SVR measured with the corrected validator.
-  - *First experiment:* The clean baseline — run the current pre-trained checkpoint
-    through the existing solver and measure true SVR. We have never done this with the
-    fixed validator. This single number reframes the entire project.
-
-- **[NEXT] Acyclicity Repair Algorithm**
-  - *Concept:* Within the solver, implement deterministic cycle-breaking on the data
-    plane (e.g. DFS back-edge removal ranked by lowest edge probability).
-  - *Depends on:* the baseline measurement above isolating acyclicity as the dominant failure.
-  - *Plan:* [.hermes/plans/2026-06-05_acyclicity_solver.md](../.hermes/plans/2026-06-05_acyclicity_solver.md)
+- **[ACTIVE] Decode-Time Constraint Solving**
+  - *Concept:* Move hard-validity enforcement (acyclicity, exact degree) to a deterministic decode-time projector, applied *after* the DiT generates the continuous heatmap.
+  - *Branch:* `exp/decode-time-solver`
+- **[NEXT] Degree Arithmetic Repair (Arity Snapping)**
+  - *Concept:* Within the solver, implement deterministic top-K arity snapping for Execution and Data edges based on the specific Motif laws.
+  - *Depends on:* the successful completion of the acyclicity repair.
+- **[CONCLUDED] Acyclicity Repair Algorithm**
+  - *Concept:* Within the solver, implement deterministic cycle-breaking on the data plane (e.g., DFS back-edge removal ranked by lowest edge probability).
+  - *Result:* Successfully boosted Acyclicity Pass to 100% while maintaining edge density. SVR lifted to ~1.88%.
 
 - **[TBD] Solver-in-the-Loop Sampling**
   - *Concept:* Apply lightweight projection *between* ODE steps, not just at the end,
