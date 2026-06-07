@@ -1,0 +1,21 @@
+Evaluating Baseline SVR on cuda...
+Loading checkpoints/num_dit_epoch_340.pt
+Loaded 3951 valid graphs (max_nodes <= 128).
+Batch 1/5 - SVR: 3.1%
+Batch 2/5 - SVR: 0.0%
+Batch 3/5 - SVR: 0.0%
+Batch 4/5 - SVR: 0.0%
+Batch 5/5 - SVR: 6.2%
+
+==================================================
+REPAIRED EVALUATION RESULTS (Pre-trained DiT + Constraint Solver)
+==================================================
+Total Samples: 160
+out_degree_pass: 6.25%
+in_degree_pass: 5.62%
+no_orphan_pass: 100.00%
+acyclic_data_pass: 100.00%
+terminal_sink_pass: 23.75%
+perfect_graphs: 1.88%
+Average Edge Count: 352.4
+==================================================
