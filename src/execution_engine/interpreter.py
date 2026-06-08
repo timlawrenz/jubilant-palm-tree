@@ -72,7 +72,7 @@ class GraphInterpreter:
         # Find entry boundary: BOUNDARY motif with NO incoming EXECUTION edges
         entry_nodes = [
             n_id for n_id, n in self.nodes.items() 
-            if n.motif == MotifType.BOUNDARY and n_id not in self.exec_out and not any(n_id == tgt for edges in self.exec_out.values() for tgt in edges.values())
+            if n.motif == MotifType.BOUNDARY and not any(n_id == tgt for edges in self.exec_out.values() for tgt in edges.values())
         ]
         
         if not entry_nodes:
