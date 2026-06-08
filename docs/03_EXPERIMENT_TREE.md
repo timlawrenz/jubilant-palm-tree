@@ -69,9 +69,10 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
 
 ### Can-we-save-this-arm? experiments (ordered)
 
-- **[NEXT] Exp 1 — Fix Interpreter Entry-Detection & Re-audit Ground Truth**
+- **[ACTIVE] Exp 1 — Fix Interpreter Entry-Detection & Re-audit Ground Truth**
   - *Concept:* `run_with_limit` currently defines "entry" as a Boundary with zero incoming edges; real compressed graphs have entry Boundaries with incoming data edges, so it wrongly rejects them. Fix the heuristic (entry = Boundary with zero incoming *execution* edges, tie-broken sanely), then re-run the ground-truth audit.
   - *Falsifiable target:* The 74% of 6-Law-perfect ground-truth graphs should now show a HIGH halting rate. If they still don't halt, the interpreter (not the model) is the broken component and must be fixed before any metric is trusted.
+  - *Plan:* [.hermes/plans/2026-06-05_fix_entry_detection.md](../.hermes/plans/2026-06-05_fix_entry_detection.md)
   - *Why first:* Every "0% halting" number downstream is suspect until known-good graphs execute. Cheapest, highest-leverage recalibration. Gates Exp 2 & 3.
 
 - **[TBD] Exp 2 — Build the A→C Conditioning Path (the actual thesis)**
