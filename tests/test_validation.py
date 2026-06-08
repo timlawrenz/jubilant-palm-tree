@@ -161,7 +161,40 @@ def test_evaluate_batch_perfect_graph():
     assert results["no_orphan_pass"] == 100.0
     assert results["acyclic_data_pass"] == 100.0
     assert results["terminal_sink_pass"] == 100.0
+    assert results["global_spine_pass"] == 100.0
     assert results["perfect_graphs"] == 100.0
+
+def test_check_global_spine():
+    valid_nodes = [0, 1, 2, 3]
+    # 0: Boundary, 1: Sequence, 2: Boundary, 3: Sequence
+    motif_seq = get_motif_seq(1, 2, 1, 2)
+    
+    # Valid: 0 -> 1 -> 2 (3 is not in exec plane)
+    exec_out_valid = {
+        0: [(0, 1)],
+        1: [(0, 2)],
+        2: [],
+        3: []
+    }
+    assert GraphValidator._check_global_spine(valid_nodes, motif_seq, exec_out_valid) is True
+
+    # Invalid: Two entries (0 and 2 are boundaries with 0 in-edges)
+    exec_out_two_entries = {
+        0: [(0, 1)],
+        1: [],
+        2: [(0, 3)],
+        3: []
+    }
+    assert GraphValidator._check_global_spine(valid_nodes, motif_seq, exec_out_two_entries) is False
+
+    # Invalid: Valid entry, but disconnected loop (3 -> 3)
+    exec_out_disconnected = {
+        0: [(0, 1)],
+        1: [(0, 2)],
+        2: [],
+        3: [(0, 3)]
+    }
+    assert GraphValidator._check_global_spine(valid_nodes, motif_seq, exec_out_disconnected) is False
 
 def test_evaluate_batch_empty_graph_is_skipped():
     motifs = torch.tensor([[0, 0, 0, 0]])

@@ -30,6 +30,7 @@ class GraphValidator:
             "no_orphan_pass": 0,
             "acyclic_data_pass": 0,
             "terminal_sink_pass": 0,
+            "global_spine_pass": 0,
             "perfect_graphs": 0
         }
         
@@ -67,14 +68,16 @@ class GraphValidator:
             r3 = cls._check_no_orphans(valid_nodes, exec_out, data_in)
             r4 = cls._check_acyclic_data(valid_nodes, data_in)
             r5 = cls._check_terminal_sink(valid_nodes, motif_seq, exec_out)
+            r6 = cls._check_global_spine(valid_nodes, motif_seq, exec_out)
             
             results["out_degree_pass"] += int(r1)
             results["in_degree_pass"] += int(r2)
             results["no_orphan_pass"] += int(r3)
             results["acyclic_data_pass"] += int(r4)
             results["terminal_sink_pass"] += int(r5)
+            results["global_spine_pass"] += int(r6)
             
-            if r1 and r2 and r3 and r4 and r5:
+            if r1 and r2 and r3 and r4 and r5 and r6:
                 results["perfect_graphs"] += 1
                 
         # Normalize to percentages
@@ -210,3 +213,54 @@ class GraphValidator:
         # Check if all execution nodes can reach an exit
         exec_nodes = set([n for n in valid_nodes if len(exec_out[n]) > 0])
         return exec_nodes.issubset(can_reach_exit)
+
+    @classmethod
+    def _check_global_spine(cls, valid_nodes, motif_seq, exec_out) -> bool:
+        """
+        Rule 6: Global Reachability Spine
+        1. Exactly ONE Boundary node with 0 incoming execution edges (Entry).
+        2. All nodes participating in execution must be reachable from the Entry.
+        """
+        if not valid_nodes: return True
+
+        # Build incoming execution edges
+        exec_in = {n: [] for n in valid_nodes}
+        for u in valid_nodes:
+            for idx, v in exec_out[u]:
+                exec_in[v].append(u)
+
+        # 1. Find Entry Boundaries
+        entry_nodes = []
+        for n in valid_nodes:
+            motif = cls.MOTIF_MAP[motif_seq[n].item()]
+            if motif == MotifType.BOUNDARY and len(exec_in[n]) == 0:
+                entry_nodes.append(n)
+
+        if len(entry_nodes) != 1:
+            return False  # Must have exactly one clear entry point
+
+        entry_node = entry_nodes[0]
+
+        # 2. Identify all nodes that participate in the execution plane
+        exec_participants = set()
+        for n in valid_nodes:
+            if len(exec_out[n]) > 0 or len(exec_in[n]) > 0:
+                exec_participants.add(n)
+                
+        # The entry node is always part of the execution plane
+        exec_participants.add(entry_node)
+
+        # 3. Directed BFS from Entry along execution edges
+        visited = set()
+        q = [entry_node]
+        
+        while q:
+            curr = q.pop(0)
+            if curr not in visited:
+                visited.add(curr)
+                for idx, tgt in exec_out.get(curr, []):
+                    if tgt not in visited:
+                        q.append(tgt)
+
+        # 4. Check if all execution participants were reached
+        return exec_participants.issubset(visited)
