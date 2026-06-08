@@ -73,11 +73,15 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
   - *Concept:* `run_with_limit` currently defines "entry" as a Boundary with zero incoming edges; real compressed graphs have entry Boundaries with incoming data edges, so it wrongly rejects them. Fix the heuristic (entry = Boundary with zero incoming *execution* edges, tie-broken sanely), then re-run the ground-truth audit.
   - *Result:* **Massive Success.** The Ground Truth dataset reached 100% halting. The generated Large-N 6-Law graphs ALSO reached **100% halting (20/20)**. The 6-Law specification is a perfect proxy for executability.
 
-- **[ACTIVE] Exp 2 — Build the A→C Conditioning Path (the actual thesis)**
-  - *Concept:* The pipeline today is `noise + motif-list → topology` — it is **unconditional**. Intent "A" appears nowhere, so the core thesis (intent → executable structure) has never actually been tested. Condition the DiT on an embedding of the source intent/program (we have the original Ruby), so generation becomes `intent → topology` instead of `noise → topology`.
-  - *Why it matters:* This is the only experiment that tests the founding premise (A→C directly, skipping human-readable B). Everything to date measured an unconditioned prior, which is the wrong question.
-  - *Depends on:* Exp 1 (trustworthy execution metric) + a 6-Law-clean dataset slice to condition against.
+- **[ACTIVE] Exp 1.5 — Routing Fidelity of the Executive Branch**
+  - *Concept:* We know generated 6-Law graphs execute, but not whether the DiT routes a given Bill of Materials (motif sequence) into the *intended* program vs. merely *a* valid program. Feed real ground-truth motif sequences, generate+solve, and score edge-set fidelity (untyped + typed P/R/F1) against the source graph, contrasted with a random-edge baseline. Plus a controllability ablation (same noise seed, different motif arrays → output must change).
+  - *Why it matters:* This squeezes the actual "GNN generates a code path" milestone — proving the Executive Branch is *controllable/faithful*, not just *valid* — and stays inside the proven branches before opening the Legislative (intent) branch. Per `01_VISION_AND_ARCHITECTURE.md §8`, the motif sequence IS the compiled-down intent the DiT was designed to consume.
+  - *Plan:* [.hermes/plans/2026-06-05_routing_fidelity.md](../.hermes/plans/2026-06-05_routing_fidelity.md)
 
+- **[NEXT] Exp 2 — Build the A→C Conditioning Path (the Legislative Branch)**
+  - *Concept:* Per `01_VISION_AND_ARCHITECTURE.md §8`, intent enters at the **Legislative Branch (LLM)**, which compiles human intent → the Bill of Materials (motif array) + Literal Pool. The DiT already consumes that Bill of Materials. This arm builds the LLM-shaped component that emits it from natural-language/source intent, completing the A→C path.
+  - *Why it matters:* Tests the founding premise (intent → executable structure) end to end. Sits *on top* of a proven Executive Branch — gated by Exp 1.5 confirming the DiT is faithful to its Bill of Materials.
+  - *Depends on:* Exp 1.5 (fidelity/controllability of the Executive Branch).
 - **[TBD] Exp 3 — Invert the Architecture: Autoregressive Edge-List Generation**
   - *Concept:* If diffusion-over-dense-adjacency keeps failing at global control flow, treat the executable graph as the output "language": an autoregressive / seq2seq model that emits the edge-list directly, conditioned on intent. Control flow is inherently sequential/causal, which a dense-matrix diffusion prior may simply have the wrong inductive bias for.
   - *Why it matters:* Tests whether the failure is the *paradigm* (diffusion on matrices) rather than the *thesis* (A→C). Closer to how code LLMs already succeed, but the target is C (executable topology), not B (text).
