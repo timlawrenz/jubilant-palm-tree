@@ -94,7 +94,7 @@ class GraphInterpreter:
                 
             out_edges = self.exec_out.get(current, {})
             if not out_edges:
-                return {"status": "error_unexpected_sink", "steps": steps}
+                return {"status": "halted", "steps": steps}
                 
             if node.motif in (MotifType.CONDITION, MotifType.LOOP):
                 # Dummy evaluation: alternate branches based on step count to avoid getting stuck
