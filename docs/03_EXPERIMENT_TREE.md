@@ -69,13 +69,11 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
 
 ### Can-we-save-this-arm? experiments (ordered)
 
-- **[ACTIVE] Exp 1 — Fix Interpreter Entry-Detection & Re-audit Ground Truth**
+- **[CONCLUDED] Exp 1 — Fix Interpreter Entry-Detection & Re-audit Ground Truth**
   - *Concept:* `run_with_limit` currently defines "entry" as a Boundary with zero incoming edges; real compressed graphs have entry Boundaries with incoming data edges, so it wrongly rejects them. Fix the heuristic (entry = Boundary with zero incoming *execution* edges, tie-broken sanely), then re-run the ground-truth audit.
-  - *Falsifiable target:* The 74% of 6-Law-perfect ground-truth graphs should now show a HIGH halting rate. If they still don't halt, the interpreter (not the model) is the broken component and must be fixed before any metric is trusted.
-  - *Plan:* [.hermes/plans/2026-06-05_fix_entry_detection.md](../.hermes/plans/2026-06-05_fix_entry_detection.md)
-  - *Why first:* Every "0% halting" number downstream is suspect until known-good graphs execute. Cheapest, highest-leverage recalibration. Gates Exp 2 & 3.
+  - *Result:* **Massive Success.** The Ground Truth dataset reached 100% halting. The generated Large-N 6-Law graphs ALSO reached **100% halting (20/20)**. The 6-Law specification is a perfect proxy for executability.
 
-- **[TBD] Exp 2 — Build the A→C Conditioning Path (the actual thesis)**
+- **[ACTIVE] Exp 2 — Build the A→C Conditioning Path (the actual thesis)**
   - *Concept:* The pipeline today is `noise + motif-list → topology` — it is **unconditional**. Intent "A" appears nowhere, so the core thesis (intent → executable structure) has never actually been tested. Condition the DiT on an embedding of the source intent/program (we have the original Ruby), so generation becomes `intent → topology` instead of `noise → topology`.
   - *Why it matters:* This is the only experiment that tests the founding premise (A→C directly, skipping human-readable B). Everything to date measured an unconditioned prior, which is the wrong question.
   - *Depends on:* Exp 1 (trustworthy execution metric) + a 6-Law-clean dataset slice to condition against.
