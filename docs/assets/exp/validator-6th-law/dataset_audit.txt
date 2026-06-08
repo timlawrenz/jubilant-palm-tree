@@ -1,0 +1,24 @@
+Auditing the GROUND TRUTH dataset against the 6 Laws + executability...
+Loaded 3951 valid graphs (max_nodes <= 128).
+
+============================================================
+GROUND TRUTH DATASET AUDIT
+============================================================
+Total graphs: 3951
+
+--- Per-Law Pass Rates (avg over batches) ---
+out_degree_pass: 94.58%
+in_degree_pass: 95.23%
+no_orphan_pass: 100.00%
+acyclic_data_pass: 100.00%
+terminal_sink_pass: 100.00%
+global_spine_pass: 78.61%
+perfect_graphs: 74.33%
+
+--- Executability of 6-Law-Perfect Dataset Graphs (2934 found) ---
+halted: 0 (0.0%)
+infinite_loop: 0 (0.0%)
+error_no_entry: 2934 (100.0%)
+error_unexpected_sink: 0 (0.0%)
+crash: 0 (0.0%)
+============================================================

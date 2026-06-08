@@ -63,24 +63,40 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
 ---
 
 ## 2. Semantics & Execution
+
+> **Pivotal finding (2026-06-05): the data is rich, the generator is the bottleneck — and our audit harness has a bug.**
+> A ground-truth dataset audit showed **74.3%** of real compressed graphs pass all 6 Laws (vs. the generator's 1.95%), proving the executable structure IS learnable — the DiT is simply failing to reproduce it, not chasing an impossible target. HOWEVER, 100% of those known-good ground-truth graphs reported `error_no_entry` in the interpreter, which is impossible for real programs. This means `GraphInterpreter.run_with_limit`'s entry-detection heuristic is too strict and the "0% halting" results below are partly a harness artifact, not purely model failure. Raw log: `docs/assets/exp/validator-6th-law/dataset_audit.txt`.
+
+### Can-we-save-this-arm? experiments (ordered)
+
+- **[NEXT] Exp 1 — Fix Interpreter Entry-Detection & Re-audit Ground Truth**
+  - *Concept:* `run_with_limit` currently defines "entry" as a Boundary with zero incoming edges; real compressed graphs have entry Boundaries with incoming data edges, so it wrongly rejects them. Fix the heuristic (entry = Boundary with zero incoming *execution* edges, tie-broken sanely), then re-run the ground-truth audit.
+  - *Falsifiable target:* The 74% of 6-Law-perfect ground-truth graphs should now show a HIGH halting rate. If they still don't halt, the interpreter (not the model) is the broken component and must be fixed before any metric is trusted.
+  - *Why first:* Every "0% halting" number downstream is suspect until known-good graphs execute. Cheapest, highest-leverage recalibration. Gates Exp 2 & 3.
+
+- **[TBD] Exp 2 — Build the A→C Conditioning Path (the actual thesis)**
+  - *Concept:* The pipeline today is `noise + motif-list → topology` — it is **unconditional**. Intent "A" appears nowhere, so the core thesis (intent → executable structure) has never actually been tested. Condition the DiT on an embedding of the source intent/program (we have the original Ruby), so generation becomes `intent → topology` instead of `noise → topology`.
+  - *Why it matters:* This is the only experiment that tests the founding premise (A→C directly, skipping human-readable B). Everything to date measured an unconditioned prior, which is the wrong question.
+  - *Depends on:* Exp 1 (trustworthy execution metric) + a 6-Law-clean dataset slice to condition against.
+
+- **[TBD] Exp 3 — Invert the Architecture: Autoregressive Edge-List Generation**
+  - *Concept:* If diffusion-over-dense-adjacency keeps failing at global control flow, treat the executable graph as the output "language": an autoregressive / seq2seq model that emits the edge-list directly, conditioned on intent. Control flow is inherently sequential/causal, which a dense-matrix diffusion prior may simply have the wrong inductive bias for.
+  - *Why it matters:* Tests whether the failure is the *paradigm* (diffusion on matrices) rather than the *thesis* (A→C). Closer to how code LLMs already succeed, but the target is C (executable topology), not B (text).
+  - *Depends on:* Exp 1 & 2 results — only pursue if conditioning a diffusion model proves insufficient.
+
+### Concluded execution experiments
+
 - **[CONCLUDED] Large-N Executability Audit on 6-Law Graphs**
-  - *Concept:* Generate 1,000+ samples, run them through the full Constraint Solver + 6th Law Validator. For the truly perfect ones (expected ~3%), run them in the Graph-Walk Interpreter to see if they halt.
-  - *Result:* **0% Halting Rate on 20 perfect graphs (SVR 1.95%).** Closes the loop. Even 6-Law graphs do not halt (failing mostly on missing entry boundaries and unexpected sinks). This proves the generative model fails at global control flow, and ensures we don't build more repairs optimizing a broken metric.
+  - *Concept:* Generate 1,000+ samples, run them through the full Constraint Solver + 6th Law Validator. For the truly perfect ones, run them in the Graph-Walk Interpreter to see if they halt.
+  - *Result:* **0% Halting Rate on 20 perfect graphs (SVR 1.95%).** Stabilized the true generator SVR. NOTE: partly confounded by the interpreter entry-detection bug (see Exp 1) — re-confirm after the harness fix.
 - **[CONCLUDED] Executability Audit of Generated Graphs**
   - *Concept:* Take structurally-valid generated graphs and actually run them through the Graph-Walk Interpreter using dummy operations.
-  - *Result:* **0% Halting Rate.** 80.6% of structurally perfect graphs lacked an entry node; 19.4% died in unexpected sinks. Proved that local SVR constraints do not guarantee a globally executable macroscopic path.
-
-- **[TBD] Conditional Generation (Intent → Topology)**
-  - *Concept:* Currently the DiT generates from noise + a motif sequence. To be useful
-    it must be *conditioned on a task spec*. Explore conditioning the DiT on an
-    intent embedding so generation is goal-directed, not unconditional.
-  - *Open question:* What is the conditioning signal, and where does the motif sequence
-    come from at inference time (the LLM custodian)?
+  - *Result:* **0% Halting Rate.** 80.6% of structurally perfect graphs lacked an entry node; 19.4% died in unexpected sinks. Proved that local SVR constraints do not guarantee a globally executable macroscopic path (caveat: entry-detection harness bug, see Exp 1).
 
 - **[TBD] Semantic Integration (The LLM Custodian)**
   - *Concept:* LLM maps human intent into the motif "bill of materials" and a Constant
     Pool; the structural matrix references literals via integer pointers.
-  - *Depends on:* a reliable structural generator (MQ1) and a conditioning path.
+  - *Depends on:* a reliable structural generator (MQ1) and a conditioning path (Exp 2).
 
 ---
 
