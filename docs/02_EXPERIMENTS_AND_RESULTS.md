@@ -596,3 +596,46 @@ We patched the interpreter to strictly define Entry nodes as Boundaries with NO 
 This profoundly validates the project thesis: **The `ConstraintSolver` + `GraphValidator` (6-Laws) acts as a perfect proxy for executability**. If we can generate a graph that passes the 6 Laws, it is mathematically guaranteed to run.
 
 The next necessary step is **Experiment 2**: The model generates valid executables ~2% of the time, but right now it is generating them *unconditionally* from pure noise. We must build the conditioning path (Intent $\to$ Topology) to test if we can steer the generation toward specific executable goals.
+
+---
+
+## Exp 1.5 — Routing Fidelity of the Executive Branch — `[ACTIVE]`
+
+**Date:** 2026-07-19 (gate pre-registered BEFORE any results; scripts not yet written)
+**Branch:** `exp/routing-fidelity` · **Plan:** `.hermes/plans/2026-06-05_routing_fidelity.md`
+**GPU reservation:** `gpu-resource-scheduler` job `jpt-routing-fidelity` (queued; both GPUs busy at registration time — 4090 running prx-tg, strix running dino-x). Inference-only, no training.
+
+**Goal:** Measure whether the Structural DiT (Executive Branch) routes a given Bill of Materials (motif sequence) into the *intended* program graph, or merely into *a* structurally-valid graph containing those ingredients. Today we know generated 6-Law graphs execute; we do NOT know if they reconstruct the ground-truth routing they were conditioned on. This is the hinge experiment between Macro-Question 1 (validity) and Macro-Question 2 (semantic correctness).
+
+### Pre-registered gate (stated BEFORE results)
+
+> **Setup:** For N≥512 real ground-truth graphs, condition the DiT (`num_dit_epoch_340.pt`) on each graph's own motif sequence with `augment_permutation=False` and `shuffle=False` (so conditioning and ground truth share an index space), generate via the canonical 20-step Euler ODE + ConstraintSolver, and score edge-set fidelity against the source graph over the real `[num_nodes, num_nodes]` block only.
+>
+> **PASS (Executive Branch is controllable):** mean **typed-edge F1 ≥ 0.50** across the N samples, **AND** mean typed-F1 exceeds the random-edge matched-density baseline by **≥ 0.20 absolute**, **AND** the controllability ablation (same noise seed, two different real motif sequences A and B) produces untyped edge-overlap **Jaccard < 0.70** (output topology changes with the Bill of Materials).
+>
+> **FAIL (valid-but-hollow):** typed-F1 is within **2σ** of the random baseline, **OR** ablation Jaccard **≥ 0.90** (the motif signal is being ignored — conditioning bug).
+>
+> **AMBIGUOUS / Bill-of-Materials indictment:** typed-F1 below the PASS threshold but clearly above the random baseline, **AND** ablation Jaccard < 0.70. This indicates the DiT *is* steered by motifs but the motif sequence underspecifies the program — a Legislative-Branch finding, not an Executive-Branch failure.
+>
+> **Falsified-if:** the DiT's routing is indistinguishable from a random graph of matched density, or the output does not change when the conditioning motifs change.
+
+### Null-hypothesis baseline (computed before the run)
+
+> The experiment includes an explicit null: a **random-edge baseline of matched density** (scatter `gt_edges` random edges over the same `num_nodes` block, score against ground truth). If the DiT does not beat this baseline, the metric is not discriminating and the experiment cannot detect failure. Expected random F1 for sparse graphs (N~10–128 nodes, ~15–90 edges) is near zero; the exact value will be reported from the run.
+
+### Metrics (all over the valid node block, padding excluded)
+
+1. **Untyped edge-set F1** (presence channel only).
+2. **Typed-edge F1** (an edge is a true positive only if presence AND edge_type match).
+3. **Random matched-density baseline F1** (null).
+4. **Controllability ablation Jaccard** (Task 4 — headline disambiguator).
+
+### Adversarial pass checklist (to be filled BEFORE the verdict is written)
+
+- [ ] Metric code (`src/models/fidelity.py::edge_fidelity`) has unit tests (identical→1.0, disjoint→0.0, wrong-type breaks typed-only) — commit: ______
+- [ ] `augment_permutation=False` and `shuffle=False` asserted end-to-end (fidelity is meaningless under node permutation) — verified: ______
+- [ ] Result reproduced (fresh process, ≥512 samples, both scripts) — run: ______
+- [ ] Random matched-density baseline reported alongside; extremes (best/worst/median F1 graphs) inspected — artifact: ______
+
+**Verdict:** PENDING (gate registered; awaiting implementation + GPU + results)
+
