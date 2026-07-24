@@ -18,13 +18,13 @@ from src.models.fidelity import edge_fidelity
 
 CKPT_PATH = "checkpoints/num_dit_epoch_340.pt"
 JSONL_PATH = "dataset/compressed/compressed_motifs.jsonl"
-NUM_GRAPHS = 128
-BATCH_SIZE = 1
+NUM_GRAPHS = 256
+BATCH_SIZE = 4
 NUM_STEPS = 20
-MAX_NODES = 64  # reduced for CPU; 64² is 4× faster than 128²
+MAX_NODES = 128
 
-# Quick scan: baseline + two representative scales
-DENSITY_SCALES = [0.0, 0.2, 1.0]
+# Density bias sweep — fine-grained to find sweet spot below 0.2
+DENSITY_SCALES = [0.0, 0.005, 0.01, 0.02, 0.05, 0.1]
 
 
 def build_random_baseline(gt_adj, num_nodes, k, generator):
