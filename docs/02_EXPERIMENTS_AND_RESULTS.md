@@ -679,3 +679,56 @@ This is a **PIVOT**, not a KILL. The Executive Branch responds to its conditioni
 - Ablation script: `scripts/ablation_motif_controllability.py` (`a36bcf1`)
 - Gate registration: `49e3266`
 
+---
+
+## Exp 1.6 — Edge-Count Enrichment (BoM Arm A) — `[ACTIVE]`
+
+**Date:** 2026-07-24 (gate pre-registered BEFORE any results or code)
+**Branch:** `exp/edge-count-enrichment`
+**Dependency:** Exp 1.5 (concluded AMBIGUOUS — DiT steerable but 1D motif underspecifies programs)
+
+**Goal:** Test whether conditioning the DiT on the target edge count (in addition to the motif array) improves routing fidelity. Exp 1.5 showed the DiT over-generates edges 6.5× (181 vs 28 ground truth). If the model knows approximately how many edges the target graph has, it should produce sparser, more accurate outputs.
+
+### Design
+
+1. **Signal:** For each graph, compute the ground-truth edge count `k` and normalize as `density = k / (num_nodes * (num_nodes - 1))`. Broadcast this scalar into a constant `[B, 1, N, N]` channel and concatenate it to the cross-hatch conditioner output (currently `[B, 38, N, N]` → `[B, 39, N, N]`).
+2. **Zero-padding:** The `proj_in` Conv2d is expanded from 38→39 input channels. The pre-trained weights are kept for channels 0–37; channel 38 is initialized to zero. This ensures the model with edge-count conditioning produces identical output to the original when `edge_count` is held constant — the enrichment is purely additive to the pre-trained representation.
+3. **Inference-only.** No training. The pre-trained checkpoint (`num_dit_epoch_340.pt`) is loaded with zero-padding applied at runtime. This tests whether *providing* the edge-count signal at inference time improves fidelity even without training on it.
+
+### Pre-registered gate (stated BEFORE results)
+
+> **Setup:** Same harness as Exp 1.5 — N≥512 graphs, `augment_permutation=False`, `shuffle=False`, 20-step ODE + ConstraintSolver. The DiT receives BOTH the motif array AND the ground-truth edge count as conditioning.
+>
+> **PASS:** mean **typed-F1 ≥ 0.20** AND exceeds the Exp 1.5 baseline typed-F1 (0.0852) by **≥ 0.05 absolute** AND a same-seed-different-count ablation confirms the count signal changes output (Jaccard < 0.85 between output with actual count vs output with mismatched count).
+>
+> **FAIL:** typed-F1 is within **2σ** of the Exp 1.5 baseline (0.0852), i.e. the enrichment buys nothing.
+>
+> **PASS threshold rationale:** Exp 1.5 typed-F1 = 0.085. A lift to ≥0.20 represents a 2.3× improvement and un-gates Exp 2 (Legislative Branch). The ≥0.05 absolute gap ensures the improvement is not statistical noise.
+>
+> **Falsified-if:** adding the edge-count signal does not change the model's output fidelity, or the ablation shows the model ignores the count.
+
+### Null hypothesis
+
+> If the edge-count signal adds no information beyond what the motif array already provides, typed-F1 should remain ≈0.085 (the Exp 1.5 baseline). The random matched-density baseline (≈0.046) provides the floor.
+
+### Controllability ablation (edge-count variant)
+
+> Same noise seed x₀, SAME motif sequence, but two different edge counts: the actual ground-truth count vs a deliberately wrong count (e.g., 2× or 0.5×). If Jaccard ≥ 0.85, the model is ignoring the count signal — a FAIL. If Jaccard < 0.85, the count signal is being read.
+
+### Metrics
+
+1. Mean typed-F1 vs Exp 1.5 baseline (0.0852) and random baseline (~0.046).
+2. Mean gen_edges vs gt_edges (target: close the 6.5× over-generation gap).
+3. Count-ablation Jaccard (same motif, different count → output must change).
+
+### Adversarial pass checklist (fill BEFORE verdict)
+
+- [ ] Zero-padding initialization verified: model with default (zero) edge count produces identical output to original — commit: ______
+- [ ] `augment_permutation=False` asserted — commit: ______
+- [ ] Result reproduced (fresh process, ≥512 samples) — run: ______
+- [ ] Count-ablation proved the signal is read (Jaccard < 0.85) — artifact: ______
+- [ ] Extremes inspected (best/worst/median typed-F1 graphs) — artifact: ______
+
+**Verdict:** PENDING (gate registered; awaiting implementation + execution)
+
+
