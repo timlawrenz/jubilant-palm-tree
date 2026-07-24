@@ -16,9 +16,9 @@ class InputConditioner(nn.Module):
 
     def forward(self, noisy_adj: torch.Tensor, motifs: torch.Tensor) -> torch.Tensor:
         """
-        noisy_adj: [B, 6, N, N]
+        noisy_adj: [B, in_channels, N, N]
         motifs: [B, N]
-        Returns: [B, 38, N, N]
+        Returns: [B, out_channels, N, N]
         """
         B, C, N, _ = noisy_adj.shape
         
@@ -26,17 +26,13 @@ class InputConditioner(nn.Module):
         motif_embeds = self.embedding(motifs)
         
         # 1. Expand to represent Source Nodes (rows)
-        # Shape: [B, 16, N, 1] -> broadcast to -> [B, 16, N, N]
         source_grid = motif_embeds.permute(0, 2, 1).unsqueeze(-1).expand(-1, -1, -1, N)
         
         # 2. Expand to represent Target Nodes (columns)
-        # Shape: [B, 16, 1, N] -> broadcast to -> [B, 16, N, N]
         target_grid = motif_embeds.permute(0, 2, 1).unsqueeze(2).expand(-1, -1, N, -1)
         
-        # 3. Fuse the structural noise with the semantic node identities
-        # Final Shape: [B, 35, N, N]
+        # 3. Fuse
         dit_input = torch.cat([noisy_adj, source_grid, target_grid], dim=1)
-        
         return dit_input
 
 
