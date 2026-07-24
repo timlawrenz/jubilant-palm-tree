@@ -18,12 +18,12 @@ from src.models.fidelity import edge_fidelity
 
 CKPT_PATH = "checkpoints/num_dit_epoch_340.pt"
 JSONL_PATH = "dataset/compressed/compressed_motifs.jsonl"
-NUM_GRAPHS = 512
-BATCH_SIZE = 8
+NUM_GRAPHS = 128
+BATCH_SIZE = 1
 NUM_STEPS = 20
 
-# Density bias scales to sweep (0 = baseline, same as Exp 1.5)
-DENSITY_SCALES = [0.0, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0]
+# Quick scan: baseline + two representative scales
+DENSITY_SCALES = [0.0, 0.2, 1.0]
 
 
 def build_random_baseline(gt_adj, num_nodes, k, generator):
@@ -114,6 +114,9 @@ def main():
 
                         gen = disc[0].cpu()
                         m = edge_fidelity(gen, gt, num_nodes)
+                        if device.type == "cuda":
+                            del disc
+                            torch.cuda.empty_cache()
                         results[scale]["typed_f1"].append(m["typed_f1"])
                         results[scale]["untyped_f1"].append(m["untyped_f1"])
                         results[scale]["gen_edges"].append(m["gen_edges"])
@@ -148,13 +151,17 @@ def main():
     print("=" * 70)
 
     # Best scale details
-    best_scale = max(DENSITY_SCALES,
-                     key=lambda s: np.mean(results[s]["typed_f1"]))
-    best_tf = np.array(results[best_scale]["typed_f1"])
-    print(f"\nBest scale: {best_scale:.2f} (typed-F1 = {best_tf.mean():.4f})")
-    print(f"  typed-F1 quantiles: {np.min(best_tf):.4f} / "
-          f"{np.percentile(best_tf,25):.4f} / {np.median(best_tf):.4f} / "
-          f"{np.percentile(best_tf,75):.4f} / {np.max(best_tf):.4f}")
+    tf_means = [(s, np.mean(results[s]["typed_f1"])) for s in DENSITY_SCALES
+                if len(results[s]["typed_f1"]) > 0]
+    if tf_means:
+        best_scale, _ = max(tf_means, key=lambda x: x[1])
+        best_tf = np.array(results[best_scale]["typed_f1"])
+        print(f"\nBest scale: {best_scale:.2f} (typed-F1 = {best_tf.mean():.4f})")
+        print(f"  typed-F1 quantiles: {np.min(best_tf):.4f} / "
+              f"{np.percentile(best_tf,25):.4f} / {np.median(best_tf):.4f} / "
+              f"{np.percentile(best_tf,75):.4f} / {np.max(best_tf):.4f}")
+    else:
+        print("\nNo valid fidelity scores — all graphs errored.")
 
 
 if __name__ == "__main__":
