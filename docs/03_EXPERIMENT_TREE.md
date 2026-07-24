@@ -81,8 +81,8 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
 
 - **[NEXT] Exp 2 — Build the A→C Conditioning Path (the Legislative Branch)**
   - *Concept:* Per `01_VISION_AND_ARCHITECTURE.md §8`, intent enters at the **Legislative Branch (LLM)**, which compiles human intent → the Bill of Materials (motif array) + Literal Pool. The DiT already consumes that Bill of Materials. This arm builds the LLM-shaped component that emits it from natural-language/source intent, completing the A→C path.
-  - *Why it matters:* Tests the founding premise (intent → executable structure) end to end. Sits *on top* of a proven Executive Branch — gated by Exp 1.5 confirming the DiT is faithful to its Bill of Materials.
-  - *Depends on:* Exp 1.5 (fidelity/controllability of the Executive Branch).
+  - *Why it matters:* Tests the founding premise (intent → executable structure) end to end. Sits *on top* of a proven Executive Branch.
+  - *Depends on:* **BoM enrichment** — at least one enrichment arm must lift typed-F1 > 0.20 before this arm is viable. Exp 1.5 proved the DiT is steerable but the 1D motif array underspecifies programs.
 - **[TBD] Exp 3 — Invert the Architecture: Autoregressive Edge-List Generation**
   - *Concept:* If diffusion-over-dense-adjacency keeps failing at global control flow, treat the executable graph as the output "language": an autoregressive / seq2seq model that emits the edge-list directly, conditioned on intent. Control flow is inherently sequential/causal, which a dense-matrix diffusion prior may simply have the wrong inductive bias for.
   - *Why it matters:* Tests whether the failure is the *paradigm* (diffusion on matrices) rather than the *thesis* (A→C). Closer to how code LLMs already succeed, but the target is C (executable topology), not B (text).

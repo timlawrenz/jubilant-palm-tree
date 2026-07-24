@@ -49,14 +49,12 @@ Raw logs: `docs/assets/exp/routing-fidelity/fidelity_eval.txt`, `controllability
 |---|---|---|
 | `tests/test_validation.py` | 13 | ✅ All pass (includes 6th-law/global-spine coverage) |
 | `tests/test_constraint_solver.py` | 6 | ✅ All pass |
+| `tests/test_fidelity.py` | 3 | ✅ All pass (Exp 1.5 — edge-set fidelity metric) |
 | `tests/test_naive_discretizer.py` | — | ✅ All pass |
-| `tests/test_execution_engine.py` | — | ⚠️ 2 failures (see below) |
+| `tests/test_execution_engine.py` | 3 | ✅ All pass (Fibonacci demo returns `a=55`; loop guard + cyclic data guard green) |
 
-**Known test failures** (non-blocking for Exp 1.5):
-- `test_fibonacci_execution`: `NotImplementedError` — the interpreter can't run the flagship Fibonacci demo end-to-end yet.
-- `test_interpreter_infinite_loop_guard`: the test fixture is malformed (missing `Exit(1)` exec edge for a LOOP node), so it fails on a structural check before reaching the step-limit guard it intends to test.
-
-These are downstream of the Executive Branch — they affect the interpreter, not the DiT or solver. Fix before publishing or resuming the Legislative Branch.
+**Open failures (non-blocking, stale RLAIF arm):**
+- `tests/test_reward.py::test_all_pass_gets_jackpot` — RLAIF reward function test from the concluded arm; does not affect the DiT, solver, or interpreter. Quarantine or remove when cleaning up RLAIF artifacts.
 
 ---
 
