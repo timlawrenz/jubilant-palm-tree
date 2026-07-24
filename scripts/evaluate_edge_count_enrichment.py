@@ -21,6 +21,7 @@ JSONL_PATH = "dataset/compressed/compressed_motifs.jsonl"
 NUM_GRAPHS = 128
 BATCH_SIZE = 1
 NUM_STEPS = 20
+MAX_NODES = 64  # reduced for CPU; 64² is 4× faster than 128²
 
 # Quick scan: baseline + two representative scales
 DENSITY_SCALES = [0.0, 0.2, 1.0]
@@ -56,7 +57,7 @@ def main():
     model.to(device)
     model.eval()
 
-    dataset = ExecutionGraphDataset(jsonl_path=JSONL_PATH, max_nodes=128,
+    dataset = ExecutionGraphDataset(jsonl_path=JSONL_PATH, max_nodes=MAX_NODES,
                                      augment_permutation=False)
     assert dataset.augment_permutation == False
     dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
