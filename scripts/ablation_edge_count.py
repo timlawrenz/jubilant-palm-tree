@@ -30,9 +30,10 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Count-ablation on device: {device}")
 
-    model = NeuralUniversalMachineDiT(hidden_dim=256, num_heads=8, depth=12).to(device)
-    ckpt = torch.load(CKPT_PATH, map_location=device, weights_only=True)
+    model = NeuralUniversalMachineDiT(hidden_dim=256, num_heads=8, depth=12)
+    ckpt = torch.load(CKPT_PATH, map_location='cpu', weights_only=True)
     model.load_state_dict(ckpt["model_state_dict"])
+    model.to(device)
     model.eval()
 
     dataset = ExecutionGraphDataset(jsonl_path=JSONL_PATH, max_nodes=128,
