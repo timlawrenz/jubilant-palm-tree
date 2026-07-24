@@ -1,0 +1,19 @@
+Edge-count enrichment eval on device: cpu
+Loaded 3779 valid graphs (max_nodes <= 64).
+/home/tim/source/activity/jubilant-palm-tree/.venv/lib/python3.11/site-packages/torch/amp/autocast_mode.py:270: UserWarning: User provided device_type of 'cuda', but CUDA is not available. Disabling
+  warnings.warn(
+
+======================================================================
+EDGE-COUNT ENRICHMENT RESULTS (per density_bias_scale)
+======================================================================
+Graphs scored: 5
+ Scale    typed_F1    untyped_F1   gen_edges   gt_edges
+----------------------------------------------------------------------
+  0.00      0.1051        0.1302        84.4       20.0
+  0.20      0.0000        0.0000         0.6       20.0
+----------------------------------------------------------------------
+random      0.0654        0.1020           —          —
+======================================================================
+
+Best scale: 0.00 (typed-F1 = 0.1051)
+  typed-F1 quantiles: 0.0324 / 0.0806 / 0.1020 / 0.1053 / 0.2051

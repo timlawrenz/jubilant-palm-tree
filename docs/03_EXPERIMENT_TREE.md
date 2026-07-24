@@ -79,6 +79,10 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
   - *Implication:* The Executive Branch is steerable but the 1D motif array underspecifies programs. This is a **Legislative-Branch finding**: enrich the Bill of Materials (edge-count hints, degree profiles, partial adjacency seeding) before attempting the full intent→topology pathway (Exp 2).
   - *Artifacts:* `docs/assets/exp/routing-fidelity/fidelity_eval.txt`, `controllability_ablation.txt`; `src/models/fidelity.py`, `tests/test_fidelity.py`, `scripts/evaluate_routing_fidelity.py`, `scripts/ablation_motif_controllability.py` (branch `exp/routing-fidelity`)
 
+- **[ACTIVE] Exp 1.6 — Edge-Count Enrichment (BoM Arm A)** — `MIXED, awaiting larger sweep`
+  - *Concept:* FiLM-style density bias on the presence channel at each ODE step, nudging toward target edge count. No model changes — pre-trained checkpoint as-is.
+  - *Result:* **Two N=8 runs conflict.** Run 1: fidelity drops at all scales. Run 2: scale=0.05 → typed-F1 0.141 (vs baseline 0.101) with gen_edges near target. Small N makes this unstable. Full sweep (128+ graphs) gated on GPU availability.
+
 - **[NEXT] Exp 2 — Build the A→C Conditioning Path (the Legislative Branch)**
   - *Concept:* Per `01_VISION_AND_ARCHITECTURE.md §8`, intent enters at the **Legislative Branch (LLM)**, which compiles human intent → the Bill of Materials (motif array) + Literal Pool. The DiT already consumes that Bill of Materials. This arm builds the LLM-shaped component that emits it from natural-language/source intent, completing the A→C path.
   - *Why it matters:* Tests the founding premise (intent → executable structure) end to end. Sits *on top* of a proven Executive Branch.
