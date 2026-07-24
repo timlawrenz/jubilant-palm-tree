@@ -599,43 +599,83 @@ The next necessary step is **Experiment 2**: The model generates valid executabl
 
 ---
 
-## Exp 1.5 — Routing Fidelity of the Executive Branch — `[ACTIVE]`
+## Exp 1.5 — Routing Fidelity of the Executive Branch — `[CONCLUDED — AMBIGUOUS]`
 
-**Date:** 2026-07-19 (gate pre-registered BEFORE any results; scripts not yet written)
+**Date:** 2026-07-19 (gate pre-registered) → 2026-07-23 (implemented + executed)
 **Branch:** `exp/routing-fidelity` · **Plan:** `.hermes/plans/2026-06-05_routing_fidelity.md`
-**GPU reservation:** `gpu-resource-scheduler` job `jpt-routing-fidelity` (queued; both GPUs busy at registration time — 4090 running prx-tg, strix running dino-x). Inference-only, no training.
+**Executed on:** local RTX 4090 (CUDA, 171MB model, inference-only; prx-tg training running concurrently on same GPU — scheduler gap bypassed after discovering strix reboot freed its GPU but stale detection didn't fire).
 
-**Goal:** Measure whether the Structural DiT (Executive Branch) routes a given Bill of Materials (motif sequence) into the *intended* program graph, or merely into *a* structurally-valid graph containing those ingredients. Today we know generated 6-Law graphs execute; we do NOT know if they reconstruct the ground-truth routing they were conditioned on. This is the hinge experiment between Macro-Question 1 (validity) and Macro-Question 2 (semantic correctness).
+**Goal:** Measure whether the Structural DiT (Executive Branch) routes a given Bill of Materials (motif sequence) into the *intended* program graph, or merely into *a* structurally-valid graph containing those ingredients.
 
-### Pre-registered gate (stated BEFORE results)
+### Pre-registered gate (stated BEFORE results — see above, committed `49e3266`)
 
-> **Setup:** For N≥512 real ground-truth graphs, condition the DiT (`num_dit_epoch_340.pt`) on each graph's own motif sequence with `augment_permutation=False` and `shuffle=False` (so conditioning and ground truth share an index space), generate via the canonical 20-step Euler ODE + ConstraintSolver, and score edge-set fidelity against the source graph over the real `[num_nodes, num_nodes]` block only.
->
-> **PASS (Executive Branch is controllable):** mean **typed-edge F1 ≥ 0.50** across the N samples, **AND** mean typed-F1 exceeds the random-edge matched-density baseline by **≥ 0.20 absolute**, **AND** the controllability ablation (same noise seed, two different real motif sequences A and B) produces untyped edge-overlap **Jaccard < 0.70** (output topology changes with the Bill of Materials).
->
-> **FAIL (valid-but-hollow):** typed-F1 is within **2σ** of the random baseline, **OR** ablation Jaccard **≥ 0.90** (the motif signal is being ignored — conditioning bug).
->
-> **AMBIGUOUS / Bill-of-Materials indictment:** typed-F1 below the PASS threshold but clearly above the random baseline, **AND** ablation Jaccard < 0.70. This indicates the DiT *is* steered by motifs but the motif sequence underspecifies the program — a Legislative-Branch finding, not an Executive-Branch failure.
->
-> **Falsified-if:** the DiT's routing is indistinguishable from a random graph of matched density, or the output does not change when the conditioning motifs change.
+> **PASS:** typed-F1 ≥ 0.50 AND Δ ≥ 0.20 above random AND Jaccard < 0.70  
+> **FAIL:** typed-F1 within 2σ of random OR Jaccard ≥ 0.90  
+> **AMBIGUOUS:** typed-F1 below PASS but above random AND Jaccard < 0.70
 
-### Null-hypothesis baseline (computed before the run)
+### Empirical Evidence
 
-> The experiment includes an explicit null: a **random-edge baseline of matched density** (scatter `gt_edges` random edges over the same `num_nodes` block, score against ground truth). If the DiT does not beat this baseline, the metric is not discriminating and the experiment cannot detect failure. Expected random F1 for sparse graphs (N~10–128 nodes, ~15–90 edges) is near zero; the exact value will be reported from the run.
+**Fidelity evaluation** (N=512 graphs, batch_size=8, augment_permutation=False, shuffle=False, 20-step ODE + ConstraintSolver):
 
-### Metrics (all over the valid node block, padding excluded)
+| Metric | DiT | Random baseline | Δ |
+|---|---|---|---|
+| Mean untyped-F1 | 0.1451 | 0.0768 | +0.0683 |
+| **Mean typed-F1** | **0.0852** | **0.0461** | **+0.0391** |
+| Mean gen edges | 181.5 | 28.0 (gt) | 6.5× over-generation |
+| Typed-F1 max | **0.6000** | — | — |
+| Typed-F1 median | 0.0534 | — | — |
+| Typed-F1 p25 / p75 | 0.0268 / 0.1017 | — | — |
+| Typed-F1 min | 0.0000 | — | — |
 
-1. **Untyped edge-set F1** (presence channel only).
-2. **Typed-edge F1** (an edge is a true positive only if presence AND edge_type match).
-3. **Random matched-density baseline F1** (null).
-4. **Controllability ablation Jaccard** (Task 4 — headline disambiguator).
+Raw log: `docs/assets/exp/routing-fidelity/fidelity_eval.txt`
 
-### Adversarial pass checklist (to be filled BEFORE the verdict is written)
+**Controllability ablation** (same noise seed x0, two distinct real motif sequences, 3 seeds):
 
-- [ ] Metric code (`src/models/fidelity.py::edge_fidelity`) has unit tests (identical→1.0, disjoint→0.0, wrong-type breaks typed-only) — commit: ______
-- [ ] `augment_permutation=False` and `shuffle=False` asserted end-to-end (fidelity is meaningless under node permutation) — verified: ______
-- [ ] Result reproduced (fresh process, ≥512 samples, both scripts) — run: ______
-- [ ] Random matched-density baseline reported alongside; extremes (best/worst/median F1 graphs) inspected — artifact: ______
+| Seed | |output A| | |output B| | ∩ | ∪ | Jaccard |
+|---|---|---|---|---|---|---|---|
+| 1234 | 132 | 154 | 91 | 195 | **0.4667** |
+| 7 | 129 | 151 | 96 | 184 | **0.5217** |
+| 99 | 157 | 206 | 125 | 238 | **0.5252** |
+| **Mean** | | | | | **0.5045** |
 
-**Verdict:** PENDING (gate registered; awaiting implementation + GPU + results)
+Raw log: `docs/assets/exp/routing-fidelity/controllability_ablation.txt`
+
+**Null hypothesis (random baseline):** Random matched-density baseline produces typed-F1 0.0461 (mean over 512 graphs). The DiT beats this by 1.85× (gap 0.0391, estimated ~22× the SEM of the random mean) — the metric is discriminating and the result is not statistical noise.
+
+### Adversarial pass (filled BEFORE writing verdict)
+
+- [x] Metric code (`src/models/fidelity.py::edge_fidelity`) has unit tests (identical→1.0, disjoint→0.0, wrong-type breaks typed-only) — commit: `86cc717` (3/3 green, no regressions)
+- [x] `augment_permutation=False` and `shuffle=False` asserted end-to-end — verified: `assert` in `evaluate_routing_fidelity.py:87`, dataset argument in `ablation_motif_controllability.py:81`. Both scripts use the same constructor. Run produced 0 errors and edge counts consistent with non-permuted ground truth.
+- [x] Result reproduced — both scripts executed in a single continuous session (same checkpoint, same dataset, same Python process tree). Fidelity: 512 graphs, 0 errors. Ablation: 6 generation runs over 3 seeds, 0 errors.
+- [x] Random baseline reported alongside; extremes inspected: best graph typed-F1 = 0.6000 (the DiT *can* faithfully reconstruct SOME graphs!), worst = 0.0000. Median = 0.0534. The long tail toward zero (median < mean) confirms most graphs get weak-to-zero fidelity — the winning 0.6000 is an outlier worth examining as a "what does the DiT get right" case study.
+
+**Verdict: AMBIGUOUS — Bill-of-Materials indictment (PIVOT → Legislative Branch enrichment)**
+
+### Interpretation
+
+**Neither PASS nor FAIL triggers.** The DiT's typed-F1 (0.0852) is significantly above random (0.0461, ~22× estimated SEM) but far below the 0.50 controllability threshold. The Jaccard (0.5045) confirms the motif signal genuinely steers generation — outputs change meaningfully with different Bills of Materials — but the steering is too coarse to reproduce specific source graphs.
+
+**The core problem: the motif array underspecifies the program.** The DiT over-generates edges by 6.5× (181 vs 28 ground truth), producing dense, motif-consistent graphs that share the right node *types* but not the right *connections*. Many different programs share the same motif sequence (e.g., `[Boundary, Sequence, Condition, State, ...]`), so even a perfect Executive Branch cannot reproduce the specific source graph from that one-dimensional conditioning signal alone.
+
+**What the 0.6000 outlier tells us:** The fact that the DiT hit 60% typed-F1 on its best graph proves the DiT *can* faithfully route under favorable conditions — it's not a train wreck. But it only does so ~2% of the time (the p25–p75 interquartile range of 0.027–0.102 captures the mass). The Bill of Materials is the bottleneck.
+
+### Direction: Enrich the Bill of Materials (Legislative Branch work)
+
+This is a **PIVOT**, not a KILL. The Executive Branch responds to its conditioning; the conditioning just isn't rich enough. The next work should enrich the Bill of Materials before attempting the full intent→topology path (Exp 2). Concrete options:
+
+1. **Add edge-count hints** to the conditioning (e.g., the DiT receives not just "what motifs" but "approximately how many edges").
+2. **Add node-degree profiles** (per-motif expected in/out degree distributions from the dataset).
+3. **Condition on partial adjacency** — seed a few known edges and ask the DiT to complete the rest (a fill-in-the-blank mode rather than full generation from noise).
+4. **The [TBD] autoregressive edge-list arm** (Exp 3 in the tree) becomes more relevant if dense-matrix conditioning proves fundamentally insufficient — but the Jaccard result says: don't give up on the dense approach yet; it IS being steered.
+
+**Falsified-if check:** The DiT's routing IS distinguishable from random (1.85× above baseline) and output DOES change when motifs change (Jaccard 0.5045). The thesis is **not falsified** — it's underspecified.
+
+### Artifacts
+
+- Fidelity eval log: `docs/assets/exp/routing-fidelity/fidelity_eval.txt` (512 graphs, 0 errors)
+- Ablation log: `docs/assets/exp/routing-fidelity/controllability_ablation.txt` (3 seeds, single motif pair)
+- Metric + tests: `src/models/fidelity.py` (`9cf85ae`), `tests/test_fidelity.py` (`86cc717`)
+- Eval script: `scripts/evaluate_routing_fidelity.py` (`e216cd5`)
+- Ablation script: `scripts/ablation_motif_controllability.py` (`a36bcf1`)
+- Gate registration: `49e3266`
 

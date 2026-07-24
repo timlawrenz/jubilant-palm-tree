@@ -1,0 +1,13 @@
+device: cuda
+Loaded 3951 valid graphs (max_nodes <= 128).
+/home/tim/source/activity/jubilant-palm-tree/.venv/lib/python3.11/site-packages/torch/cuda/__init__.py:827: UserWarning: Can't initialize NVML
+  warnings.warn("Can't initialize NVML")
+===== MOTIF CONTROLLABILITY ABLATION =====
+checkpoint: checkpoints/num_dit_epoch_340.pt
+seeds: (1234, 7, 99) | steps: 20 | node block: 128
+seed= 1234  |A|= 132  |B|= 154  |inter|=  91  |union|= 195  Jaccard=0.4667
+seed=    7  |A|= 129  |B|= 151  |inter|=  96  |union|= 184  Jaccard=0.5217
+seed=   99  |A|= 157  |B|= 206  |inter|= 125  |union|= 238  Jaccard=0.5252
+mean Jaccard over 3 seeds: 0.5045
+thresholds: Jaccard < 0.70 -> controllable; >= 0.90 -> motifs ignored; else ambiguous
+interpretation: motifs steer routing (controllable)

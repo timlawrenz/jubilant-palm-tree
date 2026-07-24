@@ -1,120 +1,109 @@
 # Project Status Tracker
 
-**Last Updated**: 2026-05-17 02:15 UTC  
-**Purpose**: Quick orientation guide to understand current state and next actions
+**Last Updated**: 2026-07-23
+**Purpose**: Quick orientation guide — the ground-truth read on current state, verified against disk, git, and test results.
+
+> **This file is authoritative for "where are we now."** For the strategic backlog (what's next, what's ruled out, what's open), see [`docs/03_EXPERIMENT_TREE.md`](docs/03_EXPERIMENT_TREE.md). For the detailed chronological log, see [`docs/02_EXPERIMENTS_AND_RESULTS.md`](docs/02_EXPERIMENTS_AND_RESULTS.md).
 
 ---
 
-## 🎯 CURRENT STATUS: PHASE 6E — RUN 9 BLOCKED (OOM Crashes)
+## 🎯 CURRENT STATUS: Exp 1.5 Concluded (AMBIGUOUS) — PIVOT to Bill-of-Materials Enrichment
 
-### Summary
-Run 9 training on Vast.ai repeatedly failed due to CUDA Out-Of-Memory (OOM) errors during axial attention QKV projections. 
-An AMP fix (bfloat16 autocast + `use_reentrant=True` for gradient checkpointing) has been implemented in the local working tree (`src/models/dit.py` and `src/rlaif/train_rlaif.py`) but remains **uncommitted** and has not yet produced a fully successful run.
+### Where we are
 
-**Immediate blockers**: 
-1. **Critical Technical Debt**: The `GraphValidator` (which defines the SVR metric) lacks unit tests. Given a history of severe bugs in the validator skewing results, building a test suite is the highest priority before analyzing further SVR metrics.
-2. Validate and commit the Run 9 AMP fix, and confirm successful training.
+**Exp 1.5 (Routing Fidelity) has concluded.** The DiT's typed-F1 is 0.0852 (1.85× above random baseline 0.0461, but far below the 0.50 controllability threshold). The Jaccard ablation (0.5045) confirms the motif signal genuinely steers generation — the Executive Branch is **steerable but underspecified**. The 1D motif array (e.g., `[Boundary, Sequence, Condition, ...]`) cannot disambiguate between many different programs that share the same motif sequence.
 
-GPU usage during failed runs: crashed at >24GB.
+The **thesis is not falsified** (routing is distinguishable from random; output changes with different motifs), but the Bill of Materials needs enrichment before the Legislative Branch can usefully emit it from human intent.
 
-### Summary
-Run 8 completed all 10 epochs — first stable full training run with sharpened NOTEARS.
-**Acyclic solved** (1.7% → 100%), but model collapses to near-empty graphs by epoch 5.
-**Epoch 1 is the sweet spot**: SVR 7.1% (first confirmed non-zero SVR with corrected validator).
+### Headline result: Exp 1.5 — AMBIGUOUS (PIVOT)
 
-### Run 8 Evaluation Results (80 samples, corrected validator)
-| Metric | Dataset | Baseline | **E1 Active** | E1 EMA | E5 Active | E10 Active |
-|--------|---------|----------|---------------|--------|-----------|------------|
-| **SVR** | 83.2% | 0% | **7.1% ±2.1** | 3.8% | 0% | 0% |
-| out_degree | 91.8% | 5.4% | **100%** | 100% | 93.3% | 93.8% |
-| in_degree | 89.8% | 3.8% | **43.8%** | 10.0% | 63.3% | 66.2% |
-| orphan | 100% | 100% | 12.5% | 45.8% | 6.2% | 3.8% |
-| **acyclic** | 100% | 1.7% | **71.7%** | 17.9% | **100%** | **100%** |
-| terminal | 100% | 25.4% | **100%** | 97.9% | 96.7% | 93.8% |
-| edges | ~15 | 486±1266 | **3±10** | 21±24 | 0±2 | 0±1 |
+| Metric | Value | Gate threshold | Status |
+|---|---|---|---|
+| Typed-F1 | **0.0852** | ≥ 0.50 | ❌ Below PASS |
+| Δ above random | **+0.0391** (1.85×) | ≥ 0.20 | ❌ Below PASS |
+| Jaccard (ablation) | **0.5045** | < 0.70 | ✅ Controllable |
+| 2σ of random? | **No** (~22× SEM above) | within? | ✅ Not random |
+| Best graph typed-F1 | **0.6000** | — | ✅ Can route faithfully sometimes |
+| Edge over-generation | **6.5×** (181 vs 28 gt) | — | ⚠️ Key diagnostic |
 
-### Key Findings
-1. **Sharpened NOTEARS works**: acyclic 1.7% → 71.7% (E1) → 100% (E5+) — completely solved
-2. **Mode collapse**: model generates near-empty graphs by E5 (edges: 3→0) to trivially satisfy constraints
-3. **SVR peaks early then collapses**: 7.1% at E1, 0% by E5 — the model over-optimizes structure at the expense of content
-4. **KL saturation**: KL hits clamp (10.0) from E2 onward, unable to anchor model
+Raw logs: `docs/assets/exp/routing-fidelity/fidelity_eval.txt`, `controllability_ablation.txt`
 
-### Root Cause of Collapse
-The model discovered: fewer edges = easier to satisfy ALL structural constraints. With 0 edges:
-- No cycles → acyclic=100%, no out-degree violations → out_degree=100%, etc.
-- The density loss (weight=2.0) was insufficient to counteract this
-- KL clamp at 10.0 couldn't prevent drift once saturated
+### Immediate next action
 
----
+**[P1] Plan the BoM enrichment:** The Executive Branch is alive and steerable — now the conditioning signal needs teeth. Write a short plan enumerating the enrichment candidates (edge-count conditioning, degree-profile conditioning, partial-adjacency seeding) with pre-registered gates for each. Do NOT start Exp 2 (intent→topology) until at least one enrichment arm improves typed-F1 to >0.20.
 
-## 🆕 Run 8 Remote Evaluation (RTX 4090, 50 samples, epochs 2-9)
-### Completed: 2026-05-18
-Full evaluation on remote RTX 4090 (epoch 10 was corrupted). Results saved to `eval_results_epoch2-9.txt`.
+### Summary of completed work
 
-**Best checkpoint**: Epoch 9 EMA — SVR 6.0% ± 2.8%
+| Phase | Outcome | SVR / Fidelity | Artifacts |
+|---|---|---|---|
+| **DiT Pre-Training** (340 epochs, 128-node) | Flow Matching converged, MSE plateaued ~0.135 | 0% (true SVR with corrected validator) | `checkpoints/num_dit_epoch_340.pt` |
+| **RLAIF Fine-Tuning** (Runs 5–9) | **Concluded — Negative.** Mode collapse: edges→0. Exponential NOTEARS penalty + quadratic MSE statically unstable. | Peak 7.1% E1 → 0% by E5 | `docs/assets/feat/rlaif-ablation/` |
+| **Decode-Time Constraint Solving** | **Winning approach.** Deterministic repair of DiT heatmap — no training, no mode collapse. | **0% → 10%** 6-law SVR | `src/models/constraint_solver.py` |
+| **6th Law (Global Spine)** | Added entry/exit controllability. Fixed SVR to honest 10%. | 10% strict SVR | `src/models/validation.py` |
+| **Interpreter Harness Fix** | Fixed entry-detection bug. **100% of GT + generated 6-law graphs halt.** | 6-law ⟺ executability | `docs/assets/exp/fix-interpreter-entry-detection/` |
+| **Exp 1.5 — Routing Fidelity** | **AMBIGUOUS — PIVOT.** DiT steerable (Jaccard 0.50) but 1D motif underspecifies programs (typed-F1 0.085). Best graph 0.60. | 1.85× above random; 6.5× edge over-gen | `docs/assets/exp/routing-fidelity/` |
 
-| Epoch | Weights | SVR% | ± | Acyclic% | Term% | Edges | Orphan% |
-|-------|---------|------|---|----------|-------|-------|---------|
-| base | active | 0.0 | 0.0 | 2.0 | 27.3 | 201±337 | 100.0 |
-| 2 | active | 4.7 | 2.5 | 71.3 | 98.0 | 2±2 | 13.3 |
-| 2 | ema | 4.0 | 2.8 | 66.7 | 100.0 | 2±2 | 14.7 |
-| 5 | ema | 6.0 | 3.3 | 71.3 | 100.0 | 2±2 | 17.3 |
-| 7 | active | 4.0 | 2.8 | 75.3 | 100.0 | 1±2 | 13.3 |
-| 9 | active | 4.7 | 0.9 | 76.7 | 99.3 | 1±2 | 15.3 |
-| 9 | ema | **6.0** | **2.8** | **76.7** | **99.3** | 2±2 | 16.0 |
+### Test suite status
 
-**Consistency with Run 8 local eval**: Confirms SVR peaks early then plateaus.
-Edge count collapsed to 1-2 (from 201 baseline). Acyclic 65-77% (from 1.7% baseline).
-Epoch 9 EMA is the recommended checkpoint.
+| Test file | Tests | Result |
+|---|---|---|
+| `tests/test_validation.py` | 13 | ✅ All pass (includes 6th-law/global-spine coverage) |
+| `tests/test_constraint_solver.py` | 6 | ✅ All pass |
+| `tests/test_naive_discretizer.py` | — | ✅ All pass |
+| `tests/test_execution_engine.py` | — | ⚠️ 2 failures (see below) |
+
+**Known test failures** (non-blocking for Exp 1.5):
+- `test_fibonacci_execution`: `NotImplementedError` — the interpreter can't run the flagship Fibonacci demo end-to-end yet.
+- `test_interpreter_infinite_loop_guard`: the test fixture is malformed (missing `Exit(1)` exec edge for a LOOP node), so it fails on a structural check before reaching the step-limit guard it intends to test.
+
+These are downstream of the Executive Branch — they affect the interpreter, not the DiT or solver. Fix before publishing or resuming the Legislative Branch.
 
 ---
 
-## 📋 NEXT ACTION CHECKLIST
+## 📋 Key Files
 
-### Immediate:
-- [ ] Add minimum edge density penalty to structural loss (penalize <5 edges)
-- [ ] Consider early stopping or KL clamp increase to prevent collapse
-- [ ] Run 9: test with edge density floor + potentially higher β_recon
-
-### Best Checkpoint:
-- **Run 8 E1 Active**: `checkpoints/rlaif/vastai_run8/rlaif_struct_epoch_1.pt` — SVR 7.1%
-- Consider deeper eval with 200+ samples to confirm
-
-### Longer Term:
-- [ ] If edge density floor prevents collapse: full 10-epoch training with SVR > 0%
-- [ ] Update blog post with Run 8 results
-- [ ] Create visualizations of epoch 1 graphs (first structurally valid generated graphs)
+| File | Role |
+|---|---|
+| `PROJECT_STATUS.md` | **This file** — current state, authoritative for "where are we" |
+| `docs/03_EXPERIMENT_TREE.md` | Strategic backlog — what's ACTIVE/NEXT/TBD/CONCLUDED, with macro-questions |
+| `docs/02_EXPERIMENTS_AND_RESULTS.md` | Chronological research log with detailed metrics, plots, and errata |
+| `docs/01_VISION_AND_ARCHITECTURE.md` | Full architecture spec: three branches, 6-Laws, interpreter |
+| `README.md` | Public-facing overview, mostly accurate (roadmap item 4 needs a label update) |
+| `src/models/constraint_solver.py` | Decode-time deterministic repair (the 10% SVR engine) |
+| `src/models/validation.py` | GraphValidator — the 6-Law checker, now with global-spine support |
+| `src/models/dit.py` | DiT architecture (AMP fix committed) |
+| `src/rlaif/train_rlaif.py` | RLAIF training script (concluded arm, preserved for reference) |
+| `src/rlaif/structural_loss.py` | Differentiable structural constraints including sharpened NOTEARS |
 
 ---
 
-## 📚 QUICK REFERENCE
+## 📚 Key Checkpoints
 
-### Key Files
-- **This file**: Overall project status and next actions
-- **PROJECT_LOG.md**: Chronological development log and metric breakthroughs
-- **README.md**: Current phase architecture summary
-- **src/rlaif/train_rlaif.py**: Main training script with loss clamping, EMA, NaN guard, resume
-- **src/rlaif/structural_loss.py**: Differentiable structural constraints (sharpened NOTEARS)
+| Checkpoint | Path | SVR | Notes |
+|---|---|---|---|
+| Base DiT (340) | `checkpoints/num_dit_epoch_340.pt` | 0% | Pre-training only, no structural awareness |
+| Best RLAIF E1 | `checkpoints/rlaif/vastai_run8/rlaif_struct_epoch_1.pt` | 7.1% | Sharpened NOTEARS, collapses after E1 |
+| Best with solver | `checkpoints/num_dit_epoch_340.pt` + `ConstraintSolver` | **10%** | Current best pipeline (no training needed) |
 
-### Key Checkpoints
-- **Base DiT**: `checkpoints/num_dit_epoch_340.pt` (pre-RLAIF, 0% SVR)
-- **Best Run 8 E1**: `checkpoints/rlaif/vastai_run8/rlaif_struct_epoch_1.pt` (SVR 7.1%, acyclic 71.7%)
+---
 
-### Key Commands
-```bash
-# RLAIF Training (Run 8 config)
-PYTHONPATH=. python3 -m src.rlaif.train_rlaif \
-  --beta-struct 0.2 --beta-recon 0.5 --lr 5e-6 --max-epochs 10 --batch-size 4
+## 🗺 Training Run History (RLAIF arm — concluded)
 
-# Evaluate checkpoints
-python3 -m scripts.evaluate_checkpoints \
-  --checkpoints-dir checkpoints/rlaif/vastai_run8 --num-samples 80 --epochs "1,5,10"
-```
-
-### Training Run History
 | Run | Epochs | SVR | Acyclic | Key Change | Issue |
 |-----|--------|-----|---------|------------|-------|
-| 5 | 10 | 0% | 1.2% | NOTEARS (weak beta=0.01) | Acyclic ineffective |
-| 6 | 2 | 25%* | -- | Sharpened NOTEARS (beta=0.5) | Recon explosion, NaN crash |
-| 7 | 1 | -- | -- | + recon clamp | Still NaN at batch 220 |
-| **8** | **10** | **7.1%** | **100%** | + struct clamp, lr=5e-6, beta=0.2 | Mode collapse (edges->0) |
+| 5 | 10 | 0% | 1.2% | NOTEARS (weak β=0.01) | Acyclic ineffective |
+| 6 | 2 | 25%* | — | Sharpened NOTEARS (β=0.5) | Recon explosion, NaN crash |
+| 7 | 1 | — | — | + recon clamp | Still NaN at batch 220 |
+| **8** | **10** | **7.1%** | **100%** | + struct clamp, lr=5e-6, β=0.2 | Mode collapse (edges→0) |
+| 9 | — | — | — | + target edge density | OOM crashes (resolved in local tree, not fully trained) |
+
+> The above history is preserved for reference. RLAIF is concluded as a negative result. The winning approach is decode-time deterministic repair (constraint solver), not gradient-based structural penalties.
+
+---
+
+## 🔜 Immediate Next Actions
+
+1. **[P1] Run Exp 1.5 (Routing Fidelity).** This is the experiment that determines whether the core thesis is alive. Inference-only, no training needed. Execute per `.hermes/plans/2026-06-05_routing_fidelity.md` — with two guardrails: (a) assert `augment_permutation=False` end-to-end before trusting F1 numbers, (b) promote the controllability ablation (Task 4) to the headline metric.
+2. **[P2] Fix or quarantine the 2 failing interpreter tests.** At minimum, fix the malformed loop-guard test fixture. Determine whether `test_fibonacci_execution` can be made to pass before citing the Fibonacci demo in publications.
+3. **[P3] Clean up ghost-project artifacts.** Move `DISCONTINUATION_NOTICE.md` and related Phase 4B docs into `archive/` or add a banner clarifying they refer to the *pre-pivot* GNN effort, not NUM. Decide whether `mcp-unreal/` (untracked) belongs in this repo.
+4. **[After Exp 1.5 resolves] Decide the Legislative Branch path.** If fidelity is high, Exp 2 (build the LLM → motif-sequence conditioning path) is next. If fidelity is low but output changes with different motifs, the Bill of Materials needs enrichment. If motifs barely move output, conditioning is the bug to fix before anything else.
