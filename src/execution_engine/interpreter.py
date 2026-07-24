@@ -34,8 +34,14 @@ class GraphInterpreter:
         
         node = self.nodes[node_id]
         
-        # If it's a STATE node, it reads from memory
+        # If it's a STATE node, it either reads from memory or resolves data inputs
         if node.motif == MotifType.STATE:
+            # If the STATE node has incoming DATA edges, resolve from those (write path)
+            if node_id in self.data_in:
+                args = [self._resolve_data(self.data_in[node_id][i], resolving_set) for i in sorted(self.data_in[node_id].keys())]
+                resolving_set.remove(node_id)
+                return args[0] if len(args) == 1 else args
+            # Otherwise, read from memory (read/alias path)
             var_name = self.graph.literal_pool[node.literal_pointer]
             resolving_set.remove(node_id)
             return self.memory.get(var_name, None)
@@ -51,6 +57,12 @@ class GraphInterpreter:
             resolving_set.remove(node_id)
             return self._execute_message(node.literal_pointer, args)
 
+        # Fallback: if the node has incoming DATA edges, resolve from those
+        if node_id in self.data_in:
+            args = [self._resolve_data(self.data_in[node_id][i], resolving_set) for i in sorted(self.data_in[node_id].keys())]
+            resolving_set.remove(node_id)
+            return args[0] if len(args) == 1 else args
+            
         # Fallback for unexpected data sources
         resolving_set.remove(node_id)
         return None
@@ -60,7 +72,21 @@ class GraphInterpreter:
         op = self.graph.literal_pool[literal_pointer]
         if op == "safe_op":
             return 1
-        
+        if op == "+":
+            return args[0] + args[1] if len(args) >= 2 else 0
+        if op == "-":
+            return args[0] - args[1] if len(args) >= 2 else 0
+        if op == "*":
+            return args[0] * args[1] if len(args) >= 2 else 0
+        if op in ("<", "<=", ">", ">=", "==", "!="):
+            if len(args) < 2:
+                return False
+            a, b = args[0], args[1]
+            return {"<": lambda: a < b, "<=": lambda: a <= b,
+                    ">": lambda: a > b, ">=": lambda: a >= b,
+                    "==": lambda: a == b, "!=": lambda: a != b}[op]()
+        if op == "print":
+            return None  # side-effect only
         # Original functionality would go here (e.g. looking up a function by name)
         raise NotImplementedError(f"Operation {op} not implemented in MVP interpreter.")
 

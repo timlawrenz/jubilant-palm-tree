@@ -90,10 +90,12 @@ def test_interpreter_infinite_loop_guard():
     edges = [
         Edge(source_node=0, target_node=1, edge_type=EdgeType.EXECUTION, input_index=0),
         Edge(source_node=2, target_node=1, edge_type=EdgeType.DATA, input_index=0),
-        # Loop routes to itself on True
-        Edge(source_node=1, target_node=1, edge_type=EdgeType.EXECUTION, input_index=0)
+        # Loop routes to itself on True (body) — infinite loop
+        Edge(source_node=1, target_node=1, edge_type=EdgeType.EXECUTION, input_index=0),
+        # Exit edge (never reached since condition is always True, but required by structural check)
+        Edge(source_node=1, target_node=1, edge_type=EdgeType.EXECUTION, input_index=1),
     ]
     graph = ExecutionGraph(nodes=nodes, edges=edges, literal_pool=pool)
     interpreter = GraphInterpreter(graph)
-    with pytest.raises(RuntimeError, match="Max execution steps"):
+    with pytest.raises(RuntimeError, match="Execution exceeded max steps"):
         interpreter.run(max_steps=50)
