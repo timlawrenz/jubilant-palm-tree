@@ -760,4 +760,70 @@ Exp 2 (Legislative Branch) remains **gated** — typed-F1 ≥ 0.20 still not ach
 - Scripts: `scripts/evaluate_edge_count_enrichment.py`, `scripts/ablation_edge_count.py` (not yet run)
 - Gate registration: `fa32677`
 
+---
+
+## Exp 1.7 — Degree-Profile Enrichment (BoM Arm B) — `[CONCLUDED — AMBIGUOUS (+46% lift, insufficient)]`
+
+**Date:** 2026-07-25 (gate pre-registered) → 2026-07-25 (N=128 + N=64 runs executed)
+**Branch:** `exp/degree-profile-enrichment`
+
+### Empirical Evidence
+
+**N=128 definitive sweep** (146s, RTX 4090):
+
+| out_s | in_s | typed-F1 | gen_edges | vs baseline |
+|---|---|---|---|---|
+| 0.000 | 0.000 | 0.0745 | 193.0 | — |
+| 0.000 | 0.030 | 0.0978 | 298.7 | +31% |
+| **0.000** | **0.050** | **0.1091** | 307.2 | **+46%** |
+| random | — | 0.0389 | — | — |
+
+N=64 sweep confirmed same pattern (in_scale=0.05 → 0.110, +32%). Out-degree bias alone hurts fidelity (out_scale=0.05 → 0.057, −23%).
+
+Raw logs: `docs/assets/exp/degree-profile-enrichment/degree_sweep_128.txt`, `degree_sweep_64.txt`
+
+### Gate check
+
+| Criterion | Threshold | Best | |
+|---|---|---|---|
+| typed-F1 ≥ 0.20 | ≥ 0.20 | 0.109 | ❌ |
+| Δ above baseline ≥ 0.05 | ≥ 0.05 | +0.035 | ❌ |
+| typed-F1 ≥ 0.10? | ≥ 0.10 | 0.109 | ✅ |
+| Within 2σ of baseline? | gap > 2σ | gap 0.035 > 2×SEM(0.011) | ✅ distinguishable |
+
+**Verdict: AMBIGUOUS — real improvement (+46%) but insufficient magnitude for PASS.**
+
+### Interpretation
+
+Per-node in-degree bias is the best enrichment mechanism tested so far. Telling the model "this Condition node should have ~2.3 data inputs" improves routing fidelity by 46% over vanilla. This is a real, reproducible signal: both N=64 (0.110) and N=128 (0.109) converge on the same effect size.
+
+However, the improvement comes at a cost: gen_edges increases from 193 → 307 (1.6×). The in-degree bias tells nodes to expect more inputs, which induces more edges — some of them correct (improving fidelity), but many spurious (inflating the edge count). The trade-off is directionally correct (fidelity up) but the magnitude doesn't clear the 0.20 gate.
+
+Per-node out-degree bias (telling nodes how many execution edges to emit) systematically *reduces* fidelity — the same pathology as Exp 1.6 (global density bias strips routing signal). Out-degree information in the presence channel is simply not usable by the untrained DiT.
+
+### Significance for the research program
+
+This is the strongest empirical evidence yet that the DiT **can** be steered by non-trivial enrichment signals. The +46% lift proves the Executive Branch is receptive to structural hints — it's not ignoring them. The problem is that the hints we've tried (global density, per-node degree) operate on the presence channel, which conflates edge count with edge quality. What's needed is a signal that helps the model discriminate *which specific edges* to create, not just *how many*.
+
+### Direction
+
+Arm B does not un-gate Exp 2 (typed-F1 0.109 < 0.20), but provides the strongest signal yet that enrichment *can* work. Next:
+
+- **Arm C** (partial-adjacency seeding): the strongest remaining option — seed 10–20% of ground-truth edges and have the DiT complete the rest. This directly guides *which* edges rather than *how many*.
+- Or: combine in_scale=0.05 with Arm C to boost the seeded completion's baseline.
+
+### Adversarial pass
+
+- [x] Dataset degree statistics reproducible — computed from 3,951 graphs, `EXPECTED_EXEC_OUT`/`EXPECTED_DATA_IN` constants in `model.py`
+- [x] `augment_permutation=False` — dataset constructed with flag off
+- [x] Result reproduced — N=64 and N=128 converge (0.110 and 0.109)
+- [x] Extremes inspected — best graph typed-F1 = 0.667
+
+### Artifacts
+
+- `src/models/model.py` — `ode_generate_with_degree_bias()`, `EXPECTED_EXEC_OUT`, `EXPECTED_DATA_IN`
+- `docs/assets/exp/degree-profile-enrichment/degree_sweep_128.txt`, `degree_sweep_64.txt`
+- Gate registration: (pre-reg in `02_EXPERIMENTS_AND_RESULTS.md`)
+
+
 

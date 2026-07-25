@@ -75,3 +75,62 @@ def ode_generate_with_density_bias(model, motifs, edge_density, device, num_step
     from src.models.constraint_solver import ConstraintSolver
     discrete = ConstraintSolver.discretize_and_repair(x, motifs)
     return discrete
+
+
+# Per-motif expected degree statistics (computed from 3,951 compressed Ruby ASTs)
+# Motif IDs: 1=BOUNDARY, 2=SEQUENCE, 3=CONDITION, 4=LOOP, 5=STATE, 6=MESSAGE
+EXPECTED_EXEC_OUT = {1: 1.001, 2: 1.077, 3: 0.289, 4: 0.500, 5: 0.093, 6: 0.169}
+EXPECTED_DATA_IN  = {1: 0.000, 2: 0.000, 3: 2.339, 4: 2.000, 5: 0.220, 6: 0.964}
+
+
+def ode_generate_with_degree_bias(model, motifs, device, num_steps=20,
+                                   out_scale=0.0, in_scale=0.0):
+    """Run the ODE with per-node degree bias on the presence channel.
+
+    At each step, each node i receives a FiLM-style bias on its row (out-degree)
+    and column (in-degree) of the presence channel, nudging toward the expected
+    degree for its motif type.
+
+    model: NeuralUniversalMachineDiT (original checkpoint, no modification)
+    motifs: [B, N]
+    out_scale, in_scale: bias strength for out-degree and in-degree respectively
+    """
+    B, N = motifs.shape
+    x = torch.randn((B, 6, N, N), device=device)
+    dt = 1.0 / num_steps
+
+    # Build per-node expected degree tensors from motif lookup
+    expected_out = torch.zeros(B, N, device=device)
+    expected_in  = torch.zeros(B, N, device=device)
+    for mid, val in EXPECTED_EXEC_OUT.items():
+        expected_out += val * (motifs == mid).float()
+    for mid, val in EXPECTED_DATA_IN.items():
+        expected_in  += val * (motifs == mid).float()
+
+    with torch.no_grad():
+        for step in range(num_steps):
+            t_val = step * dt
+            t_tensor = torch.full((B,), t_val, device=device)
+            v = model(x, t_tensor, motifs)
+
+            x_cont = x[:, :2] + v[:, :2] * dt
+            x_cat = v[:, 2:]
+            x = torch.cat([x_cont, x_cat], dim=1)
+
+            # Per-node degree bias on the presence channel (channel 0)
+            if out_scale > 0 or in_scale > 0:
+                presence = torch.sigmoid(x[:, 0])  # [B, N, N]
+
+                if out_scale > 0:
+                    current_out = presence.mean(dim=2)  # [B, N] — avg presence per row
+                    out_bias = out_scale * (expected_out - current_out)
+                    x[:, 0] = x[:, 0] + out_bias.unsqueeze(2)  # add to each row
+
+                if in_scale > 0:
+                    current_in = presence.mean(dim=1)  # [B, N] — avg presence per column
+                    in_bias = in_scale * (expected_in - current_in)
+                    x[:, 0] = x[:, 0] + in_bias.unsqueeze(1)  # add to each column
+
+    from src.models.constraint_solver import ConstraintSolver
+    discrete = ConstraintSolver.discretize_and_repair(x, motifs)
+    return discrete

@@ -84,6 +84,11 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
   - *Result:* **N=128 definitive sweep.** typed-F1=0.0875 baseline, all biased scales below (best 0.082 at scale 0.005, −5.8%). Edge count drops from 199 → 26 (mechanism works) but fidelity never beats vanilla. The presence channel carries routing signal that uniform bias strips indiscriminately.
   - *Implication:* Enriching the Bill of Materials with edge count is insufficient. Arm B (degree profiles) or C (partial-adjacency seeding) next.
 
+- **[CONCLUDED] Exp 1.7 — Degree-Profile Enrichment (BoM Arm B)** — `AMBIGUOUS (+46% lift, insufficient)`
+  - *Concept:* Per-node in-degree and out-degree expectations from dataset motif statistics, applied as FiLM bias on presence rows/columns at each ODE step.
+  - *Result:* **N=128 definitive.** in_scale=0.05 lifts typed-F1 from 0.075 → 0.109 (+46%), best enrichment result yet. Out-degree bias hurts fidelity (−23%). Gen_edges increases 193 → 307 — the in-degree signal induces more edges, some correct.
+  - *Implication:* The DiT IS receptive to non-trivial enrichment (strongest evidence yet). But presence-channel hints conflate edge count with edge quality. Arm C (partial-adjacency seeding) is the remaining option that directly targets *which* edges.
+
 - **[NEXT] Exp 2 — Build the A→C Conditioning Path (the Legislative Branch)**
   - *Concept:* Per `01_VISION_AND_ARCHITECTURE.md §8`, intent enters at the **Legislative Branch (LLM)**, which compiles human intent → the Bill of Materials (motif array) + Literal Pool. The DiT already consumes that Bill of Materials. This arm builds the LLM-shaped component that emits it from natural-language/source intent, completing the A→C path.
   - *Why it matters:* Tests the founding premise (intent → executable structure) end to end. Sits *on top* of a proven Executive Branch.
