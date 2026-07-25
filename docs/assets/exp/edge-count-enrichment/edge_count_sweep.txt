@@ -1,18 +1,23 @@
-/home/tim/source/activity/jubilant-palm-tree/.venv/lib/python3.11/site-packages/torch/cuda/__init__.py:827: UserWarning: Can't initialize NVML
-  warnings.warn("Can't initialize NVML")
+Model loaded (0.3s)
 Loaded 3951 valid graphs (max_nodes <= 128).
-Scored 1/8
-Scored 2/8
-Scored 3/8
-Scored 4/8
-Scored 5/8
-Scored 6/8
-Scored 7/8
-Scored 8/8
-SCALE    typed_F1    gen_edges
-0.000    0.1012     142.6
-0.005    0.1336     94.2
-0.010    0.0783     65.6
-0.020    0.0779     30.4
-0.050    0.1415     21.2
-0.100    0.0481     15.6
+16/128 (23s, 1.4s/graph)
+32/128 (44s, 1.4s/graph)
+48/128 (69s, 1.4s/graph)
+64/128 (93s, 1.4s/graph)
+80/128 (120s, 1.5s/graph)
+96/128 (142s, 1.5s/graph)
+112/128 (162s, 1.5s/graph)
+128/128 (186s, 1.5s/graph)
+Total: 128 graphs in 186s
+
+RESULT TABLE
+scale    typed_F1  gen_edges
+0.000    0.0875    199.5
+0.005    0.0824    123.4
+0.010    0.0713    70.1
+0.020    0.0682    35.0
+0.050    0.0746    26.1
+random   0.0389
+
+best scale=0.000 typed_F1=0.0875 gen_edges=199.5
+quantiles: 0.0000 / 0.0308 / 0.0566 / 0.1046 / 0.5333

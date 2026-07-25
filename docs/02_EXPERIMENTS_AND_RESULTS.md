@@ -683,7 +683,8 @@ This is a **PIVOT**, not a KILL. The Executive Branch responds to its conditioni
 
 ## Exp 1.6 — Edge-Count Enrichment (BoM Arm A) — `[CONCLUDED — FAIL]`
 
-**Date:** 2026-07-24 (gate pre-registered) → 2026-07-24 (implemented + executed)
+**[CONCLUDED — FAIL]**
+**Date:** 2026-07-24 (gate pre-registered) → 2026-07-25 (N=128 definitive sweep executed)
 **Branch:** `exp/edge-count-enrichment`
 **Dependency:** Exp 1.5 (concluded AMBIGUOUS — DiT steerable but 1D motif underspecifies programs)
 
@@ -700,31 +701,31 @@ The original design (zero-padded proj_in channel) was abandoned when we discover
 
 ### Empirical Evidence
 
-**Pilot sweep** (N=8 graphs, batch_size=1, max_nodes=128, 20-step ODE + ConstraintSolver, local RTX 4090):
+**Definitive sweep** (N=128 graphs, batch_size=1, max_nodes=128, 20-step ODE + ConstraintSolver, local RTX 4090, 186s total):
 
-| Scale | typed-F1 | gen_edges | vs gt (~28) |
+| Scale | typed-F1 | gen_edges | vs baseline |
 |---|---|---|---|
-| 0.000 (baseline) | **0.118** | 157.6 | 5.6× over |
-| 0.005 | 0.044 | 29.2 | near target ✅ |
-| 0.010 | 0.052 | 20.2 | under |
-| 0.020 | 0.068 | 12.9 | sparse |
-| 0.050 | 0.000 | 6.1 | collapsed |
-| 0.100 | 0.012 | 3.4 | collapsed |
+| 0.000 (baseline) | **0.0875** | 199.5 | — |
+| 0.005 | 0.0824 | 123.4 | −5.8% |
+| 0.010 | 0.0713 | 70.1 | −18.5% |
+| 0.020 | 0.0682 | 35.0 | −22.1% |
+| 0.050 | 0.0746 | 26.1 | −14.7% |
+| random | 0.0389 | — | — |
 
-Random baseline (from Exp 1.5): 0.046. Exp 1.5 baseline: 0.085.
+Baseline typed-F1 (0.0875) matches Exp 1.5 population mean (0.0852). Quantiles: min 0.000 / p25 0.031 / median 0.057 / p75 0.105 / max 0.533.
 
-**CPU smoke test** (N=5, max_nodes=64): scale=0.0 → typed-F1 0.105, gen_edges 84.4; scale=0.2 → typed-F1 0.000, gen_edges 0.6 (full collapse). Consistent with pilot.
+Raw log: `docs/assets/exp/edge-count-enrichment/edge_count_sweep.txt`
 
 ### Gate check
 
-| Criterion | Threshold | Best result | |
+| Criterion | Threshold | Best non-zero result | |
 |---|---|---|---|
-| typed-F1 ≥ 0.20 | ≥ 0.20 | 0.068 (scale 0.02) | ❌ |
-| Δ above Exp 1.5 ≥ 0.05 | ≥ 0.05 | −0.017 (worse!) | ❌ |
-| typed-F1 within 2σ of baseline? | within? | **Yes** — below baseline | ✅ triggers FAIL |
-| Count-ablation Jaccard | < 0.85 | Not run (FAIL already triggered) | — |
+| typed-F1 ≥ 0.20 | ≥ 0.20 | 0.082 (scale 0.005) | ❌ |
+| Δ above Exp 1.5 ≥ 0.05 | ≥ 0.05 | −0.003 (worse!) | ❌ |
+| typed-F1 above baseline? | > 0.0875 | 0.082 (below) | ❌ |
+| Edge count controllable? | diagnostic | 199.5 → 26.1 | ✅ mechanism works |
 
-**Verdict: FAIL — the edge-count bias controls edge density but reduces fidelity.**
+**Verdict: FAIL — the density bias controls edge count but systematically reduces fidelity at every scale.**
 
 ### Adversarial pass (filled before verdict)
 
