@@ -826,4 +826,52 @@ Arm B does not un-gate Exp 2 (typed-F1 0.109 < 0.20), but provides the strongest
 - Gate registration: (pre-reg in `02_EXPERIMENTS_AND_RESULTS.md`)
 
 
+---
+
+## Exp 1.8 — Partial-Adjacency Seeding (BoM Arm C) — `[ACTIVE]`
+
+**Date:** 2026-07-28 (gate pre-registered BEFORE any results or code)
+**Branch:** `exp/partial-seed-enrichment`
+**Dependency:** Exp 1.7 (concluded AMBIGUOUS — +46% lift from degree profiles, but presence-channel hints conflate count with quality)
+
+**Goal:** Test whether seeding a fraction of ground-truth edges into the diffusion initial state improves routing fidelity. Unlike Arms A (global density) and B (per-node degree), Arm C provides explicit *edge identities* — the model knows specific (i,j) pairs that are correct and must complete the rest. This is the strongest enrichment signal possible without retraining.
+
+### Design
+
+1. **Seeding:** For each graph, randomly sample a fraction `p` of ground-truth edges. At each ODE step, replace the presence channel at seeded positions with `inv_sigmoid(1.0)` — a large positive value that forces those edges to be present. The model denoises all other edges normally.
+2. **Clamping:** Seeded edges are clamped to 1 (present) throughout the entire ODE trajectory — they cannot be erased by the denoising process. This tests whether providing a scaffold of known-correct edges improves the model's ability to route the remaining edges.
+3. **Edge-type propagation:** For seeded edges, the edge_type channel is also clamped to the ground-truth value (0=exec, 1=data).
+4. **Seed fractions:** Test p ∈ {0.0, 0.05, 0.10, 0.20, 0.50}. p=0.0 is the vanilla baseline. p=0.50 tests whether the DiT can complete a graph when half the edges are provided.
+5. **Inference-only.** Same checkpoint (`num_dit_epoch_340.pt`), no model changes.
+
+### Pre-registered gate
+
+> **PASS:** At p ≤ 0.10, mean typed-F1 ≥ **0.20** AND exceeds the vanilla baseline by ≥ **0.10** absolute. This un-gates Exp 2 and proves the DiT can be practically steered toward specific programs.
+>
+> **FAIL:** At p = 0.20, typed-F1 ≤ 0.10 (the Arm B ceiling).
+>
+> **DIAGNOSTIC:** p = 0.50 serves as a sanity check — if the DiT can't complete a graph even with half the edges provided, the diffusion prior has a fundamental limitation for this task.
+
+### Null hypothesis
+
+> If partial seeding adds no information, typed-F1 ≈ 0.075–0.088 (Exp 1.5/1.6/1.7 baselines) at all p. The seeded edges simply remain isolated in an otherwise random graph.
+
+### Metrics
+
+1. Mean typed-F1 at each seed fraction p
+2. Mean gen_edges vs ground-truth (should converge toward ground truth as p increases)
+3. Unseeded typed-F1: fidelity computed ONLY over edges NOT in the seed set — the true measure of completion quality
+
+### Adversarial pass (fill before verdict)
+
+- [ ] Seeded edges are verifiably clamped to 1 in the output (sanity check: p fraction of gt edges must be present in generated graph)
+- [ ] `augment_permutation=False` asserted
+- [ ] Result reproduced (≥128 graphs, fresh process)
+- [ ] Unseeded typed-F1 reported alongside full typed-F1
+- [ ] Extremes inspected
+
+**Verdict:** PENDING (gate registered; awaiting implementation + execution)
+
+
+
 
