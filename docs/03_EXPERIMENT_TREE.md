@@ -89,6 +89,11 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
   - *Result:* **N=128 definitive.** in_scale=0.05 lifts typed-F1 from 0.075 → 0.109 (+46%), best enrichment result yet. Out-degree bias hurts fidelity (−23%). Gen_edges increases 193 → 307 — the in-degree signal induces more edges, some correct.
   - *Implication:* The DiT IS receptive to non-trivial enrichment (strongest evidence yet). But presence-channel hints conflate edge count with edge quality. Arm C (partial-adjacency seeding) is the remaining option that directly targets *which* edges.
 
+- **[CONCLUDED] Exp 1.8 — Partial-Adjacency Seeding (BoM Arm C)** — `NEGATIVE — scaffold works, completion fails`
+  - *Concept:* Clamp a fraction p of ground-truth edges throughout the ODE trajectory; test whether the DiT can complete the rest.
+  - *Result:* **N=64 definitive.** Typed-F1 scales with p (0.30 at p=0.20) but unseeded F1 = 0 everywhere. The model generates NO edges beyond the seed set — clamping breaks the denoising trajectory for all other edges.
+  - *Implication:* The enrichment program is complete. The pre-trained DiT cannot be steered to specific programs via decode-time hints alone. Training-time enrichment or architectural change (Exp 3) needed.
+
 - **[NEXT] Exp 2 — Build the A→C Conditioning Path (the Legislative Branch)**
   - *Concept:* Per `01_VISION_AND_ARCHITECTURE.md §8`, intent enters at the **Legislative Branch (LLM)**, which compiles human intent → the Bill of Materials (motif array) + Literal Pool. The DiT already consumes that Bill of Materials. This arm builds the LLM-shaped component that emits it from natural-language/source intent, completing the A→C path.
   - *Why it matters:* Tests the founding premise (intent → executable structure) end to end. Sits *on top* of a proven Executive Branch.

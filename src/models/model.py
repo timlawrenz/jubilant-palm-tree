@@ -77,6 +77,66 @@ def ode_generate_with_density_bias(model, motifs, edge_density, device, num_step
     return discrete
 
 
+INV_SIGMOID_ONE = 10.0  # sigmoid(10) ≈ 0.99995 — used for edge clamping
+
+
+def ode_generate_with_partial_seed(model, motifs, gt_adjacency, num_nodes,
+                                    device, num_steps=20, seed_fraction=0.1,
+                                    generator=None):
+    """Run the ODE with a fraction of ground-truth edges clamped throughout.
+
+    At each ODE step, seeded edges (presence + edge_type) are clamped to their
+    ground-truth values while all other edges follow the normal denoising trajectory.
+
+    model: NeuralUniversalMachineDiT
+    motifs: [B, N]
+    gt_adjacency: [3, N, N] — ground-truth discrete adjacency
+    num_nodes: int — real nodes (scoring block)
+    seed_fraction: float — fraction of gt edges to seed (0.0 = vanilla)
+    generator: optional torch.Generator for reproducibility
+    Returns: (discrete [B,3,N,N], seed_positions [n_seed,2])
+    """
+    B, N = motifs.shape
+    gen = generator or torch.Generator(device=device)
+    x = torch.randn((B, 6, N, N), device=device, generator=gen)
+    dt = 1.0 / num_steps
+
+    # Build seed mask from ground-truth edges in the valid node block
+    gt_pres = gt_adjacency[0, :num_nodes, :num_nodes] > 0.5
+    gt_edges = torch.nonzero(gt_pres, as_tuple=False)  # [K, 2] on CPU
+    K = gt_edges.shape[0]
+    n_seed = max(1, int(K * seed_fraction)) if seed_fraction > 0 else 0
+
+    if n_seed > 0:
+        # Sample on CPU, then move positions to device for clamping
+        perm = torch.randperm(K)
+        seed_positions = gt_edges[perm[:n_seed]].to(device)  # [n_seed, 2]
+        seed_presence_val = INV_SIGMOID_ONE
+        seed_type_raw = gt_adjacency[1, seed_positions[:, 0].cpu(), seed_positions[:, 1].cpu()].to(device)
+        seed_type_ode = torch.where(seed_type_raw > 0.5,
+                                     torch.tensor(INV_SIGMOID_ONE, device=device),
+                                     torch.tensor(-INV_SIGMOID_ONE, device=device))
+    else:
+        seed_positions = torch.empty((0, 2), dtype=torch.long, device=device)
+        seed_presence_val = 0.0
+        seed_type_ode = torch.empty(0, device=device)
+
+    with torch.no_grad():
+        for step in range(num_steps):
+            t_val = step * dt
+            t_tensor = torch.full((B,), t_val, device=device)
+            v = model(x, t_tensor, motifs)
+
+            x = torch.cat([x[:, :2] + v[:, :2] * dt, v[:, 2:]], dim=1)
+
+            if n_seed > 0:
+                x[:, 0, seed_positions[:, 0], seed_positions[:, 1]] = seed_presence_val
+                x[:, 1, seed_positions[:, 0], seed_positions[:, 1]] = seed_type_ode
+
+    from src.models.constraint_solver import ConstraintSolver
+    discrete = ConstraintSolver.discretize_and_repair(x, motifs)
+    return discrete, seed_positions
+
 # Per-motif expected degree statistics (computed from 3,951 compressed Ruby ASTs)
 # Motif IDs: 1=BOUNDARY, 2=SEQUENCE, 3=CONDITION, 4=LOOP, 5=STATE, 6=MESSAGE
 EXPECTED_EXEC_OUT = {1: 1.001, 2: 1.077, 3: 0.289, 4: 0.500, 5: 0.093, 6: 0.169}
