@@ -1,60 +1,65 @@
 # Project Status Tracker
 
-**Last Updated**: 2026-07-23
+**Last Updated**: 2026-07-25
 **Purpose**: Quick orientation guide — the ground-truth read on current state, verified against disk, git, and test results.
 
 > **This file is authoritative for "where are we now."** For the strategic backlog (what's next, what's ruled out, what's open), see [`docs/03_EXPERIMENT_TREE.md`](docs/03_EXPERIMENT_TREE.md). For the detailed chronological log, see [`docs/02_EXPERIMENTS_AND_RESULTS.md`](docs/02_EXPERIMENTS_AND_RESULTS.md).
 
 ---
 
-## 🎯 CURRENT STATUS: Exp 1.5 Concluded (AMBIGUOUS) — PIVOT to Bill-of-Materials Enrichment
+## 🎯 CURRENT STATUS: BoM Enrichment — Arms A+B Complete, Arm C Next
 
 ### Where we are
 
-**Exp 1.5 (Routing Fidelity) has concluded.** The DiT's typed-F1 is 0.0852 (1.85× above random baseline 0.0461, but far below the 0.50 controllability threshold). The Jaccard ablation (0.5045) confirms the motif signal genuinely steers generation — the Executive Branch is **steerable but underspecified**. The 1D motif array (e.g., `[Boundary, Sequence, Condition, ...]`) cannot disambiguate between many different programs that share the same motif sequence.
+**Exp 1.5 (Routing Fidelity)** proved the DiT is steerable (Jaccard 0.50) but the 1D motif array underspecifies programs (typed-F1 0.085). This triggered a BoM enrichment program: can we improve routing fidelity by enriching the conditioning signal?
 
-The **thesis is not falsified** (routing is distinguishable from random; output changes with different motifs), but the Bill of Materials needs enrichment before the Legislative Branch can usefully emit it from human intent.
+**Two enrichment arms completed, one remaining:**
 
-### Headline result: Exp 1.5 — AMBIGUOUS (PIVOT)
+| Arm | Mechanism | N | typed-F1 baseline | Best typed-F1 | Δ | Verdict |
+|---|---|---|---|---|---|---|
+| **A** (Edge-Count) | Global density bias (FiLM presence) | 128 | 0.088 | 0.082 | −5.8% | **FAIL** |
+| **B** (Degree-Profile) | Per-node in/out degree bias | 128 | 0.075 | **0.109** | **+46%** | **AMBIGUOUS** |
+| **C** (Partial-Seed) | Seed 10–20% gt edges, denoise rest | — | — | — | — | **NEXT** |
 
-| Metric | Value | Gate threshold | Status |
-|---|---|---|---|
-| Typed-F1 | **0.0852** | ≥ 0.50 | ❌ Below PASS |
-| Δ above random | **+0.0391** (1.85×) | ≥ 0.20 | ❌ Below PASS |
-| Jaccard (ablation) | **0.5045** | < 0.70 | ✅ Controllable |
-| 2σ of random? | **No** (~22× SEM above) | within? | ✅ Not random |
-| Best graph typed-F1 | **0.6000** | — | ✅ Can route faithfully sometimes |
-| Edge over-generation | **6.5×** (181 vs 28 gt) | — | ⚠️ Key diagnostic |
+**Key finding across both arms:** Mechanisms that target the presence channel uniformly (global density, out-degree bias) strip routing signal and hurt fidelity. The in-degree bias in Arm B took the opposite approach — encourage more edges where the dataset says they should be — and it's the only mechanism that improved fidelity (+46%). The DiT IS receptive to enrichment signals, but the presence channel conflates edge count with edge quality.
 
-Raw logs: `docs/assets/exp/routing-fidelity/fidelity_eval.txt`, `controllability_ablation.txt`
-
-### Immediate next action
-
-**[P1] Plan the BoM enrichment:** The Executive Branch is alive and steerable — now the conditioning signal needs teeth. Write a short plan enumerating the enrichment candidates (edge-count conditioning, degree-profile conditioning, partial-adjacency seeding) with pre-registered gates for each. Do NOT start Exp 2 (intent→topology) until at least one enrichment arm improves typed-F1 to >0.20.
+**Exp 2 (Legislative Branch) remains gated** at typed-F1 ≥ 0.20. Arm C is the remaining enrichment candidate that directly targets *which* edges rather than *how many*.
 
 ### Summary of completed work
 
 | Phase | Outcome | SVR / Fidelity | Artifacts |
 |---|---|---|---|
-| **DiT Pre-Training** (340 epochs, 128-node) | Flow Matching converged, MSE plateaued ~0.135 | 0% (true SVR with corrected validator) | `checkpoints/num_dit_epoch_340.pt` |
-| **RLAIF Fine-Tuning** (Runs 5–9) | **Concluded — Negative.** Mode collapse: edges→0. Exponential NOTEARS penalty + quadratic MSE statically unstable. | Peak 7.1% E1 → 0% by E5 | `docs/assets/feat/rlaif-ablation/` |
-| **Decode-Time Constraint Solving** | **Winning approach.** Deterministic repair of DiT heatmap — no training, no mode collapse. | **0% → 10%** 6-law SVR | `src/models/constraint_solver.py` |
-| **6th Law (Global Spine)** | Added entry/exit controllability. Fixed SVR to honest 10%. | 10% strict SVR | `src/models/validation.py` |
-| **Interpreter Harness Fix** | Fixed entry-detection bug. **100% of GT + generated 6-law graphs halt.** | 6-law ⟺ executability | `docs/assets/exp/fix-interpreter-entry-detection/` |
-| **Exp 1.5 — Routing Fidelity** | **AMBIGUOUS — PIVOT.** DiT steerable (Jaccard 0.50) but 1D motif underspecifies programs (typed-F1 0.085). Best graph 0.60. | 1.85× above random; 6.5× edge over-gen | `docs/assets/exp/routing-fidelity/` |
+| **DiT Pre-Training** (340 epochs, 128-node) | Flow Matching converged, MSE ~0.135 | 0% (true SVR) | `checkpoints/num_dit_epoch_340.pt` |
+| **RLAIF Fine-Tuning** (Runs 5–9) | **Negative.** Mode collapse via edge erasure. | Peak 7.1% → 0% | `docs/assets/feat/rlaif-ablation/` |
+| **Decode-Time Constraint Solving** | Deterministic repair — acyclicity + out-degree 100%. | **0% → 10%** | `src/models/constraint_solver.py` |
+| **6th Law (Global Spine)** | Entry/exit controllability. SVR fixed to honest 10%. | 10% strict SVR | `src/models/validation.py` |
+| **Interpreter Harness Fix** | 100% of GT + generated 6-law graphs halt. | 6-law ⟺ executability | `docs/assets/exp/fix-interpreter-entry-detection/` |
+| **Exp 1.5 — Routing Fidelity** | AMBIGUOUS — DiT steerable, motif underspecifies. | typed-F1 0.085 | `docs/assets/exp/routing-fidelity/` |
+| **Exp 1.6 — Edge-Count Enrichment (Arm A)** | FAIL — controls edges, reduces fidelity. | −5.8% vs baseline | `docs/assets/exp/edge-count-enrichment/` |
+| **Exp 1.7 — Degree-Profile Enrichment (Arm B)** | AMBIGUOUS — +46% lift, best yet but insufficient. | 0.075 → 0.109 | `docs/assets/exp/degree-profile-enrichment/` |
+
+### Immediate next action
+
+**[P1] Arm C — Partial-Adjacency Seeding.** The remaining enrichment candidate. Seed 10–20% of ground-truth edges into the initial noise state x₀, then run the ODE to complete the rest. This directly guides *which* edges rather than *how many*. Pre-register gate BEFORE writing code.
 
 ### Test suite status
 
 | Test file | Tests | Result |
 |---|---|---|
-| `tests/test_validation.py` | 13 | ✅ All pass (includes 6th-law/global-spine coverage) |
+| `tests/test_validation.py` | 13 | ✅ All pass |
 | `tests/test_constraint_solver.py` | 6 | ✅ All pass |
-| `tests/test_fidelity.py` | 3 | ✅ All pass (Exp 1.5 — edge-set fidelity metric) |
+| `tests/test_fidelity.py` | 3 | ✅ All pass |
 | `tests/test_naive_discretizer.py` | — | ✅ All pass |
-| `tests/test_execution_engine.py` | 3 | ✅ All pass (Fibonacci demo returns `a=55`; loop guard + cyclic data guard green) |
+| `tests/test_execution_engine.py` | 3 | ✅ All pass (Fibonacci returns a=55) |
 
-**Open failures (non-blocking, stale RLAIF arm):**
-- `tests/test_reward.py::test_all_pass_gets_jackpot` — RLAIF reward function test from the concluded arm; does not affect the DiT, solver, or interpreter. Quarantine or remove when cleaning up RLAIF artifacts.
+**Open failure:** `tests/test_reward.py::test_all_pass_gets_jackpot` — stale RLAIF test, non-blocking.
+
+### Branch / repo state
+
+- **Branch:** `main` (clean, up to date with origin)
+- **Test suite:** 98/99 passing
+- **Untracked artifacts:** `mcp-unreal/` (other project's repo), `runs/` (concluded RLAIF training leftovers)
+- **GPU scheduler:** No active jobs or crons for this project
 
 ---
 
@@ -62,46 +67,21 @@ Raw logs: `docs/assets/exp/routing-fidelity/fidelity_eval.txt`, `controllability
 
 | File | Role |
 |---|---|
-| `PROJECT_STATUS.md` | **This file** — current state, authoritative for "where are we" |
-| `docs/03_EXPERIMENT_TREE.md` | Strategic backlog — what's ACTIVE/NEXT/TBD/CONCLUDED, with macro-questions |
-| `docs/02_EXPERIMENTS_AND_RESULTS.md` | Chronological research log with detailed metrics, plots, and errata |
-| `docs/01_VISION_AND_ARCHITECTURE.md` | Full architecture spec: three branches, 6-Laws, interpreter |
-| `README.md` | Public-facing overview, mostly accurate (roadmap item 4 needs a label update) |
-| `src/models/constraint_solver.py` | Decode-time deterministic repair (the 10% SVR engine) |
-| `src/models/validation.py` | GraphValidator — the 6-Law checker, now with global-spine support |
-| `src/models/dit.py` | DiT architecture (AMP fix committed) |
-| `src/rlaif/train_rlaif.py` | RLAIF training script (concluded arm, preserved for reference) |
-| `src/rlaif/structural_loss.py` | Differentiable structural constraints including sharpened NOTEARS |
-
----
+| `PROJECT_STATUS.md` | **This file** — current state |
+| `docs/03_EXPERIMENT_TREE.md` | Strategic backlog |
+| `docs/02_EXPERIMENTS_AND_RESULTS.md` | Chronological research log |
+| `docs/01_VISION_AND_ARCHITECTURE.md` | Full architecture spec |
+| `src/models/constraint_solver.py` | Decode-time deterministic repair |
+| `src/models/validation.py` | GraphValidator — 6-Law checker |
+| `src/models/model.py` | DiT + `ode_generate_with_degree_bias()` + `ode_generate_with_density_bias()` |
+| `src/models/fidelity.py` | Edge-set fidelity metric (typed + untyped F1) |
+| `scripts/evaluate_routing_fidelity.py` | Exp 1.5 evaluation harness |
+| `scripts/evaluate_edge_count_enrichment.py` | Exp 1.6 density sweep |
+| `scripts/ablation_motif_controllability.py` | Motif conditioning ablation |
 
 ## 📚 Key Checkpoints
 
-| Checkpoint | Path | SVR | Notes |
-|---|---|---|---|
-| Base DiT (340) | `checkpoints/num_dit_epoch_340.pt` | 0% | Pre-training only, no structural awareness |
-| Best RLAIF E1 | `checkpoints/rlaif/vastai_run8/rlaif_struct_epoch_1.pt` | 7.1% | Sharpened NOTEARS, collapses after E1 |
-| Best with solver | `checkpoints/num_dit_epoch_340.pt` + `ConstraintSolver` | **10%** | Current best pipeline (no training needed) |
-
----
-
-## 🗺 Training Run History (RLAIF arm — concluded)
-
-| Run | Epochs | SVR | Acyclic | Key Change | Issue |
-|-----|--------|-----|---------|------------|-------|
-| 5 | 10 | 0% | 1.2% | NOTEARS (weak β=0.01) | Acyclic ineffective |
-| 6 | 2 | 25%* | — | Sharpened NOTEARS (β=0.5) | Recon explosion, NaN crash |
-| 7 | 1 | — | — | + recon clamp | Still NaN at batch 220 |
-| **8** | **10** | **7.1%** | **100%** | + struct clamp, lr=5e-6, β=0.2 | Mode collapse (edges→0) |
-| 9 | — | — | — | + target edge density | OOM crashes (resolved in local tree, not fully trained) |
-
-> The above history is preserved for reference. RLAIF is concluded as a negative result. The winning approach is decode-time deterministic repair (constraint solver), not gradient-based structural penalties.
-
----
-
-## 🔜 Immediate Next Actions
-
-1. **[P1] Run Exp 1.5 (Routing Fidelity).** This is the experiment that determines whether the core thesis is alive. Inference-only, no training needed. Execute per `.hermes/plans/2026-06-05_routing_fidelity.md` — with two guardrails: (a) assert `augment_permutation=False` end-to-end before trusting F1 numbers, (b) promote the controllability ablation (Task 4) to the headline metric.
-2. **[P2] Fix or quarantine the 2 failing interpreter tests.** At minimum, fix the malformed loop-guard test fixture. Determine whether `test_fibonacci_execution` can be made to pass before citing the Fibonacci demo in publications.
-3. **[P3] Clean up ghost-project artifacts.** Move `DISCONTINUATION_NOTICE.md` and related Phase 4B docs into `archive/` or add a banner clarifying they refer to the *pre-pivot* GNN effort, not NUM. Decide whether `mcp-unreal/` (untracked) belongs in this repo.
-4. **[After Exp 1.5 resolves] Decide the Legislative Branch path.** If fidelity is high, Exp 2 (build the LLM → motif-sequence conditioning path) is next. If fidelity is low but output changes with different motifs, the Bill of Materials needs enrichment. If motifs barely move output, conditioning is the bug to fix before anything else.
+| Checkpoint | Path | Notes |
+|---|---|---|
+| Base DiT (340) | `checkpoints/num_dit_epoch_340.pt` | Pre-training only |
+| Best with solver | `checkpoints/num_dit_epoch_340.pt` + `ConstraintSolver` | **10% SVR** (current best pipeline) |
