@@ -1,0 +1,59 @@
+[AR-eval] ckpt=checkpoints/ar/ar_s0_e99.pt d_model=384 n_layers=8 device=cuda
+Loaded (epoch 99, loss 0.0203)
+[ARDataset] EVAL: 512 graphs (holdout=632)
+[ARDataset] TRAIN: 3319 graphs (holdout=632)
+=== HELD-OUT EVAL (the gate) ===
+  [holdout] scored 16/512 (errors 0)
+  [holdout] scored 32/512 (errors 0)
+  [holdout] scored 48/512 (errors 0)
+  [holdout] scored 64/512 (errors 0)
+  [holdout] scored 80/512 (errors 0)
+  [holdout] scored 96/512 (errors 0)
+  [holdout] scored 112/512 (errors 0)
+  [holdout] scored 128/512 (errors 0)
+  [holdout] scored 144/512 (errors 0)
+  [holdout] scored 160/512 (errors 0)
+  [holdout] scored 176/512 (errors 0)
+  [holdout] scored 192/512 (errors 0)
+  [holdout] scored 208/512 (errors 0)
+  [holdout] scored 224/512 (errors 0)
+  [holdout] scored 240/512 (errors 0)
+  [holdout] scored 256/512 (errors 0)
+  [holdout] scored 272/512 (errors 0)
+  [holdout] scored 288/512 (errors 0)
+  [holdout] scored 304/512 (errors 0)
+  [holdout] scored 320/512 (errors 0)
+  [holdout] scored 336/512 (errors 0)
+  [holdout] scored 352/512 (errors 0)
+  [holdout] scored 368/512 (errors 0)
+  [holdout] scored 384/512 (errors 0)
+  [holdout] scored 400/512 (errors 0)
+  [holdout] scored 416/512 (errors 0)
+  [holdout] scored 432/512 (errors 0)
+  [holdout] scored 448/512 (errors 0)
+  [holdout] scored 464/512 (errors 0)
+  [holdout] scored 480/512 (errors 0)
+  [holdout] scored 496/512 (errors 0)
+  [holdout] scored 512/512 (errors 0)
+=== TRAIN-CACHE PROBE (memorization) ===
+  [train-cache] scored 16/3319 (errors 0)
+  [train-cache] scored 32/3319 (errors 0)
+  [train-cache] scored 48/3319 (errors 0)
+  [train-cache] scored 64/3319 (errors 0)
+  [train-cache] scored 80/3319 (errors 0)
+  [train-cache] scored 96/3319 (errors 0)
+
+============================================================
+AR EDGE-LIST ROUTING FIDELITY — ar_s0_e99.pt
+============================================================
+[holdout] N=512 (errors 0)
+   untyped-F1 0.7710 | typed-F1 0.7699 | rand-typed 0.0741
+   gen_edges 15.6 vs gt 15.8
+   typed quantiles min/p25/med/p75/max: 0.1538 / 0.5680 / 0.8000 / 1.0000 / 1.0000
+[train-cache] N=100 (errors 0)
+   untyped-F1 0.9824 | typed-F1 0.9817 | rand-typed 0.0356
+   gen_edges 29.5 vs gt 29.6
+   typed quantiles min/p25/med/p75/max: 0.3333 / 1.0000 / 1.0000 / 1.0000 / 1.0000
+------------------------------------------------------
+memorization delta (train-cache − holdout typed-F1): +0.2119   (pre-registered guardrail: ≤ +0.02)
+WARNING: train-cache >> holdout — probable edge-list memorization; gate is under suspicion.

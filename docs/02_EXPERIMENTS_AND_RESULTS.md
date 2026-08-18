@@ -1070,7 +1070,7 @@ eval ∩ train = ∅, deterministic seed 42.
 - [x] Metric code unchanged (`tests/test_fidelity.py` 3 tests)
 - [x] Reproduction: e49/e99 mid-run re-evaluations confirm monotone convergence
 - [x] Tier-2 reproduction — seed-1 held-out typed-F1 0.7771 (seed-0 0.7762, Δ=0.0009); same final loss 0.0159 both
-- **Verdict: PASS (Tier-1; Tier-2 seed pending)**
+- **Verdict: PASS (Tier-1 + Tier-2 — Exp 2 formally UN-GATED)**
 
 ### Interpretation
 
