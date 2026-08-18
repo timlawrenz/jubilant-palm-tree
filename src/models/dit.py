@@ -7,23 +7,39 @@ class InputConditioner(nn.Module):
     Cross-Hatch Embedding Injection
     Fuses the 1D Motif identities into the 2D adjacency matrix space so the DiT 
     knows the structural identity of the source and target nodes for every edge.
+
+    Optional degree-conditioning branch (Exp 1.9): per-node expected in-degree
+    scalars perturb the motif embeddings BEFORE grid expansion, so the enrichment
+    signal is baked into the conditioning path at training time. Shapes downstream
+    are unchanged, so pretrained checkpoints load with strict=False.
     """
-    def __init__(self, num_motifs: int = 7, motif_dim: int = 16, in_channels: int = 3):
+    def __init__(self, num_motifs: int = 7, motif_dim: int = 16, in_channels: int = 3,
+                 use_degree: bool = False, degree_dim: int = 1):
         super().__init__()
         # 0=Padding, 1=Boundary, 2=Sequence, 3=Condition, 4=Loop, 5=State, 6=Message
         self.embedding = nn.Embedding(num_embeddings=num_motifs, embedding_dim=motif_dim)
         self.out_channels = in_channels + (motif_dim * 2) # e.g. 6 + 16 + 16 = 38
+        self.use_degree = use_degree
+        if use_degree:
+            # Maps per-node scalar degree -> motif_dim perturbation added to embeddings
+            self.degree_proj = nn.Linear(degree_dim, motif_dim)
 
-    def forward(self, noisy_adj: torch.Tensor, motifs: torch.Tensor) -> torch.Tensor:
+    def forward(self, noisy_adj: torch.Tensor, motifs: torch.Tensor,
+                degrees: torch.Tensor | None = None) -> torch.Tensor:
         """
         noisy_adj: [B, in_channels, N, N]
         motifs: [B, N]
+        degrees: [B, N] optional per-node scalar enrichment (Exp 1.9)
         Returns: [B, out_channels, N, N]
         """
         B, C, N, _ = noisy_adj.shape
         
         # [B, N, 16]
         motif_embeds = self.embedding(motifs)
+        
+        if self.use_degree and degrees is not None:
+            # [B, N] -> [B, N, 1] -> [B, N, 16] additive perturbation
+            motif_embeds = motif_embeds + self.degree_proj(degrees.unsqueeze(-1))
         
         # 1. Expand to represent Source Nodes (rows)
         source_grid = motif_embeds.permute(0, 2, 1).unsqueeze(-1).expand(-1, -1, -1, N)

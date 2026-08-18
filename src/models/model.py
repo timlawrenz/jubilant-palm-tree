@@ -3,9 +3,12 @@ from src.models.dit import InputConditioner, GraphDiTBlock
 
 
 class NeuralUniversalMachineDiT(torch.nn.Module):
-    def __init__(self, hidden_dim=256, num_heads=8, depth=12, num_motifs=7, motif_dim=16, in_channels=6):
+    def __init__(self, hidden_dim=256, num_heads=8, depth=12, num_motifs=7, motif_dim=16, in_channels=6,
+                 use_degree=False, degree_dim=1):
         super().__init__()
-        self.conditioner = InputConditioner(num_motifs=num_motifs, motif_dim=motif_dim, in_channels=in_channels)
+        self.use_degree = use_degree
+        self.conditioner = InputConditioner(num_motifs=num_motifs, motif_dim=motif_dim, in_channels=in_channels,
+                                            use_degree=use_degree, degree_dim=degree_dim)
         conditioned_channels = self.conditioner.out_channels
         
         self.proj_in = torch.nn.Conv2d(conditioned_channels, hidden_dim, kernel_size=1)
@@ -24,9 +27,9 @@ class NeuralUniversalMachineDiT(torch.nn.Module):
         self.num_index_classes = 4
         self.proj_out = torch.nn.Conv2d(hidden_dim, 2 + self.num_index_classes, kernel_size=1)
         
-    def forward(self, x_t, t, motifs):
+    def forward(self, x_t, t, motifs, degrees=None):
         t_emb = self.t_mlp(t.unsqueeze(1))
-        x = self.conditioner(x_t, motifs)
+        x = self.conditioner(x_t, motifs, degrees=degrees)
         x = self.proj_in(x)
         for block in self.blocks:
             x = block(x, t_emb)
@@ -141,6 +144,19 @@ def ode_generate_with_partial_seed(model, motifs, gt_adjacency, num_nodes,
 # Motif IDs: 1=BOUNDARY, 2=SEQUENCE, 3=CONDITION, 4=LOOP, 5=STATE, 6=MESSAGE
 EXPECTED_EXEC_OUT = {1: 1.001, 2: 1.077, 3: 0.289, 4: 0.500, 5: 0.093, 6: 0.169}
 EXPECTED_DATA_IN  = {1: 0.000, 2: 0.000, 3: 2.339, 4: 2.000, 5: 0.220, 6: 0.964}
+
+
+def build_expected_in_degrees(motifs: torch.Tensor) -> torch.Tensor:
+    """Map each node's motif id to its expected DATA in-degree (Exp 1.9 signal).
+
+    motifs: [B, N] integer motif ids (0 = padding)
+    Returns: [B, N] float tensor on the same device as motifs, 0 for padding.
+    """
+    B, N = motifs.shape
+    degrees = torch.zeros(B, N, dtype=torch.float32, device=motifs.device)
+    for mid, val in EXPECTED_DATA_IN.items():
+        degrees += val * (motifs == mid).float()
+    return degrees
 
 
 def ode_generate_with_degree_bias(model, motifs, device, num_steps=20,

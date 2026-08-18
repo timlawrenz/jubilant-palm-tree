@@ -1,10 +1,13 @@
 import torch
 import torch.nn.functional as F
 
-def compute_flow_matching_loss(model, batch):
+def compute_flow_matching_loss(model, batch, degrees=None):
     """
     Computes the masked Conditional Flow Matching Loss for Channels 0,1 
     AND CrossEntropyLoss for Channel 2 (input_index).
+
+    degrees: optional [B, N] per-node enrichment scalars forwarded to the
+             model's conditioning branch (Exp 1.9 training-time enrichment).
     """
     x_1 = batch["adjacency"]       # [B, 3, N, N]
     motifs = batch["motifs"]       # [B, N]
@@ -37,7 +40,7 @@ def compute_flow_matching_loss(model, batch):
     target_velocity = x_1_continuous - x_0_continuous
     
     # 6. Forward Pass
-    predictions = model(x_t, t, motifs) 
+    predictions = model(x_t, t, motifs, degrees=degrees) 
     
     # 7. Split predictions
     pred_velocity = predictions[:, :2, :, :] # [B, 2, N, N]
