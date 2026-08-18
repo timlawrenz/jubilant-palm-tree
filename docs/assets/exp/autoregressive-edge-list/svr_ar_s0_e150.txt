@@ -1,0 +1,22 @@
+[AR-SVR] ckpt=checkpoints/ar/ar_s0_e150.pt device=cuda
+[ARDataset] EVAL: 512 graphs (holdout=632)
+  64/512 (SVR so far 43.8%)
+  128/512 (SVR so far 46.1%)
+  192/512 (SVR so far 53.6%)
+  256/512 (SVR so far 59.4%)
+  320/512 (SVR so far 63.1%)
+  384/512 (SVR so far 62.2%)
+  448/512 (SVR so far 62.7%)
+  512/512 (SVR so far 63.1%)
+
+========================================================
+AR EXECUTIVE SVR — ar_s0_e150.pt (held-out N=512)
+========================================================
+perfect_graphs: 63.09%
+out_degree_pass: 100.00%
+in_degree_pass: 99.80%
+no_orphan_pass: 73.63%
+acyclic_data_pass: 100.00%
+terminal_sink_pass: 99.02%
+mean typed-F1 (concurrent fidelity): 0.7762
+========================================================
