@@ -85,7 +85,7 @@ def main():
         "Fidelity is meaningless under node permutation"
 
     dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
-    gen = torch.Generator().manual_seed(args.seed)
+    gen = torch.Generator(device=device).manual_seed(args.seed)
 
     gen_untyped_f1, gen_typed_f1 = [], []
     rand_untyped_f1, rand_typed_f1 = [], []
@@ -154,6 +154,14 @@ def main():
                     continue
 
     gen_typed = np.array(gen_typed_f1)
+
+    # Hard guard: an eval that scored nothing is invalid, not a result.
+    if num_scored == 0:
+        raise SystemExit(
+            f"FATAL: 0 graphs scored ({num_errors} errors) — eval is invalid, "
+            "fix the harness, do not treat this as a result."
+        )
+
     quantiles = (np.min(gen_typed), np.percentile(gen_typed, 25),
                  np.median(gen_typed), np.percentile(gen_typed, 75),
                  np.max(gen_typed)) if len(gen_typed) else (0, 0, 0, 0, 0)
