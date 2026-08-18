@@ -4,7 +4,7 @@ from src.models.dit import InputConditioner, GraphDiTBlock
 
 class NeuralUniversalMachineDiT(torch.nn.Module):
     def __init__(self, hidden_dim=256, num_heads=8, depth=12, num_motifs=7, motif_dim=16, in_channels=6,
-                 use_degree=False, degree_dim=1):
+                 use_degree=False, degree_dim=1, use_reentrant=True):
         super().__init__()
         self.use_degree = use_degree
         self.conditioner = InputConditioner(num_motifs=num_motifs, motif_dim=motif_dim, in_channels=in_channels,
@@ -20,7 +20,8 @@ class NeuralUniversalMachineDiT(torch.nn.Module):
         )
         
         self.blocks = torch.nn.ModuleList([
-            GraphDiTBlock(hidden_dim=hidden_dim, num_heads=num_heads, timestep_dim=256)
+            GraphDiTBlock(hidden_dim=hidden_dim, num_heads=num_heads, timestep_dim=256,
+                          use_reentrant=use_reentrant)
             for _ in range(depth)
         ])
         

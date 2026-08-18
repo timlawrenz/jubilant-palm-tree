@@ -21,8 +21,14 @@ class InputConditioner(nn.Module):
         self.out_channels = in_channels + (motif_dim * 2) # e.g. 6 + 16 + 16 = 38
         self.use_degree = use_degree
         if use_degree:
-            # Maps per-node scalar degree -> motif_dim perturbation added to embeddings
+            # Maps per-node scalar degree -> motif_dim perturbation added to embeddings.
+            # ZERO-INITIALIZED (adapter convention): the branch starts as a no-op and
+            # must learn to use the degree signal. A default Linear(1,16) init
+            # (weights ~ U(-1,1) on inputs up to ~2.34) destabilizes training
+            # (observed: loss 0.13 -> 1e13 within 5 batches on Exp 1.9).
             self.degree_proj = nn.Linear(degree_dim, motif_dim)
+            nn.init.zeros_(self.degree_proj.weight)
+            nn.init.zeros_(self.degree_proj.bias)
 
     def forward(self, noisy_adj: torch.Tensor, motifs: torch.Tensor,
                 degrees: torch.Tensor | None = None) -> torch.Tensor:
@@ -95,8 +101,10 @@ class GraphDiTBlock(nn.Module):
     """
     Message-Passing DiT Block using Axial (Row-Column) Attention.
     """
-    def __init__(self, hidden_dim: int, num_heads: int, timestep_dim: int = 256):
+    def __init__(self, hidden_dim: int, num_heads: int, timestep_dim: int = 256,
+                 use_reentrant: bool = True):
         super().__init__()
+        self.use_reentrant = use_reentrant
         # AdaLN for injecting the Diffusion Timestep (t)
         self.adaln = AdaLN(hidden_dim, timestep_dim) 
         
@@ -117,20 +125,22 @@ class GraphDiTBlock(nn.Module):
                 x_r = x_in.permute(0, 2, 3, 1).reshape(B * H, W, C)
                 x_r_out, _ = self.row_attn(x_r, x_r, x_r, need_weights=False)
                 return x_r_out.reshape(B, H, W, C).permute(0, 3, 1, 2)
-            
+        
         def run_col_attn(x_in):
             with torch.amp.autocast("cuda", dtype=torch.bfloat16):
                 x_c = x_in.permute(0, 3, 2, 1).reshape(B * W, H, C)
                 x_c_out, _ = self.col_attn(x_c, x_c, x_c, need_weights=False)
                 return x_c_out.reshape(B, W, H, C).permute(0, 3, 2, 1)
-            
+        
         def run_mlp(x_in):
             with torch.amp.autocast("cuda", dtype=torch.bfloat16):
                 return self.mlp(x_in.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
         
-        # 2-4. Checkpointed blocks — use_reentrant=True correctly inherits ambient autocast
-        #      context during backward recompute, avoiding shape-mismatch with bfloat16 AMP.
-        if x.requires_grad:
+        # 2-4. Optional checkpointed blocks — use_reentrant=True correctly
+        #      inherits ambient autocast during backward recompute. Built with a
+        #      flag (default True) so Exp 1.9 can disable it if the reentrant
+        #      + autocast + new-leaf-param interaction destabilizes training.
+        if x.requires_grad and self.use_reentrant:
             x = x + checkpoint(run_row_attn, x_conditioned, use_reentrant=True)
             x = x + checkpoint(run_col_attn, x, use_reentrant=True)
             x = x + checkpoint(run_mlp, x, use_reentrant=True)
