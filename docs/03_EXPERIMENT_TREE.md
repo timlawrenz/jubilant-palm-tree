@@ -94,19 +94,20 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
   - *Result:* **N=64 definitive.** Typed-F1 scales with p (0.30 at p=0.20) but unseeded F1 = 0 everywhere. The model generates NO edges beyond the seed set — clamping breaks the denoising trajectory for all other edges.
   - *Implication:* The enrichment program is complete. The pre-trained DiT cannot be steered to specific programs via decode-time hints alone. Training-time enrichment or architectural change (Exp 3) needed.
 
-- **[ACTIVE] Exp 1.9 — Training-Time Enrichment (BoM Arm D)** — `gate pre-registered, not yet executed`
-  - *Concept:* Fine-tune the frozen DiT with the degree-profile signal (Arm B's tables) baked into the conditioning input channel, rather than applied as a decode-time bias. Tests whether the signal is informationally useful when delivered via gradients, not presence-channel nudges.
-  - *Gate:* PASS if typed-F1 ≥ 0.20 AND ≥ +0.05 above decode-best (0.109), reproducible across 2 seeds. Null control: dummy (random) degree profile must lose by ≥ 0.05.
-  - *Implication:* PASS un-gates Exp 2 (Legislative Branch). FAIL provides convergent negative evidence across 4 arms → justifies Exp 3 pivot.
+- **[CONCLUDED — FAIL] Exp 1.9 — Training-Time Enrichment (BoM Arm D)** — `gate pre-registered, executed, FAIL`
+  - *Concept:* Fine-tune the frozen DiT with the degree-profile signal (Arm B's tables) baked into the conditioning input channel (zero-init adapter branch), rather than applied as a decode-time bias. Null control: identical fine-tune with random degree profiles.
+  - *Result:* **N=512 definitive, both arms.** Signal typed-F1 0.0894 vs base 0.0895 (Δ≈0 — inert); null 0.0769 (−0.013). Signal−null separation +0.0125 < 0.05 gate. FAIL criterion fires (≤ 0.109). No arm crosses 0.20.
+  - *Implication:* The enrichment program is **closed** (4 arms, all sub-0.20). The failure is not the delivery mechanism — it's the dense-matrix flow-matching routing capacity itself. Convergent negative evidence across decode- and training-time interventions → **Exp 3 (autoregressive edge-list) is the justified pivot**; Exp 2 remains gated.
 
-- **[NEXT] Exp 2 — Build the A→C Conditioning Path (the Legislative Branch)**
+- **[BLOCKED] Exp 2 — Build the A→C Conditioning Path (the Legislative Branch)**
   - *Concept:* Per `01_VISION_AND_ARCHITECTURE.md §8`, intent enters at the **Legislative Branch (LLM)**, which compiles human intent → the Bill of Materials (motif array) + Literal Pool. The DiT already consumes that Bill of Materials. This arm builds the LLM-shaped component that emits it from natural-language/source intent, completing the A→C path.
   - *Why it matters:* Tests the founding premise (intent → executable structure) end to end. Sits *on top* of a proven Executive Branch.
-  - *Depends on:* **BoM enrichment** — at least one enrichment arm must lift typed-F1 > 0.20 before this arm is viable. Exp 1.5 proved the DiT is steerable but the 1D motif array underspecifies programs.
-- **[TBD] Exp 3 — Invert the Architecture: Autoregressive Edge-List Generation**
+  - *Depends on:* **BoM enrichment** — at least one enrichment arm must lift typed-F1 to ≥ 0.20 before this arm is viable. Exp 1.9 closed the enrichment program with all four arms sub-0.20 (best: Arm B 0.109), so Exp 2 remains gated until Exp 3 (or a future routing-capable generator) achieves faithful routing.
+
+- **[NEXT] Exp 3 — Invert the Architecture: Autoregressive Edge-List Generation**
   - *Concept:* If diffusion-over-dense-adjacency keeps failing at global control flow, treat the executable graph as the output "language": an autoregressive / seq2seq model that emits the edge-list directly, conditioned on intent. Control flow is inherently sequential/causal, which a dense-matrix diffusion prior may simply have the wrong inductive bias for.
   - *Why it matters:* Tests whether the failure is the *paradigm* (diffusion on matrices) rather than the *thesis* (A→C). Closer to how code LLMs already succeed, but the target is C (executable topology), not B (text).
-  - *Depends on:* Exp 1 & 2 results — only pursue if conditioning a diffusion model proves insufficient.
+  - *Depends on:* Exp 1.9 verdict. Now the justified pivot — Exp 1.9 (training-time enrichment, FAIL, signal inert vs base) is the 4th convergent negative arm; the dense-matrix flow-matching routing capacity is the isolated bottleneck.
 
 ### Concluded execution experiments
 

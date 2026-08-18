@@ -898,42 +898,75 @@ The enrichment program has produced one mechanism that improves fidelity (Arm B,
 
 ---
 
-## Exp 1.9 — Training-Time Enrichment (BoM Arm D) — `[ACTIVE — GATE PRE-REGISTERED]`
+## Exp 1.9 — Training-Time Enrichment (BoM Arm D) — `[CONCLUDED — FAIL]`
 
-**Date:** 2026-08-18 (gate pre-registered) → (not yet executed)
+**Date:** 2026-08-18 (gate pre-registered) → 2026-08-18 (signal + null arms executed)
 **Branch:** `exp/training-time-enrichment`
 **Dependency:** Exp 1.8 (concluded NEGATIVE — decode-time enrichment exhausted on frozen DiT)
 
 **Goal:** Test whether baking an enriched BoM signal into the DiT's *training-time conditioning input* improves routing fidelity, where decode-time hints (FiLM bias, edge clamping) have all failed.
 
-### Design (pre-registered)
+### Design (pre-registered, as executed)
 
-Fine-tune the frozen pre-trained checkpoint (`num_dit_epoch_340.pt`, 340 epochs) on the same training distribution, but with the **motif scaffold concatenated with a per-node degree profile channel** as conditioning input. The signal is Arm B's (EXPected_degree tables used in decode bias), but now the gradients see it — the model learns to *use* the signal rather than being nudged by it at decode time. Concretely:
+Fine-tune the pre-trained checkpoint (`num_dit_epoch_340.pt`, 340 epochs) on the same training distribution, with a **per-node expected in-degree scalar perturbing the motif embeddings** in the conditioner (adapter branch, additive before grid expansion — keeps the backbone checkpoint loadable, shapes unchanged downstream). The signal is Arm B's `EXPECTED_DATA_IN` table; gradients now see it.
 
-- Input channel: `cat(motifs, expected_in_degree_stats, padding)` vs existing `motifs`
-- Fine-tune: ≤ 20 epochs, AMP bf16, NaN-grad guards (established harness), lr ≈ 1e-5 (10× lower than pre-training)
-- Evaluate with the **same Exp 1.5 routing-fidelity harness** (`scripts/evaluate_routing_fidelity.py`), identically N=512, `augment_permutation=False`, same raw-noise baseline
-- Null hypothesis: the fine-tuned model's typed-F1 ≤ decode-best (0.109) — signal is informationally useless, not merely poorly delivered
+- Architecture: `use_degree=True` → `degree_proj = Linear(1,16)` on `cat(motifs, expected_in_degree)`; **zero-initialized** (starts as no-op, learns the signal; default `Linear(1,16)` init on raw degrees ≤2.34 destabilized training — loss 0.13→1e13 within 5 batches, fixed as adapter convention)
+- Two arms, identical settings, from the same base: **signal** (real expected in-degrees) vs **null** (uniform random in [0,2.5), same shape, meaningless)
+- Fine-tune: 20 epochs, eff-bs 16 (4×4), AMP bf16, lr 1e-5, grad-clip 1.0, NaN-guard (RLAIF's mode-collapse attractor tracked)
+- Evaluate with the Exp 1.5 routing-fidelity protocol: N=512, `augment_permutation=False` asserted, 20-step ODE + ConstraintSolver, random matched-density baseline
+- Executed on local RTX 4090 via gpu-resource-scheduler (job `jpt-tte-1787069877`)
 
-### Pre-registered gate (stated BEFORE results)
+### Empirical Evidence (all N=512, 0 errors skipped, same harness)
 
-> **PASS:** typed-F1 ≥ 0.20 AND ≥ +0.05 above decode-best (0.109) AND reproducible across 2 seeds  
-> **FAIL:** typed-F1 ≤ 0.109 (decode-best) OR within 2σ of fine-tune null control
+| Model | typed-F1 | untyped-F1 | gen_edges | vs base (typed) |
+|---|---|---|---|---|
+| Base 340 (frozen, same harness) | 0.0895 | 0.1474 | 181.1 | — |
+| **Signal arm** (e20) | **0.0894** | 0.1438 | 168.5 | −0.0001 |
+| **Null arm** (e20) | **0.0769** | 0.1385 | 163.0 | −0.0126 |
+| Random matched baseline | 0.0461 | 0.0768 | — | — |
 
-Null hypothesis control: a "dummy enrichment" arm with a randomized degree-profile vector (same shape, wrong values) fine-tuned identically. If the real signal ≥ dummy by < 0.05, the result is attributed to training noise, not signal.
+Signal-vs-null separation: **+0.0125** (0.0894 − 0.0769). All three real results sit far below the 0.20 gate and above random by ~1.9× typed.
 
-### Adversarial pass (fill BEFORE verdict)
+Training health: signal loss 0.0976 → 0.0985 over 20 epochs; null loss → 0.0987; nan_guard=0 both arms; no mode collapse (gen_edges ≈ 163-169, no edge erasure).
 
-- [ ] Fine-tune converged without mode collapse — loss curve: ______
-- [ ] `augment_permutation=False` confirmed end-to-end — commit: ______
-- [ ] Metric code (`src/models/fidelity.py`, `scripts/evaluate_routing_fidelity.py`) has unit tests — commit: `86cc717`
-- [ ] Null control (dummy enrichment) outperformed by ≥ 0.05 — run: ______
-- [ ] Result reproduced (2nd seed / fresh process) — run: ______
-- [ ] Extremes + edge cases inspected — artifact: ______
-- [ ] Verdict: PASS / FAIL / PENDING
+Raw logs: `docs/assets/exp/training-time-enrichment/fidelity_signal_e20.txt`, `fidelity_null_e20.txt`, `fidelity_base340.txt`; training logs `checkpoints/tte/train_{signal,null}_s0.log`.
 
-### Interpretation once verdict is in
+### Gate check
 
-if PASS → proceed to Exp 2 (Legislative Branch, LLM→BoM conditioning).
-if FAIL → Exp 3 (autoregressive edge-list generation) is the justified paradigm pivot; the diffusion-on-adjacency thesis would then have convergent negative evidence from 4 independent arms (decode × 3 + training × 1).
+| Criterion | Threshold | Signal arm | | Null arm |
+|---|---|---|---|---|
+| typed-F1 ≥ 0.20 (PASS) | ≥ 0.20 | 0.0894 | ❌ | 0.0769 ❌ |
+| Δ above decode-best 0.109 (PASS) | ≥ +0.05 | −0.0196 | ❌ | — |
+| typed-F1 ≤ 0.109 (FAIL) | ≤ 0.109 | **0.0894** | ✅ **FAIL fires** | 0.0769 ✅ |
+| Signal − null separation | ≥ 0.05 | **+0.0125** | ❌ | — |
+
+**Verdict: FAIL — 20 epochs of training-time degree enrichment is statistically indistinguishable from the frozen base, and no arm crosses any PASS branch.** The fine-tune was *inert* (loss flat, fidelity flat, edge over-generation at 6× unchanged).
+
+### Adversarial pass
+
+- [x] Fine-tune converged without mode collapse (loss flat, gen_edges ≠ 0, nan_guard=0) — logs: `train_{signal,null}_s0.log`
+- [x] `augment_permutation=False` asserted end-to-end — eval raises if violated
+- [x] Metric code has unit tests — `tests/test_fidelity.py` (3 tests), commit `86cc717`
+- [x] Null control (random degrees) run identically — **signal above null by only +0.0125 (< 0.05 gate)** → cannot attribute to signal
+- [x] In-harness base control re-evaluated (0.0895) — rules out harness drift vs prior arms
+- [ ] Result on 2nd seed — **omitted: not required once FAIL fires** (pre-registered: 2-seed reproduction is a PASS gate, and the FAIL path already triggered on the primary criterion)
+- [x] Extremes inspected — max typed-F1 0.667-0.800 (best-graph outliers), full quantile distribution logged
+- **Verdict: FAIL**
+
+### Interpretation
+
+Training-time delivery of the degree signal does not rescue routing fidelity. The finding is stronger than Arms A/C: even with gradients seeing the signal for 20 epochs, the model does **not** use it — typed-F1 is identical to the frozen base, and the null arm (garbage degrees) *slightly hurts* (0.0769 vs 0.0895), suggesting the fine-tune itself contributes nothing but noise. Combined with the decode-time arms, this is **convergent negative evidence across 4 independent interventions** on the same frozen DiT: the failure is not the *delivery mechanism* (decode bias vs. training-time conditioning) but the *model's routing capacity* under dense-matrix flow-matching conditioning. The `EXPECTED_DATA_IN` table is a deterministic re-expression of the motifs the model already receives — it carries zero additional information about *which* edges to create, and the model cannot extract per-node degree from the motif embedding it already has.
+
+### Direction
+
+The BoM enrichment program is **closed** (4 arms: edge-count FAIL, degree-profile AMBIGUOUS, partial-seed NEGATIVE, training-time FAIL). Exp 2 (Legislative Branch) cannot be un-gated via enrichment — no arm reached typed-F1 ≥ 0.20. The pre-registered outcome map fires: **proceed to Exp 3 (autoregressive edge-list generation)** as the paradigm pivot. The thesis (A→C, intent→executable structure) is not disproven; the *implementation* (dense adjacency diffusion + enrichment) is now backed by convergent negative evidence from decode- and training-time interventions.
+
+### Code / artifacts
+
+- `src/models/dit.py` — `InputConditioner.use_degree` + zero-init `degree_proj` branch, `GraphDiTBlock.use_reentrant` flag
+- `src/models/model.py` — `build_expected_in_degrees()`, `forward(..., degrees=)`
+- `src/models/loss.py` — `compute_flow_matching_loss(..., degrees=)`
+- `scripts/finetune_degree_profile.py` — fine-tune (signal/null), `scripts/evaluate_tte.py` — eval harness
+- Commits: `9e16666` (feat), `cb28175` (zero-init fix), `bb2baad`/`54a6588` (eval harness fixes), + null-arm device fix
+- Raw evals: `docs/assets/exp/training-time-enrichment/` (fidelity_{signal,null,base340}.txt)
 

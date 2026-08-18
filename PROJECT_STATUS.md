@@ -1,29 +1,30 @@
 # Project Status Tracker
 
-**Last Updated**: 2026-08-18
+**Last Updated**: 2026-08-18 (Exp 1.9 concluded)
 **Purpose**: Quick orientation guide — the ground-truth read on current state, verified against disk, git, and test results.
 
 > **This file is authoritative for "where are we now."** For the strategic backlog (what's next, what's ruled out, what's open), see [`docs/03_EXPERIMENT_TREE.md`](docs/03_EXPERIMENT_TREE.md). For the detailed chronological log, see [`docs/02_EXPERIMENTS_AND_RESULTS.md`](docs/02_EXPERIMENTS_AND_RESULTS.md).
 
 ---
 
-## 🎯 CURRENT STATUS: BoM Enrichment — All Arms Complete, Fork Decided Next
+## 🎯 CURRENT STATUS: Enrichment Program Closed (4 arms, all sub-0.20) — Exp 3 Pivot Decided
 
 ### Where we are
 
-**Exp 1.5 (Routing Fidelity)** proved the DiT is steerable (Jaccard 0.50) but the 1D motif array underspecifies programs (typed-F1 0.085). This triggered a BoM enrichment program, now **complete across all three arms:**
+**Exp 1.5 (Routing Fidelity)** proved the DiT is steerable (Jaccard 0.50) but the 1D motif array underspecifies programs (typed-F1 0.085). The BoM enrichment program — decode-time and training-time — is now **complete and closed.** All four arms failed to reach the 0.20 gate:
 
 | Arm | Mechanism | N | typed-F1 baseline | Best typed-F1 | Δ | Verdict |
 |---|---|---|---|---|---|---|
 | **A** (Edge-Count) | Global density bias (FiLM presence) | 128 | 0.088 | 0.082 | −5.8% | **FAIL** |
-| **B** (Degree-Profile) | Per-node in/out degree bias | 128 | 0.075 | **0.109** | **+46%** | **AMBIGUOUS** |
-| **C** (Partial-Seed) | Seed 10–20% gt edges, denoise rest | 64 | 0.098 | 0.296\* | +201%\* | **NEGATIVE** |
+| **B** (Degree-Profile) | Per-node in/out degree bias (decode) | 128 | 0.075 | **0.109** | **+46%** | **AMBIGUOUS** |
+| **C** (Partial-Seed) | Seed gt edges, denoise rest | 64 | 0.098 | 0.296\* | +201%\* | **NEGATIVE** |
+| **D (Exp 1.9)** | In-channel degree fine-tune (train-time) | 512 | 0.0895 | 0.0894 (signal) / 0.0769 (null) | ≈0 / −0.013 | **FAIL** |
 
-\* includes seeded edges; **unseeded completion F1 = 0 at all p** (dispositive finding)
+\* includes seeded edges; unseeded completion F1 = 0 (dispositive)
 
-**Key finding across all arms:** The pre-trained DiT cannot be steered to specific programs via decode-time enrichment alone. Every constraint regime's attractor is edge erasure — the presence channel conflates edge count with edge quality. Arm B gave the one positive signal (in-degree bias, +46%), but no arm crossed the 0.20 gate.
+**Key finding:** The failure is NOT the delivery mechanism (decode bias vs. training-time conditioning) — it's the **dense-matrix flow-matching routing capacity itself.** Exp 1.9's signal arm is statistically indistinguishable from the frozen base (0.0894 vs 0.0895), with the null arm (random degrees) slightly *worse* (0.0769). Four convergent negative interventions across decode- and training-time.
 
-**Exp 2 (Legislative Branch) remains gated** at typed-F1 ≥ 0.20. Forward paths per the ledger: **training-time enrichment** (bake the degree-profile signal into the conditioning input and fine-tune/retrain the DiT) or **Exp 3** (autoregressive edge-list generation — paradigm test).
+**Exp 2 (Legislative Branch) remains BLOCKED** at typed-F1 ≥ 0.20. **Exp 3 (autoregressive edge-list generation) is now the justified pivot** — the paradigm test of whether diffusion-on-adjacency is the wrong inductive bias.
 
 ### Summary of completed work
 
@@ -38,12 +39,13 @@
 | **Exp 1.6 — Edge-Count Enrichment (Arm A)** | FAIL — controls edges, reduces fidelity. | −5.8% vs baseline | `docs/assets/exp/edge-count-enrichment/` |
 | **Exp 1.7 — Degree-Profile Enrichment (Arm B)** | AMBIGUOUS — +46% lift, best yet but insufficient. | 0.075 → 0.109 | `docs/assets/exp/degree-profile-enrichment/` |
 | **Exp 1.8 — Partial-Adjacency Seeding (Arm C)** | NEGATIVE — scaffold works, unseeded completion F1 = 0. | 0.098 → 0.296\* (unseeded=0) | `docs/assets/exp/partial-seed-enrichment/` |
+| **Exp 1.9 — Training-Time Enrichment (Arm D)** | FAIL — signal inert (0.0894 ≈ base 0.0895), null arm worse (0.0769). Enrichment program closed. | ≈0 vs base | `docs/assets/exp/training-time-enrichment/` |
 
 ### Immediate next action
 
-**[P1] Decide the forward path.** The BoM enrichment program is complete — decode-time enrichment on the frozen DiT is exhausted. Per the ledger, the next arm is either **training-time enrichment** (fine-tune/retrain DiT with degree-profile signal in-channel) or **Exp 3** (autoregressive edge-list generation). Pre-register the gate BEFORE writing code.
+**[P1] Pre-register Exp 3 (autoregressive edge-list generation).** The enrichment program is closed with convergent negative evidence: the dense-matrix flow-matching DiT cannot route specific programs whether the signal arrives decode-time (Arms A/B/C) or training-time (Arm D). Exp 3 tests whether the *paradigm* (diffusion over dense adjacency) is the wrong inductive bias for sequential control flow — emitting the edge-list autoregressively instead. Pre-register the gate BEFORE writing code, per project discipline.
 
-**[P2] Cleanup untracked artifacts.** Decide what to do with `run_teacher_pseudo_labeling.py` (untracked), `mcp-unreal/` (other project's repo), and `runs/` (concluded RLAIF leftovers).
+**[P2] Cleanup untracked artifacts.** `run_teacher_pseudo_labeling.py` (untracked), `mcp-unreal/` (other project's repo), `runs/` (concluded RLAIF leftovers). Also remove the obsolete `scripts/evaluate_tte.py`/`finetune_degree_profile.py` test artifacts if they stay after Exp 3's eval harness is decided.
 
 ### Test suite status
 
