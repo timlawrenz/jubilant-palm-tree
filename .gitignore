@@ -70,3 +70,4 @@ dataset/*.backup/
 dataset/hierarchical.backup/
 .worktrees/
 .hermes/
+mcp-unreal/
