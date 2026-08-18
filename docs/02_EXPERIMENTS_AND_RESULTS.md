@@ -992,8 +992,14 @@ The frozen-DiT routing failure (typed-F1 ≈ 0.085–0.109 across 4 arms) is cau
 - **Generator:** decoder-only transformer over a single flattened edge vocabulary. Token = `(src_node, dst_node, edge_type, input_index)` discretized (node ids ≤ 128, type ∈ {0,1}, index ∈ {0..3} clamped — identical semantics to the DiT's output channels). Sequence = canonical sorted edge list of the ground-truth graph; EOS appended.
 - **Conditioning:** the existing motif array `[B,N]` (`num_dit_epoch_340.pt` uses the same). Conditioner: per-node motif embedding added to the sequence's positional context + cross-attention (same philosophy as `InputConditioner`; fresh params).
 - **Loss:** teacher-forced next-token CE (same data, same flow direction as DiT's MSE/CE — only the output parametrization differs).
-- **Fine-tune/pretrain:** fresh run, same 3,951-graph dataset, `augment_permutation=True` for training (canonical sort per permutation at collate time).
+- **Fine-tune/pretrain:** fresh run, same 3,951-graph dataset, `augment_permutation=False` (canonical node order; see revision 2 below — the AR output language IS the canonical order).
 - **Decode:** autoregressive greedy (top-1). Post-process with the existing `ConstraintSolver.discretize_and_repair` (unchanged; treat the emitted sequence as raw adjacency) so the pipeline stays identical to previous arms.
+
+### Design revisions during execution (recorded, per ledged convention)
+
+1. **Positional re-base.** The body (edge) tokens use positions `MAX_NODES + (i − prefix_len)`, i.e., the first edge token always sits at the same positional coordinate regardless of graph size. Fixed absolute positions collapsed to EOS-heavy degeneracy (`gen_edges` ≈ 1 vs gt 15.8) because the body's grammatical coordinate shifted with variable prefix length.
+
+2. **No node-permutation augmentation.** Earlier: training `augment_permutation=True`. Diagnosed as destroying node identity for AR next-token prediction: canonical node ids were randomly rebased every epoch, so `P(src|prefix)` was trained toward near-uniform (top prob ≈ 0.056 ≈ 7× random) and greedy decode collapsed even on train-cache graphs. With canonical order, first-edge src softmax = 1.000. **The canonical edge-list order IS the output language for AR; permutation invariance is a DiT-matrix property, not an AR-sequence property.** Training now uses the same canonical order as the (canonical) eval.
 
 ### PRE-REGISTERED GUARDRAIL — held-out eval split (MANDATORY)
 
