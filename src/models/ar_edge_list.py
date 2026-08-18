@@ -62,12 +62,12 @@ def encode_graph(graph: dict) -> tuple[list[int], int]:
     """Return (token list, num_nodes) for a graph whose node ids are
     0..num_nodes-1 (permutation applied upstream)."""
     nodes = graph["nodes"]
-    motif_map = {n["node_id"]: n["motif"] for n in nodes}
+    motif_map = {n["node_id"]: MOTIF_IDS.get(n["motif"], 0) for n in nodes}
     num_nodes = len(nodes)
 
     seq = []
     for i in range(num_nodes):
-        mid = motif_map.get(i, 1)
+        mid = motif_map.get(i, 0)
         if mid not in _VALID_MOTIF:
             mid = 1
         seq.append(motif_token(mid))
