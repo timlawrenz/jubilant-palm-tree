@@ -1,6 +1,6 @@
 # Project Status Tracker
 
-**Last Updated**: 2026-08-18 (Exp 3 fully PASS, 2 seeds; Exp 2 un-gated)
+**Last Updated**: 2026-08-18 (Exp 3 fully PASS + SVR closure; Exp 2 gate pre-registered)
 **Purpose**: Quick orientation guide — the ground-truth read on current state, verified against disk, git, and test results.
 
 > **This file is authoritative for "where are we now."** For the strategic backlog (what's next, what's ruled out, what's open), see [`docs/03_EXPERIMENT_TREE.md`](docs/03_EXPERIMENT_TREE.md). For the detailed chronological log, see [`docs/02_EXPERIMENTS_AND_RESULTS.md`](docs/02_EXPERIMENTS_AND_RESULTS.md).
@@ -39,7 +39,7 @@
 
 ### Immediate next action
 
-**[P1] Proceed to Exp 2 (Legislative Branch).** Exp 3 formally un-gated it: LLM compiles natural-language/source intent → the Bill of Materials that the AR Executive consumes — completing the founding A→C premise end-to-end with an Executive that routes at 0.776/0.777 held-out typed-F1. Pre-register Exp 2's gate BEFORE code, per project discipline.
+**[P1] Execute Exp 2 (Legislative Branch).** Gate pre-registered 2026-08-18 (ledger, commit `________`): end-to-end held-out typed-F1 ≥ 0.20 AND ≥ +0.05 over random-BoM control; no-leak guardrail (LLM sees only method context + literal pool); decomposition rule separates Legislative vs Executive failure. Create branch `exp/legislative-branch`, connect a hosted LLM as the Legislator over the frozen AR Executive, then run the gate.
 
 **[P2] Cleanup untracked artifacts.** `run_teacher_pseudo_labeling.py` (untracked), `mcp-unreal/` (now gitignored), `runs/` (concluded RLAIF leftovers). Retire `scripts/evaluate_tte.py`/`finetune_degree_profile.py` (Exp-1.9-only) once Exp 2's harness is settled.
 

@@ -1098,3 +1098,56 @@ AR Executive as its foundation.
 - `scripts/train_ar_edge_list.py` (trainer) · `scripts/evaluate_ar_edge_list.py`
 - `checkpoints/ar/ar_s0_e150.pt` · `docs/assets/exp/autoregressive-edge-list/`
 - Ledger revisions: `ddf23da` (positional/permission) · `fd515d3` (name→id fix)
+
+---
+
+## Exp 2 — Build the A→C Conditioning Path (the Legislative Branch) — `[ACTIVE — GATE PRE-REGISTERED]`
+
+**Date:** 2026-08-18 (gate pre-registered) → (not yet executed)
+**Branch:** `exp/legislative-branch` (to be created)
+**Dependency:** Exp 3 full PASS (Tier-1 + Tier-2 — held-out typed-F1 0.776/0.777, SVR 63-72%, both seeds) → **formal un-gate.** Exp 1.9 (enrichment FAIL) and Exp 3 (paradigm PASS) jointly establish: the AR edge-list Executive is the proven routing engine this arm sits on top of.
+
+**Goal:** Complete the founding A→C premise end-to-end for the first time: **human-intent/source context → Legislative LLM → Bill of Materials (motif array + literal pool) → AR Executive → executable graph.** Per `01_VISION_AND_ARCHITECTURE.md §2/§8`, the Legislative Branch is the "Semantic Custodian" that compiles *content* (literals, method context) into the structural scaffold the Executive consumes.
+
+### Paradigm hypothesis (falsifiable)
+
+The AR Executive (proven at 0.776 held-out routing when given the *ground-truth* motif array) can be driven by a **Legislative LLM** that predicts the same Bill of Materials from the method's *content* signals — `method_name`, `repo_name`, `file_path`, and the `literal_pool` — at a fidelity high enough to preserve routing (end-to-end typed-F1 ≥ 0.20 on held-out). If the LLM cannot predict BoMs from content, the A→C premise fails as originally posed; if it can, the full intent→structure loop is demonstrated.
+
+### PRE-REGISTERED GUARDRAIL — no leakage (MANDATORY)
+
+The Legislative LLM's input is **STRICTLY** `{method_name, repo_name, file_path, literal_pool}` plus natural-language instruction. It must **never** see the ground-truth motif array, node list, or edge list. Violation voids the gate (BoM becomes a lookup, not a compilation). The eval harness asserts the prompt template contains none of the graph structure fields.
+
+### Design (pre-registered)
+
+- **Legislator:** an instruction-tuned LLM (e.g., current hosted serving on this box per `unified-memory-llm-serving`) prompted to emit a motif array over ≤128 positions for the method described by the context fields + literal pool.
+- **Decoder/output contract:** a fixed-format motif sequence (6 motif ids + pad over 128 positions) — same shape as the AR Executive's conditioning prefix.
+- **Executive:** frozen `ar_s0_e150` / `ar_s1_e150` (or the best 2-seed checkpoint) — **no retraining** (isolates Legislative contribution).
+- **Eval:** same held-out 512 split protocol as Exp 3 (disjoint: yes), same `evaluate_ar_edge_list.py` evaluation code path, same typed-F1 metric.
+- **Two rungs of measurement** (to attribute failure correctly):
+  1. **BoM fidelity:** motif-array agreement between LLM output and ground truth (per-position accuracy over the real-node prefix; also the induced-prefix softmax divergence).
+  2. **End-to-end routing:** LLM-BoM → AR Executive → graph vs ground truth → typed-F1 (the gate metric).
+
+### Pre-registered gate (stated BEFORE results)
+
+> **PASS:** end-to-end held-out typed-F1 ≥ 0.20 AND ≥ +0.05 over the "random-BoM" control, reproduced across 2 seeds (LLM sampling) and 2 Legislative prompts.
+> **FAIL:** end-to-end ≤ 0.109 (the diffusion-best) OR within 2σ of the random-BoM control — the LLM cannot compile intent→structure, and A→C as originally posed fails at the Legislative stage.
+> **Decomposition rule (pre-registered):** if BoM fidelity ≥ 0.80 but end-to-end < 0.20, the failure is in the Executive's conditioning sensitivity (report as PENDING with diagnosis, NOT FAIL). If BoM fidelity < 0.50, the failure is Legislative (FAIL).
+
+Controls (not gates): random-BoM baseline (uniform motifs — measures floor); ground-truth-BoM ceiling (should reproduce Exp 3's 0.776 — verifies the harness chain); ablations of the content signals (method-only vs literals-only vs both).
+
+### Adversarial pass (fill BEFORE verdict; any un-checked → PENDING)
+
+- [ ] No-leak assert: prompt template verified against `{nodes, edges, motif array}` — commit: ______
+- [ ] BoM fidelity computed separately from end-to-end (decomposition rule applied) — run: ______
+- [ ] Ground-truth-BoM ceiling control ≈ 0.776 ±0.02 (harness chain intact) — run: ______
+- [ ] Random-BoM floor control computed (and end-to-end above it by ≥ +0.05) — run: ______
+- [ ] Result reproduced (2nd seed + 2nd prompt) — run: ______
+- [ ] Extremes inspected (llm emits degenerate single-motif BoM; over-128 overflow) — artifact: ______
+- [ ] Metric code unchanged (`tests/test_fidelity.py` 3 tests) — commit: ______
+- [ ] Verdict: PASS / FAIL / PENDING
+
+### Interpretation once the verdict is in
+
+- **PASS** → the full A→C loop (intent → executable structure) is demonstrated; project proceeds to the resulting-graph executability audit and, eventually, end-to-end usefulness (MQ3).
+- **FAIL with high BoM fidelity** → Executive sensitivity is the new bottleneck; next step is conditioning-robustness training or a decoder-side prompting intervention.
+- **FAIL with low BoM fidelity** → the content signals are informationally insufficient for structure; the thesis reassessment (LLM-Custodian writes rules directly, per Exp 3's FAIL branch) applies.

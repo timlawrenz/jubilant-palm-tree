@@ -99,10 +99,10 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
   - *Result:* **N=512 definitive, both arms.** Signal typed-F1 0.0894 vs base 0.0895 (Δ≈0 — inert); null 0.0769 (−0.013). Signal−null separation +0.0125 < 0.05 gate. FAIL criterion fires (≤ 0.109). No arm crosses 0.20.
   - *Implication:* The enrichment program is **closed** (4 arms, all sub-0.20). The failure is not the delivery mechanism — it's the dense-matrix flow-matching routing capacity itself. Convergent negative evidence across decode- and training-time interventions → **Exp 3 (autoregressive edge-list) is the justified pivot**; Exp 2 remains gated.
 
-- **[UN-GATED] Exp 2 — Build the A→C Conditioning Path (the Legislative Branch)**
+- **[ACTIVE] Exp 2 — Build the A→C Conditioning Path (the Legislative Branch)** — `gate pre-registered, not yet executed`
   - *Concept:* Per `01_VISION_AND_ARCHITECTURE.md §8`, intent enters at the **Legislative Branch (LLM)**, which compiles human intent → the Bill of Materials (motif array) + Literal Pool. The AR edge-list generator (Exp 3) consumes that Bill of Materials. This arm builds the LLM-shaped component that emits it from natural-language/source intent, completing the A→C path.
-  - *Why it matters:* Tests the founding premise (intent → executable structure) end to end. Sits *on top of* the now-proven AR Executive (held-out typed-F1 0.776).
-  - *Depends on:* **Exp 3 full PASS (Tier-1 + Tier-2, 2026-08-18).** Formally un-gated — the AR Executive routes at held-out typed-F1 0.776/0.777 (2 seeds).
+  - *Gate (pre-registered 2026-08-18):* End-to-end held-out typed-F1 ≥ 0.20 AND ≥ +0.05 over random-BoM control; decomposition rule separates Legislative (BoM) vs Executive (conditioning) failure. **No-leak guardrail**: LLM input = method context + literal pool only (never the motif array/edges).
+  - *Why it matters:* Tests the founding premise (intent → executable structure) end to end. Sits *on top of* the now-proven AR Executive (held-out typed-F1 0.776/0.777, SVR 63-72%).
 
 - **[CONCLUDED — PASS] Exp 3 — AR Edge-List Generation** — `Exp 2 formally UN-GATED`
   - *Concept:* Treat the executable graph as the output "language": an autoregressive / seq2seq transformer that emits the edge-list directly (token = src/dst/type/index), conditioned on the same motif array. Control flow is inherently sequential/causal, which a dense-matrix diffusion prior simply has the wrong inductive bias for.
