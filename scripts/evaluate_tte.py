@@ -132,9 +132,9 @@ def main():
                         num_errors += 1
                         continue
                     gt = batch["adjacency"][b]
-                    gen = discrete[b].cpu()
+                    gen_adj = discrete[b].cpu()   # NOTE: not `gen` — shadows the CUDA Generator!
 
-                    m = edge_fidelity(gen, gt, num_nodes)
+                    m = edge_fidelity(gen_adj, gt, num_nodes)
 
                     rng = torch.Generator().manual_seed(num_scored)
                     rand_adj = build_random_baseline(gt, num_nodes, m["gt_edges"], rng)
