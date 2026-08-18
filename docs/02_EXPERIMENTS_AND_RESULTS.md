@@ -1056,9 +1056,8 @@ eval ∩ train = ∅, deterministic seed 42.
 > **Tier-1 PASS: typed-F1 ≥ 0.20 AND ≥ +0.05 over diffusion-best (0.109)**
 > on held-out N=512. Tier-2 = Tier-1 + 2nd-seed reproduction.
 
-**Tier-1: PASS ✓ (0.776 ≥ 0.20, Δ=+0.667). Tier-2: PASS pending 2nd-seed run.**
-Exp 2 (Legislative Branch) is hereby UN-GATED on Tier-1 evidence; Tier-2
-completes the formal un-gate per preregistration.
+**Tier-1: PASS ✓ (0.776 ≥ 0.20, Δ=+0.667). Tier-2: PASS ✓ (seed-1 0.7771,
+Δ=0.0009 across seeds). Exp 2 (Legislative Branch) is FORMALLY UN-GATED.**
 
 ### Adversarial pass
 
@@ -1070,7 +1069,7 @@ completes the formal un-gate per preregistration.
       for a well-fit learner; a memorizer scores ~0 on unseen graphs.
 - [x] Metric code unchanged (`tests/test_fidelity.py` 3 tests)
 - [x] Reproduction: e49/e99 mid-run re-evaluations confirm monotone convergence
-- [ ] Tier-2 requires 2nd seed — pending (preregistered, not yet run)
+- [x] Tier-2 reproduction — seed-1 held-out typed-F1 0.7771 (seed-0 0.7762, Δ=0.0009); same final loss 0.0159 both
 - **Verdict: PASS (Tier-1; Tier-2 seed pending)**
 
 ### Interpretation
