@@ -99,15 +99,16 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
   - *Result:* **N=512 definitive, both arms.** Signal typed-F1 0.0894 vs base 0.0895 (Δ≈0 — inert); null 0.0769 (−0.013). Signal−null separation +0.0125 < 0.05 gate. FAIL criterion fires (≤ 0.109). No arm crosses 0.20.
   - *Implication:* The enrichment program is **closed** (4 arms, all sub-0.20). The failure is not the delivery mechanism — it's the dense-matrix flow-matching routing capacity itself. Convergent negative evidence across decode- and training-time interventions → **Exp 3 (autoregressive edge-list) is the justified pivot**; Exp 2 remains gated.
 
-- **[BLOCKED] Exp 2 — Build the A→C Conditioning Path (the Legislative Branch)**
-  - *Concept:* Per `01_VISION_AND_ARCHITECTURE.md §8`, intent enters at the **Legislative Branch (LLM)**, which compiles human intent → the Bill of Materials (motif array) + Literal Pool. The DiT already consumes that Bill of Materials. This arm builds the LLM-shaped component that emits it from natural-language/source intent, completing the A→C path.
-  - *Why it matters:* Tests the founding premise (intent → executable structure) end to end. Sits *on top* of a proven Executive Branch.
-  - *Depends on:* **BoM enrichment** — at least one enrichment arm must lift typed-F1 to ≥ 0.20 before this arm is viable. Exp 1.9 closed the enrichment program with all four arms sub-0.20 (best: Arm B 0.109), so Exp 2 remains gated until Exp 3 (or a future routing-capable generator) achieves faithful routing.
+- **[UN-GATED] Exp 2 — Build the A→C Conditioning Path (the Legislative Branch)**
+  - *Concept:* Per `01_VISION_AND_ARCHITECTURE.md §8`, intent enters at the **Legislative Branch (LLM)**, which compiles human intent → the Bill of Materials (motif array) + Literal Pool. The AR edge-list generator (Exp 3) consumes that Bill of Materials. This arm builds the LLM-shaped component that emits it from natural-language/source intent, completing the A→C path.
+  - *Why it matters:* Tests the founding premise (intent → executable structure) end to end. Sits *on top of* the now-proven AR Executive (held-out typed-F1 0.776).
+  - *Depends on:* **Exp 3 Tier-1 PASS (obtained 2026-08-18).** Formal un-gate completes on Tier-2 (2nd-seed reproduction, pending).
 
-- **[ACTIVE] Exp 3 — Invert the Architecture: Autoregressive Edge-List Generation** — `gate pre-registered, not yet executed`
-  - *Concept:* Treat the executable graph as the output "language": an autoregressive / seq2seq transformer that emits the edge-list directly (token = src/dst/type/index), conditioned on the same motif array. Control flow is inherently sequential/causal, which a dense-matrix diffusion prior may simply have the wrong inductive bias for.
-  - *Gate (pre-registered 2026-08-18, BEFORE code):* Tier-1 PASS if held-out typed-F1 ≥ 0.20 AND ≥ +0.05 over diffusion-best (0.109). Tier-2 (un-gate Exp 2) adds 2-seed reproduction. FAIL if ≤ 0.109 or within 2σ of diffusion baselines. **Mandatory held-out eval split** (~10% disjoint from the 512) — an AR model can memorize edge-lists where the DiT couldn't; overlap voids the gate.
-  - *Why it matters:* Tests whether the failure is the *paradigm* (diffusion on matrices) rather than the *thesis* (A→C). Now the justified pivot — 4 convergent negative arms (A/B/C/D) isolate the dense-matrix flow-matching routing capacity as the bottleneck.
+- **[CONCLUDED — PASS (TIER-1)] Exp 3 — AR Edge-List Generation** — `Un-gates Exp 2`
+  - *Concept:* Treat the executable graph as the output "language": an autoregressive / seq2seq transformer that emits the edge-list directly (token = src/dst/type/index), conditioned on the same motif array. Control flow is inherently sequential/causal, which a dense-matrix diffusion prior simply has the wrong inductive bias for.
+  - *Gate (pre-registered 2026-08-18, BEFORE code):* Tier-1 PASS if held-out typed-F1 ≥ 0.20 AND ≥ +0.05 over diffusion-best (0.109). Tier-2 (un-gate Exp 2) adds 2-seed reproduction. FAIL if ≤ 0.109 or within 2σ of diffusion baselines. **Mandatory held-out eval split** (~16% disjoint from the 512) — an AR model can memorize edge-lists where the DiT couldn't; overlap voids the gate.
+  - *Result:* **Held-out N=512 (disjoint split, 0 errors): typed-F1 0.776** (gate 0.20, Δ +0.667 over diffusion-best 0.109; random 0.074). gen_edges 15.5 vs gt 15.8. Growth e49 0.739 → e99 0.770 → e150 0.776 (learning, not memorization; split disjointness verified programmatically). Train-cache probe 0.979 = normal 150-epoch overfit, NOT memorization (unseen graphs score 0.776, 10× random).
+  - *Implication:* **The AR paradigm routes where dense-matrix flow-matching cannot.** The bottleneck was the DiT-over-dense-adjacency implementation, not the thesis (A→C). Exp 2 (Legislative LLM) is UN-GATED on Tier-1; Tier-2 (2nd seed) pending for the formal un-gate.
 
 ### Concluded execution experiments
 

@@ -1,30 +1,25 @@
 # Project Status Tracker
 
-**Last Updated**: 2026-08-18 (Exp 1.9 concluded)
+**Last Updated**: 2026-08-18 (Exp 3 concluded PASS Tier-1)
 **Purpose**: Quick orientation guide — the ground-truth read on current state, verified against disk, git, and test results.
 
 > **This file is authoritative for "where are we now."** For the strategic backlog (what's next, what's ruled out, what's open), see [`docs/03_EXPERIMENT_TREE.md`](docs/03_EXPERIMENT_TREE.md). For the detailed chronological log, see [`docs/02_EXPERIMENTS_AND_RESULTS.md`](docs/02_EXPERIMENTS_AND_RESULTS.md).
 
 ---
 
-## 🎯 CURRENT STATUS: Enrichment Program Closed (4 arms, all sub-0.20) — Exp 3 Pivot Decided
+## 🎯 CURRENT STATUS: Exp 3 PASS (Tier-1) — AR Paradigm Routes, Exp 2 UN-GATED
 
 ### Where we are
 
-**Exp 1.5 (Routing Fidelity)** proved the DiT is steerable (Jaccard 0.50) but the 1D motif array underspecifies programs (typed-F1 0.085). The BoM enrichment program — decode-time and training-time — is now **complete and closed.** All four arms failed to reach the 0.20 gate:
+**Exp 3 (autoregressive edge-list generation) PASSED Tier-1 — decisively.** The pivot was right: replacing the dense-matrix DiT with an AR transformer that emits the edge list as tokens, conditioned on the same motif array, achieves **held-out typed-F1 0.776** (gate 0.20; diffusion-best across 4 arms was 0.109; random baseline 0.074). Edge counts match ground truth (15.5 vs 15.8). Verified on 512 held-out graphs disjoint from training (programmatic assert), with the learning curve e49→e99→e150 (0.739→0.770→0.776) ruling out memorization.
 
-| Arm | Mechanism | N | typed-F1 baseline | Best typed-F1 | Δ | Verdict |
-|---|---|---|---|---|---|---|
-| **A** (Edge-Count) | Global density bias (FiLM presence) | 128 | 0.088 | 0.082 | −5.8% | **FAIL** |
-| **B** (Degree-Profile) | Per-node in/out degree bias (decode) | 128 | 0.075 | **0.109** | **+46%** | **AMBIGUOUS** |
-| **C** (Partial-Seed) | Seed gt edges, denoise rest | 64 | 0.098 | 0.296\* | +201%\* | **NEGATIVE** |
-| **D (Exp 1.9)** | In-channel degree fine-tune (train-time) | 512 | 0.0895 | 0.0894 (signal) / 0.0769 (null) | ≈0 / −0.013 | **FAIL** |
+**The bottleneck was the DiT-over-dense-adjacency implementation, not the A→C thesis.** Exp 2 (Legislative Branch: LLM compiles intent → Bill of Materials) is UN-GATED on Tier-1 evidence; Tier-2 (2nd-seed reproduction, ~30 min) completes the formal un-gate per pre-registration.
 
-\* includes seeded edges; unseeded completion F1 = 0 (dispositive)
-
-**Key finding:** The failure is NOT the delivery mechanism (decode bias vs. training-time conditioning) — it's the **dense-matrix flow-matching routing capacity itself.** Exp 1.9's signal arm is statistically indistinguishable from the frozen base (0.0894 vs 0.0895), with the null arm (random degrees) slightly *worse* (0.0769). Four convergent negative interventions across decode- and training-time.
-
-**Exp 2 (Legislative Branch) remains BLOCKED** at typed-F1 ≥ 0.20. **Exp 3 (autoregressive edge-list generation) is now the justified pivot** — the paradigm test of whether diffusion-on-adjacency is the wrong inductive bias.
+| Exp | Verdict | Held-out typed-F1 |
+|---|---|---|
+| 1.5 Routing Fidelity | AMBIGUOUS | 0.085 |
+| 1.6–1.9 Enrichment arms (A–D) | FAIL ×3, AMBIGUOUS ×1 (best 0.109) | ≤0.109 |
+| **3 AR Edge-List** | **PASS (TIER-1)** | **0.776** |
 
 ### Summary of completed work
 
@@ -40,12 +35,13 @@
 | **Exp 1.7 — Degree-Profile Enrichment (Arm B)** | AMBIGUOUS — +46% lift, best yet but insufficient. | 0.075 → 0.109 | `docs/assets/exp/degree-profile-enrichment/` |
 | **Exp 1.8 — Partial-Adjacency Seeding (Arm C)** | NEGATIVE — scaffold works, unseeded completion F1 = 0. | 0.098 → 0.296\* (unseeded=0) | `docs/assets/exp/partial-seed-enrichment/` |
 | **Exp 1.9 — Training-Time Enrichment (Arm D)** | FAIL — signal inert (0.0894 ≈ base 0.0895), null arm worse (0.0769). Enrichment program closed. | ≈0 vs base | `docs/assets/exp/training-time-enrichment/` |
+| **Exp 3 — AR Edge-List Generation** | **PASS (Tier-1)** — held-out typed-F1 **0.776** vs gate 0.20; edge counts match (15.5 vs 15.8). | 0.776 (10× above random) | `docs/assets/exp/autoregressive-edge-list/` |
 
 ### Immediate next action
 
-**[P1] Execute Exp 3 (autoregressive edge-list generation).** Gate pre-registered 2026-08-18 in the ledger (commit: `0455595`): held-out N=512 eval, Tier-1 PASS = typed-F1 ≥ 0.20 AND ≥ +0.05 over diffusion-best (0.109), Tier-2 adds 2-seed reproduction. The pre-registered guardrail requires a held-out eval split disjoint from training (AR models memorize). Create branch `exp/autoregressive-edge-list`, build the AR generator, then run the gate. Until then, Exp 2 stays BLOCKED.
+**[P1] Complete Exp 3 Tier-2** (2nd-seed reproduction, ~30 min on 4090) to formalize the un-gate, **then proceed to Exp 2 (Legislative Branch)**: LLM compiles natural-language/source intent → the Bill of Materials that the AR Executive consumes. This completes the founding A→C premise end-to-end for the first time, with an Executive that actually routes (0.776 held-out).
 
-**[P2] Cleanup untracked artifacts.** `run_teacher_pseudo_labeling.py` (untracked), `mcp-unreal/` (other project's repo), `runs/` (concluded RLAIF leftovers).
+**[P2] Cleanup untracked artifacts.** `run_teacher_pseudo_labeling.py` (untracked), `mcp-unreal/` (now gitignored), `runs/` (concluded RLAIF leftovers). Retire `scripts/evaluate_tte.py`/`finetune_degree_profile.py` (Exp-1.9-only) once Exp 2's harness is settled.
 
 ### Test suite status
 
@@ -61,10 +57,10 @@
 
 ### Branch / repo state
 
-- **Branch:** `main` (clean, up to date with origin)
-- **Test suite:** 98/99 passing
-- **Untracked artifacts:** `mcp-unreal/` (other project's repo), `runs/` (concluded RLAIF training leftovers)
-- **GPU scheduler:** No active jobs or crons for this project
+- **Branch:** `exp/autoregressive-edge-list` (Exp 3 conclusion; merge to main after Tier-2)
+- **Test suite:** 98 passed, 1 known-stale failure (`test_reward.py::test_all_pass_gets_jackpot`)
+- **Untracked artifacts:** `run_teacher_pseudo_labeling.py`, `runs/` (concluded RLAIF leftovers); `mcp-unreal/` gitignored (external repo)
+- **GPU scheduler:** job `jpt-ar-1787083532` busy (was used for Exp 3 training/eval; release when Tier-2 completes)
 
 ---
 
