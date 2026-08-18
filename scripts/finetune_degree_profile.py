@@ -35,7 +35,8 @@ def make_degrees(motifs: torch.Tensor, mode: str, device: torch.device,
     """Build per-node degree conditioning for the batch."""
     if mode == "signal":
         return build_expected_in_degrees(motifs).to(device)
-    # null: uniform random in [0, 2.5) — plausible range, wrong values
+    # null: uniform random in [0, 2.5) — plausible range, wrong values.
+    # NOTE: generator must live on `device` (CUDA gen for CUDA tensors).
     rng = generator or torch.Generator(device=device)
     return torch.rand(motifs.shape, generator=rng, device=device) * 2.5
 
@@ -99,7 +100,7 @@ def main():
         logf.write(msg + "\n")
         logf.flush()
 
-    gen = torch.Generator().manual_seed(args.seed)
+    gen = torch.Generator(device=device).manual_seed(args.seed)
     nan_guard = 0
     t0 = time.time()
     steps_per_epoch = max(1, len(dataset) // (args.physical_bs * args.grad_accum))
