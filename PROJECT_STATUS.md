@@ -43,9 +43,9 @@
 
 ### Immediate next action
 
-**[P1] Pre-register Exp 3 (autoregressive edge-list generation).** The enrichment program is closed with convergent negative evidence: the dense-matrix flow-matching DiT cannot route specific programs whether the signal arrives decode-time (Arms A/B/C) or training-time (Arm D). Exp 3 tests whether the *paradigm* (diffusion over dense adjacency) is the wrong inductive bias for sequential control flow — emitting the edge-list autoregressively instead. Pre-register the gate BEFORE writing code, per project discipline.
+**[P1] Execute Exp 3 (autoregressive edge-list generation).** Gate pre-registered 2026-08-18 in the ledger (commit: `...`): held-out N=512 eval, Tier-1 PASS = typed-F1 ≥ 0.20 AND ≥ +0.05 over diffusion-best (0.109), Tier-2 adds 2-seed reproduction. The pre-registered guardrail requires a held-out eval split disjoint from training (AR models memorize). Create branch `exp/autoregressive-edge-list`, build the AR generator, then run the gate. Until then, Exp 2 stays BLOCKED.
 
-**[P2] Cleanup untracked artifacts.** `run_teacher_pseudo_labeling.py` (untracked), `mcp-unreal/` (other project's repo), `runs/` (concluded RLAIF leftovers). Also remove the obsolete `scripts/evaluate_tte.py`/`finetune_degree_profile.py` test artifacts if they stay after Exp 3's eval harness is decided.
+**[P2] Cleanup untracked artifacts.** `run_teacher_pseudo_labeling.py` (untracked), `mcp-unreal/` (other project's repo), `runs/` (concluded RLAIF leftovers).
 
 ### Test suite status
 

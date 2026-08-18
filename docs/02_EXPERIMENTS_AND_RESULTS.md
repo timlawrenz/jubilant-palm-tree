@@ -970,3 +970,54 @@ The BoM enrichment program is **closed** (4 arms: edge-count FAIL, degree-profil
 - Commits: `9e16666` (feat), `cb28175` (zero-init fix), `bb2baad`/`54a6588` (eval harness fixes), + null-arm device fix
 - Raw evals: `docs/assets/exp/training-time-enrichment/` (fidelity_{signal,null,base340}.txt)
 
+
+---
+
+## Exp 3 — Invert the Architecture: Autoregressive Edge-List Generation — `[ACTIVE — GATE PRE-REGISTERED]`
+
+**Date:** 2026-08-18 (gate pre-registered) → (not yet executed)
+**Branch:** `exp/autoregressive-edge-list` (to be created)
+**Dependency:** Exp 1.9 (concluded FAIL — enrichment program closed; dense-matrix flow-matching routing capacity isolated as the bottleneck)
+
+**Goal:** Test whether the routing-fidelity ceiling is a *paradigm* problem, not a thesis problem. Where the DiT denoises a dense σ×σ adjacency matrix, this arm trains an autoregressive transformer that emits the **edge list** of the execution graph as a token sequence, conditioned on the same Bill of Materials (motif array). Control flow is inherently sequential/causal — a dense-matrix diffusion prior may have the wrong inductive bias, while an AR sequence model has the *right* one by construction.
+
+### Paradigm hypothesis
+
+The frozen-DiT routing failure (typed-F1 ≈ 0.085–0.109 across 4 arms) is caused by the dense-matrix flow-matching *generation paradigm*, not by the conditioning signal, the dataset, or the constraint-solver. An autoregressive generator conditioned on the same motifs will route specific programs with typed-F1 ≥ 0.20, un-gating Exp 2.
+
+**This arm is NOT "Exp 1.9 again with a different optimizer"** — it replaces the Executive Branch generator entirely. The Legislative→Executive→Judicial pipeline, the 6-Laws validator, and the ConstraintSolver are unchanged; only the thing that produces the noisy adjacency prior is swapped. All evaluation remains on the same routing-fidelity harness.
+
+### Model / data design (pre-registered)
+
+- **Generator:** decoder-only transformer over a single flattened edge vocabulary. Token = `(src_node, dst_node, edge_type, input_index)` discretized (node ids ≤ 128, type ∈ {0,1}, index ∈ {0..3} clamped — identical semantics to the DiT's output channels). Sequence = canonical sorted edge list of the ground-truth graph; EOS appended.
+- **Conditioning:** the existing motif array `[B,N]` (`num_dit_epoch_340.pt` uses the same). Conditioner: per-node motif embedding added to the sequence's positional context + cross-attention (same philosophy as `InputConditioner`; fresh params).
+- **Loss:** teacher-forced next-token CE (same data, same flow direction as DiT's MSE/CE — only the output parametrization differs).
+- **Fine-tune/pretrain:** fresh run, same 3,951-graph dataset, `augment_permutation=True` for training (canonical sort per permutation at collate time).
+- **Decode:** autoregressive greedy (top-1). Post-process with the existing `ConstraintSolver.discretize_and_repair` (unchanged; treat the emitted sequence as raw adjacency) so the pipeline stays identical to previous arms.
+
+### PRE-REGISTERED GUARDRAIL — held-out eval split (MANDATORY)
+
+The AR model **can memorize** the edge-list corpus; the DiT cannot. The routing-fidelity harness evaluates graphs ENTIRELY drawn from the same 3,951 `compressed_motifs.jsonl` file. **Training must hold out a random 10% (≈395 graphs) disjoint from the evaluation 512** — the eval set is drawn ONLY from the held-out split. If the eval set overlaps training, typed-F1 is a *memorization* measure, not a routing measure, and the gate is void. The eval harness asserts this at load (file `scripts/evaluate_edge_list.py` must raise if `dataset.cache` overlap > 0).
+
+### Pre-registered gate (stated BEFORE results)
+
+> **Tier-1 (paradigm-shift evidence):** PASS if typed-F1 ≥ 0.20 AND ≥ +0.05 over diffusion-best (0.109, Arm B) on the held-out N=512.
+> **Tier-2 (un-gate Ex2):** PASS if typed-F1 ≥ 0.20 AND ≥ +0.05 over diffusion-best AND reproduced with a second seed.
+> **FAIL:** typed-F1 ≤ 0.109 (no better than decode-time degree bias on a frozen DiT) OR within 2σ of the diffusion baselines (base 0.0895, best 0.109) — the paradigm shift does not rescue routing; the thesis must reassess semantic-integration without neural graph routing (e.g., LLM writes rules directly; see `Semantic Integration (The LLM Custodian)`).
+> Null/diagnostics (not gates): random edge-list baseline (≈0.046), Jaccard controllability ablation (same noise, different motifs → outputs must diverge; if Jaccard ≈ 1.0 the model ignores conditioning and Tier-1 is unattainable by construction).
+
+### Adversarial pass (fill BEFORE verdict; any un-checked → PENDING)
+
+- [ ] Held-out split verifiably disjoint (train ∩ eval = ∅) — assert in harness: ______
+- [ ] Memorization check: typed-F1 on training-cache vs held-out ≤ +0.02 delta (avg) — run: ______
+- [ ] Metric code (`src/models/fidelity.py`, tests `tests/test_fidelity.py`) unchanged — commit: ______
+- [ ] Result reproduced (2nd seed / fresh process) — run: ______
+- [ ] Extremes + edge cases inspected (degenerate to one-edge graphs, progressive decoding quality) — artifact: ______
+- [ ] Verdict: PASS/Fail/PENDING with tier noted
+
+### Interpretation once the verdict is in
+
+- **Tier-1/Tier-2 PASS** → the dense-matrix diffusion prior was the bottleneck; Ex2 (LLM-intent → BoM path) proceeds with an AR Executive and no longer gated by the Enrichment Program.
+- **FAIL** → convergent evidence across 5 arms that *learned* graph generation from motifs cannot route; the remaining thesis to test is *unlearned* generation (LLM emits edge-rules directly — Semantic Integration) or the feasibility of the "intent → executable structure" claim fails as originally posed.
+- **Ambiguous** (e.g., memorization-armed, or Tier-1 passes but Tier-2 not) → replicate per the pre-registered counts before any verdict.
+

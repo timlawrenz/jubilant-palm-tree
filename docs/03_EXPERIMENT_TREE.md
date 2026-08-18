@@ -104,10 +104,10 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
   - *Why it matters:* Tests the founding premise (intent → executable structure) end to end. Sits *on top* of a proven Executive Branch.
   - *Depends on:* **BoM enrichment** — at least one enrichment arm must lift typed-F1 to ≥ 0.20 before this arm is viable. Exp 1.9 closed the enrichment program with all four arms sub-0.20 (best: Arm B 0.109), so Exp 2 remains gated until Exp 3 (or a future routing-capable generator) achieves faithful routing.
 
-- **[NEXT] Exp 3 — Invert the Architecture: Autoregressive Edge-List Generation**
-  - *Concept:* If diffusion-over-dense-adjacency keeps failing at global control flow, treat the executable graph as the output "language": an autoregressive / seq2seq model that emits the edge-list directly, conditioned on intent. Control flow is inherently sequential/causal, which a dense-matrix diffusion prior may simply have the wrong inductive bias for.
-  - *Why it matters:* Tests whether the failure is the *paradigm* (diffusion on matrices) rather than the *thesis* (A→C). Closer to how code LLMs already succeed, but the target is C (executable topology), not B (text).
-  - *Depends on:* Exp 1.9 verdict. Now the justified pivot — Exp 1.9 (training-time enrichment, FAIL, signal inert vs base) is the 4th convergent negative arm; the dense-matrix flow-matching routing capacity is the isolated bottleneck.
+- **[ACTIVE] Exp 3 — Invert the Architecture: Autoregressive Edge-List Generation** — `gate pre-registered, not yet executed`
+  - *Concept:* Treat the executable graph as the output "language": an autoregressive / seq2seq transformer that emits the edge-list directly (token = src/dst/type/index), conditioned on the same motif array. Control flow is inherently sequential/causal, which a dense-matrix diffusion prior may simply have the wrong inductive bias for.
+  - *Gate (pre-registered 2026-08-18, BEFORE code):* Tier-1 PASS if held-out typed-F1 ≥ 0.20 AND ≥ +0.05 over diffusion-best (0.109). Tier-2 (un-gate Exp 2) adds 2-seed reproduction. FAIL if ≤ 0.109 or within 2σ of diffusion baselines. **Mandatory held-out eval split** (~10% disjoint from the 512) — an AR model can memorize edge-lists where the DiT couldn't; overlap voids the gate.
+  - *Why it matters:* Tests whether the failure is the *paradigm* (diffusion on matrices) rather than the *thesis* (A→C). Now the justified pivot — 4 convergent negative arms (A/B/C/D) isolate the dense-matrix flow-matching routing capacity as the bottleneck.
 
 ### Concluded execution experiments
 
