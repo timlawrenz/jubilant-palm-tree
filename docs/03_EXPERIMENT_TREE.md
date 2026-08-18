@@ -102,13 +102,13 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
 - **[UN-GATED] Exp 2 — Build the A→C Conditioning Path (the Legislative Branch)**
   - *Concept:* Per `01_VISION_AND_ARCHITECTURE.md §8`, intent enters at the **Legislative Branch (LLM)**, which compiles human intent → the Bill of Materials (motif array) + Literal Pool. The AR edge-list generator (Exp 3) consumes that Bill of Materials. This arm builds the LLM-shaped component that emits it from natural-language/source intent, completing the A→C path.
   - *Why it matters:* Tests the founding premise (intent → executable structure) end to end. Sits *on top of* the now-proven AR Executive (held-out typed-F1 0.776).
-  - *Depends on:* **Exp 3 Tier-1 PASS (obtained 2026-08-18).** Formal un-gate completes on Tier-2 (2nd-seed reproduction, pending).
+  - *Depends on:* **Exp 3 full PASS (Tier-1 + Tier-2, 2026-08-18).** Formally un-gated — the AR Executive routes at held-out typed-F1 0.776/0.777 (2 seeds).
 
-- **[CONCLUDED — PASS (TIER-1)] Exp 3 — AR Edge-List Generation** — `Un-gates Exp 2`
+- **[CONCLUDED — PASS] Exp 3 — AR Edge-List Generation** — `Exp 2 formally UN-GATED`
   - *Concept:* Treat the executable graph as the output "language": an autoregressive / seq2seq transformer that emits the edge-list directly (token = src/dst/type/index), conditioned on the same motif array. Control flow is inherently sequential/causal, which a dense-matrix diffusion prior simply has the wrong inductive bias for.
   - *Gate (pre-registered 2026-08-18, BEFORE code):* Tier-1 PASS if held-out typed-F1 ≥ 0.20 AND ≥ +0.05 over diffusion-best (0.109). Tier-2 (un-gate Exp 2) adds 2-seed reproduction. FAIL if ≤ 0.109 or within 2σ of diffusion baselines. **Mandatory held-out eval split** (~16% disjoint from the 512) — an AR model can memorize edge-lists where the DiT couldn't; overlap voids the gate.
-  - *Result:* **Held-out N=512 (disjoint split, 0 errors): typed-F1 0.776** (gate 0.20, Δ +0.667 over diffusion-best 0.109; random 0.074). gen_edges 15.5 vs gt 15.8. Growth e49 0.739 → e99 0.770 → e150 0.776 (learning, not memorization; split disjointness verified programmatically). Train-cache probe 0.979 = normal 150-epoch overfit, NOT memorization (unseen graphs score 0.776, 10× random).
-  - *Implication:* **The AR paradigm routes where dense-matrix flow-matching cannot.** The bottleneck was the DiT-over-dense-adjacency implementation, not the thesis (A→C). Exp 2 (Legislative LLM) is UN-GATED on Tier-1; Tier-2 (2nd seed) pending for the formal un-gate.
+  - *Result:* **Tier-1 + Tier-2 PASS.** Held-out typed-F1: seed-0 **0.776**, seed-1 **0.777** (Δ0.0009; same final loss 0.0159). Gate 0.20, Δ+0.667 over diffusion-best 0.109, random 0.074. gen_edges 15.5-15.6 vs gt 15.8. Growth e49 0.739 → e99 0.770 → e150 0.776 (learning, not memorization; split disjointness verified programmatically). Train-cache probe ~0.98 = normal 150-epoch overfit, NOT memorization.
+  - *Implication:* **The AR paradigm routes where dense-matrix flow-matching cannot (7× better).** The bottleneck was the DiT-over-dense-adjacency implementation, not the thesis (A→C). **Exp 2 (Legislative LLM) is FORMALLY UN-GATED** per pre-registration.
 
 ### Concluded execution experiments
 

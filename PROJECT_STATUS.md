@@ -1,6 +1,6 @@
 # Project Status Tracker
 
-**Last Updated**: 2026-08-18 (Exp 3 concluded PASS Tier-1)
+**Last Updated**: 2026-08-18 (Exp 3 fully PASS, 2 seeds; Exp 2 un-gated)
 **Purpose**: Quick orientation guide — the ground-truth read on current state, verified against disk, git, and test results.
 
 > **This file is authoritative for "where are we now."** For the strategic backlog (what's next, what's ruled out, what's open), see [`docs/03_EXPERIMENT_TREE.md`](docs/03_EXPERIMENT_TREE.md). For the detailed chronological log, see [`docs/02_EXPERIMENTS_AND_RESULTS.md`](docs/02_EXPERIMENTS_AND_RESULTS.md).
@@ -11,15 +11,15 @@
 
 ### Where we are
 
-**Exp 3 (autoregressive edge-list generation) PASSED Tier-1 — decisively.** The pivot was right: replacing the dense-matrix DiT with an AR transformer that emits the edge list as tokens, conditioned on the same motif array, achieves **held-out typed-F1 0.776** (gate 0.20; diffusion-best across 4 arms was 0.109; random baseline 0.074). Edge counts match ground truth (15.5 vs 15.8). Verified on 512 held-out graphs disjoint from training (programmatic assert), with the learning curve e49→e99→e150 (0.739→0.770→0.776) ruling out memorization.
+**Exp 3 (autoregressive edge-list generation) PASSED — fully (Tier-1 + Tier-2).** The pivot was right: replacing the dense-matrix DiT with an AR transformer that emits the edge list as tokens, conditioned on the same motif array, achieves **held-out typed-F1 0.776 / 0.777 across two seeds** (gate 0.20; diffusion-best across 4 arms was 0.109; random baseline 0.074). Edge counts match ground truth (15.5 vs 15.8). Verified on 512 held-out graphs disjoint from training (programmatic assert), with the learning curve e49→e99→e150 (0.739→0.770→0.776) ruling out memorization.
 
-**The bottleneck was the DiT-over-dense-adjacency implementation, not the A→C thesis.** Exp 2 (Legislative Branch: LLM compiles intent → Bill of Materials) is UN-GATED on Tier-1 evidence; Tier-2 (2nd-seed reproduction, ~30 min) completes the formal un-gate per pre-registration.
+**The bottleneck was the DiT-over-dense-adjacency implementation, not the A→C thesis.** Exp 2 (Legislative Branch: LLM compiles intent → Bill of Materials) is **FORMALLY UN-GATED** (pre-registered Tier-2 criterion met: Δ0.0009 across seeds).
 
 | Exp | Verdict | Held-out typed-F1 |
 |---|---|---|
 | 1.5 Routing Fidelity | AMBIGUOUS | 0.085 |
 | 1.6–1.9 Enrichment arms (A–D) | FAIL ×3, AMBIGUOUS ×1 (best 0.109) | ≤0.109 |
-| **3 AR Edge-List** | **PASS (TIER-1)** | **0.776** |
+| **3 AR Edge-List** | **PASS (2 seeds)** | **0.776 / 0.777** |
 
 ### Summary of completed work
 
@@ -39,7 +39,7 @@
 
 ### Immediate next action
 
-**[P1] Complete Exp 3 Tier-2** (2nd-seed reproduction, ~30 min on 4090) to formalize the un-gate, **then proceed to Exp 2 (Legislative Branch)**: LLM compiles natural-language/source intent → the Bill of Materials that the AR Executive consumes. This completes the founding A→C premise end-to-end for the first time, with an Executive that actually routes (0.776 held-out).
+**[P1] Proceed to Exp 2 (Legislative Branch).** Exp 3 formally un-gated it: LLM compiles natural-language/source intent → the Bill of Materials that the AR Executive consumes — completing the founding A→C premise end-to-end with an Executive that routes at 0.776/0.777 held-out typed-F1. Pre-register Exp 2's gate BEFORE code, per project discipline.
 
 **[P2] Cleanup untracked artifacts.** `run_teacher_pseudo_labeling.py` (untracked), `mcp-unreal/` (now gitignored), `runs/` (concluded RLAIF leftovers). Retire `scripts/evaluate_tte.py`/`finetune_degree_profile.py` (Exp-1.9-only) once Exp 2's harness is settled.
 
