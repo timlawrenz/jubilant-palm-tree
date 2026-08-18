@@ -33,8 +33,9 @@ MOTIF_MAP = {"Boundary": 1, "Sequence": 2, "Condition": 3, "Loop": 4,
 MOTIF_TOKEN_BASE = 134  # motif id 1 -> token 134
 
 
-def motif_ids_from_graph(graph) -> list[int]:
-    return [MOTIF_MAP.get(n["motif"], 0) for n in graph["nodes"]]
+def motif_ids_from_graph(graph, N: int = MAX_NODES) -> list[int]:
+    ids = [MOTIF_MAP.get(n["motif"], 0) for n in graph["nodes"]]
+    return ids + [0] * (N - len(ids))   # pad to the solver's [1, 128] contract
 
 
 def adjacency_from_graph(graph, N: int = MAX_NODES) -> torch.Tensor:
@@ -77,7 +78,9 @@ def decode_one(model, graph, num_nodes, device):
     Prefix = per-node motif tokens (conditioning); body = edge quadruplets.
     Stops at EOS token or MAX_SEQ.
     """
-    prefix = torch.tensor([MOTIF_TOKEN_BASE + (m - 1) for m in motif_ids_from_graph(graph)],
+    prefix = torch.tensor([MOTIF_TOKEN_BASE + (m - 1)
+                           for m in (MOTIF_MAP.get(n["motif"], 0) for n in graph["nodes"])
+                           if m in (1, 2, 3, 4, 5, 6)],
                           dtype=torch.long, device=device)
     tokens = prefix.clone()
     for _ in range(MAX_SEQ):
@@ -148,11 +151,14 @@ def eval_split(model, dataset, split_name, device, limit=None):
 
 
 def main():
-    ckpt_path = sys.argv[1] if len(sys.argv) > 1 else "checkpoints/ar/ar_s0_e30.pt"
+    ckpt_path = sys.argv[1] if len(sys.argv) > 1 else "checkpoints/ar/ar_s0_e150.pt"
+    d_model = int(sys.argv[2]) if len(sys.argv) > 2 else 256
+    n_layers = int(sys.argv[3]) if len(sys.argv) > 3 else 6
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"[AR-eval] ckpt={ckpt_path} device={device}", flush=True)
+    print(f"[AR-eval] ckpt={ckpt_path} d_model={d_model} n_layers={n_layers} "
+          f"device={device}", flush=True)
 
-    model = EdgeListDecoder().to(device)
+    model = EdgeListDecoder(d_model=d_model, n_layers=n_layers).to(device)
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=True)
     model.load_state_dict(ckpt["model_state_dict"])
     model.eval()

@@ -227,10 +227,36 @@ class EdgeListDecoder(nn.Module):
 
     def forward(self, x, valid):
         """x: [B, S] token ids; valid: [B, S] True for real tokens.
-        Returns logits [B, S, vocab] for every position."""
+        Returns logits [B, S, vocab] for every position.
+
+        POSITION RELATIVE TO BODY (Exp 3 fix): the prefix length varies per
+        graph (num_nodes), so absolute positions would shift the edge grammar's
+        coordinates between samples and the model collapses to EOS-heavy
+        degeneracy. We re-base positions so the BODY always starts at position
+        MAX_NODES: prefix keeps 0..p-1, body token at sequence index i (i >= p)
+        gets position MAX_NODES + (i - p). The first edge token therefore
+        always sits on the same positional coordinate across samples."""
         B, S = x.shape
-        pos_ids = torch.arange(S, device=x.device).unsqueeze(0).expand(B, S)
-        h = self.tok(x) + self.pos(pos_ids.clamp(max=self.max_len - 1))
+        arange = torch.arange(S, device=x.device).unsqueeze(0).expand(B, S)
+        # Prefix = LEADING RUN of motif tokens (134..139) ONLY. Naive
+        # `x >= MOTIF_BASE` also counts EOS(140)/PAD(141) and would treat the
+        # whole padded sequence as prefix, silently reverting to absolute
+        # positions (the collapse bug). Count the run, then stop at the first
+        # non-motif token.
+        is_motif = (x >= MOTIF_BASE) & (x < MOTIF_BASE + 6)   # [B, S]
+        # leading-run length = first index where is_motif is False
+        not_motif = ~is_motif
+        prefix_len = not_motif.long().argmax(dim=1)  # [B] (0 if all motifs — impossible)
+        # guard: if a row is ALL motif tokens (degenerate), treat as 0 prefix
+        all_motif = is_motif.all(dim=1)
+        prefix_len = torch.where(all_motif, torch.zeros_like(prefix_len), prefix_len)
+        prefix_len = prefix_len.unsqueeze(1)                  # [B, 1]
+        body_mask = arange >= prefix_len
+        pos_ids = torch.where(body_mask,
+                              MAX_NODES + (arange - prefix_len),
+                              arange)
+        pos_ids = pos_ids.clamp(max=self.max_len - 1)
+        h = self.tok(x) + self.pos(pos_ids)
         attn_mask = self._attn_mask(S, x.device)
         key_padding = ~valid
         for blk in self.blocks:

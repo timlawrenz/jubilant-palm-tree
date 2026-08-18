@@ -12,6 +12,7 @@ Usage:
 import argparse
 import os
 import time
+from contextlib import nullcontext
 
 import torch
 from torch.utils.data import DataLoader
@@ -64,7 +65,8 @@ def main():
           f"bs={args.batch_size} lr={args.lr} d={args.d_model} L={args.n_layers}", flush=True)
 
     dataset = ARGraphDataset(jsonl_path=JSONL_PATH, max_nodes=128,
-                             augment_permutation=True, eval_only=False)
+                             augment_permutation=False,   # canonical order == eval
+                             eval_only=False)
     if args.smoke:
         dataset.graphs = dataset.graphs[:64]
         dataset.augment_permutation = False
@@ -90,13 +92,16 @@ def main():
         logf.flush()
 
     t0 = time.time()
+    autocast_ctx = (torch.autocast("cuda", dtype=torch.bfloat16)
+                    if device.type == "cuda" else nullcontext())
     for epoch in range(1, args.epochs + 1):
         model.train()
         total = 0.0
         n_tok = 0
         for step, (tokens, valid, num_nodes) in enumerate(loader):
             tokens, valid = tokens.to(device), valid.to(device)
-            logits = model(tokens, valid)                     # [B, S, Vocab]
+            with autocast_ctx:
+                logits = model(tokens, valid)                     # [B, S, Vocab]
             mask = build_loss_mask(tokens, valid).to(device)   # [B, S]
             targets = tokens.clone()
             # shift: predict token p+1 from position p
