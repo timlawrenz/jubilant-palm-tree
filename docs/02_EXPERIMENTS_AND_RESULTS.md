@@ -895,3 +895,45 @@ The enrichment program has produced one mechanism that improves fidelity (Arm B,
 
 
 
+
+---
+
+## Exp 1.9 — Training-Time Enrichment (BoM Arm D) — `[ACTIVE — GATE PRE-REGISTERED]`
+
+**Date:** 2026-08-18 (gate pre-registered) → (not yet executed)
+**Branch:** `exp/training-time-enrichment`
+**Dependency:** Exp 1.8 (concluded NEGATIVE — decode-time enrichment exhausted on frozen DiT)
+
+**Goal:** Test whether baking an enriched BoM signal into the DiT's *training-time conditioning input* improves routing fidelity, where decode-time hints (FiLM bias, edge clamping) have all failed.
+
+### Design (pre-registered)
+
+Fine-tune the frozen pre-trained checkpoint (`num_dit_epoch_340.pt`, 340 epochs) on the same training distribution, but with the **motif scaffold concatenated with a per-node degree profile channel** as conditioning input. The signal is Arm B's (EXPected_degree tables used in decode bias), but now the gradients see it — the model learns to *use* the signal rather than being nudged by it at decode time. Concretely:
+
+- Input channel: `cat(motifs, expected_in_degree_stats, padding)` vs existing `motifs`
+- Fine-tune: ≤ 20 epochs, AMP bf16, NaN-grad guards (established harness), lr ≈ 1e-5 (10× lower than pre-training)
+- Evaluate with the **same Exp 1.5 routing-fidelity harness** (`scripts/evaluate_routing_fidelity.py`), identically N=512, `augment_permutation=False`, same raw-noise baseline
+- Null hypothesis: the fine-tuned model's typed-F1 ≤ decode-best (0.109) — signal is informationally useless, not merely poorly delivered
+
+### Pre-registered gate (stated BEFORE results)
+
+> **PASS:** typed-F1 ≥ 0.20 AND ≥ +0.05 above decode-best (0.109) AND reproducible across 2 seeds  
+> **FAIL:** typed-F1 ≤ 0.109 (decode-best) OR within 2σ of fine-tune null control
+
+Null hypothesis control: a "dummy enrichment" arm with a randomized degree-profile vector (same shape, wrong values) fine-tuned identically. If the real signal ≥ dummy by < 0.05, the result is attributed to training noise, not signal.
+
+### Adversarial pass (fill BEFORE verdict)
+
+- [ ] Fine-tune converged without mode collapse — loss curve: ______
+- [ ] `augment_permutation=False` confirmed end-to-end — commit: ______
+- [ ] Metric code (`src/models/fidelity.py`, `scripts/evaluate_routing_fidelity.py`) has unit tests — commit: `86cc717`
+- [ ] Null control (dummy enrichment) outperformed by ≥ 0.05 — run: ______
+- [ ] Result reproduced (2nd seed / fresh process) — run: ______
+- [ ] Extremes + edge cases inspected — artifact: ______
+- [ ] Verdict: PASS / FAIL / PENDING
+
+### Interpretation once verdict is in
+
+if PASS → proceed to Exp 2 (Legislative Branch, LLM→BoM conditioning).
+if FAIL → Exp 3 (autoregressive edge-list generation) is the justified paradigm pivot; the diffusion-on-adjacency thesis would then have convergent negative evidence from 4 independent arms (decode × 3 + training × 1).
+

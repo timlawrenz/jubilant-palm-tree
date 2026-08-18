@@ -94,6 +94,11 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
   - *Result:* **N=64 definitive.** Typed-F1 scales with p (0.30 at p=0.20) but unseeded F1 = 0 everywhere. The model generates NO edges beyond the seed set — clamping breaks the denoising trajectory for all other edges.
   - *Implication:* The enrichment program is complete. The pre-trained DiT cannot be steered to specific programs via decode-time hints alone. Training-time enrichment or architectural change (Exp 3) needed.
 
+- **[ACTIVE] Exp 1.9 — Training-Time Enrichment (BoM Arm D)** — `gate pre-registered, not yet executed`
+  - *Concept:* Fine-tune the frozen DiT with the degree-profile signal (Arm B's tables) baked into the conditioning input channel, rather than applied as a decode-time bias. Tests whether the signal is informationally useful when delivered via gradients, not presence-channel nudges.
+  - *Gate:* PASS if typed-F1 ≥ 0.20 AND ≥ +0.05 above decode-best (0.109), reproducible across 2 seeds. Null control: dummy (random) degree profile must lose by ≥ 0.05.
+  - *Implication:* PASS un-gates Exp 2 (Legislative Branch). FAIL provides convergent negative evidence across 4 arms → justifies Exp 3 pivot.
+
 - **[NEXT] Exp 2 — Build the A→C Conditioning Path (the Legislative Branch)**
   - *Concept:* Per `01_VISION_AND_ARCHITECTURE.md §8`, intent enters at the **Legislative Branch (LLM)**, which compiles human intent → the Bill of Materials (motif array) + Literal Pool. The DiT already consumes that Bill of Materials. This arm builds the LLM-shaped component that emits it from natural-language/source intent, completing the A→C path.
   - *Why it matters:* Tests the founding premise (intent → executable structure) end to end. Sits *on top* of a proven Executive Branch.
