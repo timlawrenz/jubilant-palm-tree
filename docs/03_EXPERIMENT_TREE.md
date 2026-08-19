@@ -137,11 +137,20 @@ now: enforce validity deterministically, then prove the valid graphs mean someth
     failure entirely because the reward is grounded in execution, not structure.
   - *Depends on:* MQ2 — there must be executable, conditioned generation to reward first.
 
-- **[TBD] Benchmark vs. LLM Code Generation**
+- **[PRE-REGISTERED] Benchmark vs. LLM Code Generation** — `goal gate defined 2026-08-18, execution blocked on Exp 2`
   - *Concept:* Define a small task suite. Compare NUM pipeline (valid-by-construction)
     against an LLM emitting Ruby/Python on validity, correctness, and verifiability.
-  - *Open question:* What is the honest, falsifiable claim we can make? Frame this before
-    investing — it determines whether the whole research program "succeeds."
+  - *The honest, falsifiable claim (on the record):* the pipeline achieves a higher
+    fraction of *deterministically-correct* outputs per unit cost than the LLM baseline
+    on a fixed task suite, where correctness = execution-trace verification on
+    held-out test cases. NOT "writes better code than ChatGPT."
+  - *Gate (pre-registered, ledger):* **GO** if cost-per-correct-program ≤ baseline AND
+    validity ≥ 0.90; **PIVOT** if only verifiability/validity wins (≥ +0.20); **KILL**
+    if cost ≥ 2× baseline with no ≥ +0.20 axis advantage (→ DISCONTINUATION_NOTICE
+    path). Fairness guards: identical prompts/test-sets/compute-budget, no human repair
+    loop on either side.
+  - *Depends on:* Exp 2 PASS + an executability bridge check (Graph-Walk Interpreter
+    correctly executes ≥90% of solver-valid AR outputs).
 
 ---
 

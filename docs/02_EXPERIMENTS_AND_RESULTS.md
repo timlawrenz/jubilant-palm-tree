@@ -1151,3 +1151,58 @@ Controls (not gates): random-BoM baseline (uniform motifs — measures floor); g
 - **PASS** → the full A→C loop (intent → executable structure) is demonstrated; project proceeds to the resulting-graph executability audit and, eventually, end-to-end usefulness (MQ3).
 - **FAIL with high BoM fidelity** → Executive sensitivity is the new bottleneck; next step is conditioning-robustness training or a decoder-side prompting intervention.
 - **FAIL with low BoM fidelity** → the content signals are informationally insufficient for structure; the thesis reassessment (LLM-Custodian writes rules directly, per Exp 3's FAIL branch) applies.
+
+---
+
+## MQ3 GOAL GATE — End-to-End Usefulness: Benchmark vs. LLM Code Generation — `[PRE-REGISTERED — GATE BEFORE CODE]`
+
+**Date:** 2026-08-18 (goal gate pre-registered) → (not yet executed; blocked on Exp 2)
+**Dependency:** Exp 2 (Legislative LLM → BoM). Exp 3 PASS (AR Executive routes 0.776/0.777 held-out, SVR 63-72%) established the generator. This gate defines *what success even means* for the whole program, per `03_EXPERIMENT_TREE.md §MQ3`: "Frame this before investing — it determines whether the whole research program 'succeeds.'"
+
+### The honest, falsifiable claim (the goal of the project)
+
+> **CLAIM:** The NUM pipeline (Legislative LLM → AR Executive → ConstraintSolver → Graph-Walk Interpreter) can convert a *natural-language task description* into a *verifiably correct executable graph* at a total cost and reliability profile that is **favorably comparable to, or better than, a plain LLM emitting code** on at least one axis (validity-by-construction, verifiability, or cost-per-correct-program) — measured under identical task and compute accounting.
+
+**This is NOT the claim "writes better code than ChatGPT."** The falsifiable version is narrower and measurable: on a fixed task suite, the pipeline achieves a higher fraction of *deterministically-correct* outputs per unit cost than an LLM baseline, where "deterministically-correct" is defined by execution-trace verification (the graph actually computes the intended function on held-out test cases) — not by static plausibility.
+
+### Benchmark protocol (pre-registered)
+
+- **Task suite:** a fixed set of small algorithmic tasks drawn from the project's existing corpus of 3,951 Ruby method graphs (e.g., Fibonacci, sorting, string ops — tasks whose ground-truth behavior is expressible as input→output test cases). Tasks are held-out from every stage of training (the Legislative LLM is not trained on them; the Executive never saw them). N_tasks pre-registered per suite tier (Tier-1: 20 tasks / Tier-2: 50 tasks).
+- **Baseline:** a plain LLM (same model family as the Legislative LLM, same serving) emits Ruby code for the same task descriptions. No scaffolding, no test-guided repair — single-shot per prompt, like the pipeline's single-shot graph generation.
+- **Comparison axes (each with a primary metric):**
+  1. **Validity-by-construction:** fraction of outputs passing deterministic structural validation (LLM: compiles/runs without syntax error; NUM: passes 6 Laws + solver).
+  2. **Functional correctness:** fraction of outputs that execute correctly on ALL held-out test cases (the ONLY metric that matters for the claim).
+  3. **Verifiability:** can correctness be *established* without human inspection? (NUM: execution-trace + assertions; LLM: unit tests the LLM itself writes).
+  4. **Cost-per-correct-program:** tokens × price + wall-clock, summed over attempts until correctness is achieved (the economics question asked 2026-08-18).
+- **Fairness guards (pre-registered):** identical task descriptions; identical per-task compute budget (max attempts, max tokens); identical test sets; no human-in-the-loop repair on either side; results reported per-axis, never merged into a single misleading "winner."
+
+### Pre-registered gate (the project's success/failure criteria — stated BEFORE results)
+
+> **GO (project succeeds as originally posed):** on the primary axis (functional correctness), NUM's cost-per-correct-program is ≤ the LLM baseline's AND NUM's validity-by-construction rate ≥ 0.90, measured on the pre-registered task suite with the fairness guards above.
+>
+> **PIVOT (redirect to the salvageable part):** NUM's cost-per-correct-program is higher than baseline's BUT its verifiability/validity-by-construction axis exceeds the LLM's meaningfully (e.g., ≥ +0.20 in validity) — the program *as originally posed* (cheaper code) fails, but a *narrower* claim (verifiable-by-construction program synthesis for safety-critical domains) survives and is worth pursuing.
+>
+> **KILL (the thesis does not work as a product or research program):** on the primary axis, NUM's cost-per-correct-program ≥ 2× baseline's AND no secondary axis shows a ≥ +0.20 advantage — the pipeline is not competitive on any economically or scientifically meaningful axis. This triggers the project-level archival process (DISCONTINUATION_NOTICE per `scientific-experiment-structure`): honest writeup of the validity-vs-fidelity curve, the paradigm finding (AR > DiT), and the reason the A→C loop fails as a product.
+
+### Why this gate is honest (the 2026-08-18 discussion)
+
+- "Cheaper than ChatGPT?" — only meaningful as *cost-per-correct-program*, never per-token, and never before execution-trace verification exists (legal-but-wrong graphs are MORE expensive than syntax errors, which are visible).
+- The project's own strongest counterpoint is pre-registered as the KILL branch: a 2× cost disadvantage with no axis advantage kills the thesis regardless of the lovely routing curves.
+- The claim is deliberately NOT "beats frontier LLMs on code quality" — that is unfalsifiable at this project's scale and was never the defensible bet.
+
+### Adversarial pass (fill BEFORE any GO/PIVOT verdict)
+
+- [ ] Task suite identical across both arms (hashes of prompts + test cases recorded) — commit: ______
+- [ ] Both arms given the same compute budget (attempts + tokens) — config: ______
+- [ ] Correctness scored on held-out test cases by execution, not static inspection — harness: ______
+- [ ] No human repair loop on either side (any repair is a re-attempt counted in cost) — protocol: ______
+- [ ] NUM outputs actually execute (Graph-Walk Interpreter, not just solver-valid) — runner: ______
+- [ ] Result reproducible (2 independent task-suite seeds / fresh runs) — run: ______
+- [ ] Cost accounting includes Legislative+Executive inference on NUM side and whole-prompt+repair on LLM side — ledger: ______
+- [ ] Verdict: GO / PIVOT / KILL / PENDING
+
+### Execution preconditions (protects the gate from being premature)
+
+1. Exp 2 must PASS its pre-registered gate (Legislative LLM → BoM end-to-end ≥ 0.20 held-out) — otherwise the pipeline has no intent path and the benchmark would trivially FAIL on the LLM's home turf.
+2. The Graph-Walk Interpreter must demonstrate correct execution on ≥ 90% of solver-valid AR outputs (an executability bridge check) — otherwise "correctness" cannot be measured and the gate is void.
+3. The Legislative LLM and the benchmark baseline LLM must be the same model family (isolates the pipeline's contribution from LLM capability differences).
