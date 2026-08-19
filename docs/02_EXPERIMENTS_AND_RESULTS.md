@@ -1242,3 +1242,50 @@ the pipeline tolerates imperfect BoMs, per the pre-registered decomposition.
 135 instead of 134), silently shifting every conditioning token. The CEILING
 arm scored 0.06 → caught the bug → fixed → ceiling 0.7355. The ceiling control
 earned its keep a second time (as in Exp 3).
+
+### FULL GATE RESULT (2026-08-18, N=512 held-out — PASS)
+
+**Empirical evidence (all N=512, same held-out split as Exp 3, 0 errors):**
+
+| Arm | mean end-to-end typed-F1 | Δ vs floor |
+|---|---|---|
+| CEILING (GT BoM) | 0.7761 | harness validated |
+| FLOOR (random BoM) | 0.2598 | — |
+| **LLM → BoM → AR (qwen3-coder:30b)** | **0.4901** | **+0.230** |
+| BoM fidelity (LLM vs GT motifs) | 0.3979 | — |
+| Cost | 1.3 s/call, ~11 min / 512 | — |
+
+**Gate check (pre-registered criteria):**
+- e2e ≥ 0.20 → **0.4901 ✓ (2.45×)**
+- ≥ +0.05 over floor → **+0.230 ✓ (4.6× margin)**
+- No-leak guardrail: LLM input = {method_name, repo, file, literal_pool} only ✓
+- Decomposition: BoM fidelity 0.40 (mid) + e2e 0.49 → the AR Executive tolerates
+  imperfect BoMs; per the pre-registered rule this is a robust pipeline, not a
+  Legislative failure. The LLM genuinely infers structure from literals+context
+  (best graphs: e2e 0.8+; e.g. options 0.80, client_class 0.53).
+
+**Verdict: PASS (pending reproduction run for formal completion per gate).**
+Reproduction (temp=0.3 second prompt draw) run 2026-08-18 — see the ledger
+addition below it lands.
+
+**Bugs fixed during execution (each caught by a pre-registered control):**
+1. Pilot prefix token mapping off-by-one (Boundary→135 vs 134) — CEILING scored
+   0.06, exposing the bug; fixed → ceiling 0.7355 (pilot) / 0.7761 (full gate).
+2. n_pred=300 overflow (LLM length hallucination) — hard-capped at MAX_NODES;
+   scored on the truncated block.
+
+**Artifacts:** `scripts/exp2_pilot.py`, `scripts/exp2_gate.py`, `gate_rows.csv`,
+`gate_exp2.txt`, `pilot_exp2_v*.txt` under `docs/assets/exp/legislative-branch/`.
+
+### Reproduction run (2026-08-18, temp=0.3 — formal gate completion)
+
+| | Primary (temp 0.0) | Reproduction (temp 0.3) |
+|---|---|---|
+| LLM → BoM → AR e2e | 0.4901 | 0.4955 |
+| BoM fidelity | 0.3979 | 0.3941 |
+| floor / ceiling | 0.2598 / 0.7761 | 0.2598 / 0.7761 |
+
+Both draws pass every pre-registered criterion; controls identical across
+runs. **FORMAL VERDICT: PASS (reproduced).** The A→C loop (LLM intent →
+BoM → AR Executive → graph) is demonstrated end-to-end on 512 held-out real
+methods at ~0.49 e2e typed-F1, 2× the gate, +0.23 over floor.
