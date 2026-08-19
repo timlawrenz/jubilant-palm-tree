@@ -1433,3 +1433,57 @@ harness fix. This is a project-level decision, not an implementation detail.
 measurable today — validity-by-construction, routing fidelity, cost; LLM-arm
 functional correctness via real Ruby; NUM-arm functional correctness marked
 BLOCKED-by-representation with the unblock named above.
+
+---
+
+## MQ3 RUNNABLE-ARMS EVIDENCE (2026-08-18) — LLM baseline vs NUM pipeline on curated suite — `[EVIDENCE RECORDED — VERDICT PENDING, SEE CAVEATS]`
+
+**Protocol:** 10 curated classic algorithms (fib, factorial, gcd, sum_range,
+is_palindrome, count_even, last_digit, sum_a_b, pos_or_neg, max2), authored as
+real Ruby, compressed via the production pipeline (`compress_ast.py`), scored:
+- **LLM arm:** qwen3-coder:30b writes Ruby (single shot) → **real Ruby
+  subprocess** on each task's test cases → functional pass rate.
+- **NUM arm:** Legislative LLM (method name + synthetic literal pool) → BoM →
+  AR Executive → ConstraintSolver → GraphValidator (SVR, validity-by-construction)
+  → edge_fidelity vs GT compressed graph (routing).
+
+**Results (all 10 tasks, identical prompts):**
+
+| task | LLM pass | NUM SVR | NUM typed-F1 |
+|---|---|---|---|
+| fib | 1.00 | 0% | 0.00 |
+| factorial | 1.00 | 0% | 0.00 |
+| gcd | 1.00 | 0% | 0.00 |
+| sum_range | 1.00 | 0% | 0.20 |
+| is_palindrome | 1.00 | 0% | 0.00 |
+| count_even | 1.00 | 0% | 0.20 |
+| last_digit | 1.00 | 100% | 0.25 |
+| sum_a_b | 1.00 | 0% | 0.20 |
+| pos_or_neg | 1.00 | 0% | 0.00 |
+| max2 | 1.00 | 100% | 0.25 |
+| **mean** | **1.00** | **20%** | **0.11** |
+
+**Interpretation (three layers, all documented):**
+
+1. **The LLM baseline is trivially strong on these tasks** — 100% functional
+   pass on single-shot classic algorithms, verified by execution. This is the
+   honest baseline the pipeline must beat.
+2. **The NUM arm loses decisively on every measured axis** — mean SVR 20%,
+   routing F1 0.11. On classic algorithms the pipeline's Executive + Legislative
+   fail hard.
+3. **BUT the trial is asymmetric — the NUM arm was handicapped.** (a) The
+   curated classic tasks are **out-of-distribution** for the AR Executive
+   (trained on Rails business-logic methods; my synthetic literal pools and
+   branch-heavy algorithms are far from its training distribution); (b) the
+   Legislative prompt here used a *synthetic* literal pool (2-3 tokens), much
+   weaker than Exp 2's real method context + rich literal pools (0.49 e2e
+   there); (c) functional correctness for NUM remains **blocked by the
+   branch-representation gap** (no {0,1} EXEC pairs; commit `ce1cdf7`).
+
+**Verdict: PENDING — not GO/PIVOT/KILL.** The trial shows a decisive LLM
+advantage, but `scale`-wise it is **not yet a fair MQ3** (distribution
+mismatch + weakened Legislative input + unmeasured-criteria on the strongest
+axis). The data is recorded honestly as *evidence*, not conclusion.
+
+**Artifacts:** `docs/assets/exp/mq3/mq3_runnable_arms.json`,
+`mq3_runnable_v3_run.txt`, `scripts/mq3/tasks.py`.

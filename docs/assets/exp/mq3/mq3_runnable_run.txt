@@ -1,0 +1,13 @@
+fib: LLM pass=0.00 NUM ok=True svr=0.0 f1=None
+factorial: LLM pass=0.00 NUM ok=True svr=0.0 f1=None
+gcd: LLM pass=0.00 NUM ok=True svr=0.0 f1=None
+sum_range: LLM pass=0.00 NUM ok=True svr=0.0 f1=None
+is_palindrome: LLM pass=0.00 NUM ok=True svr=0.0 f1=None
+count_even: LLM pass=0.00 NUM ok=True svr=0.0 f1=None
+last_digit: LLM pass=0.00 NUM ok=True svr=0.0 f1=None
+sum_a_b: LLM pass=0.00 NUM ok=True svr=0.0 f1=None
+pos_or_neg: LLM pass=0.00 NUM ok=True svr=100.0 f1=None
+max2: LLM pass=0.00 NUM ok=True svr=100.0 f1=None
+
+WROTE docs/assets/exp/mq3/mq3_runnable_arms.json
+MQ3_EXIT=0

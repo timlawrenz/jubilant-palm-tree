@@ -1,0 +1,12 @@
+fib: LLM pass=0.00 NUM svr=0.0 f1=0.0
+factorial: LLM pass=0.00 NUM svr=0.0 f1=0.0
+gcd: LLM pass=0.00 NUM svr=0.0 f1=0.0
+sum_range: LLM pass=0.00 NUM svr=0.0 f1=0.20000000000000004
+is_palindrome: LLM pass=0.00 NUM svr=0.0 f1=0.0
+count_even: LLM pass=0.00 NUM svr=0.0 f1=0.20000000000000004
+last_digit: LLM pass=0.00 NUM svr=100.0 f1=0.25
+sum_a_b: LLM pass=0.00 NUM svr=0.0 f1=0.20000000000000004
+pos_or_neg: LLM pass=0.00 NUM svr=0.0 f1=0.0
+max2: LLM pass=0.00 NUM svr=100.0 f1=0.25
+WROTE JSON
+MQ3V2_EXIT=0

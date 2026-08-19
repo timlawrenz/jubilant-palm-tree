@@ -1,0 +1,430 @@
+[
+  {
+    "name": "fib",
+    "llm": {
+      "executed": true,
+      "def_name": "fib",
+      "pass_rate": 1.0,
+      "cases": [
+        {
+          "args": "(0,)",
+          "expected": "0",
+          "got": "0",
+          "pass": true
+        },
+        {
+          "args": "(1,)",
+          "expected": "1",
+          "got": "1",
+          "pass": true
+        },
+        {
+          "args": "(6,)",
+          "expected": "8",
+          "got": "8",
+          "pass": true
+        },
+        {
+          "args": "(10,)",
+          "expected": "55",
+          "got": "55",
+          "pass": true
+        }
+      ],
+      "code_time": 0.5,
+      "code_tokens_est": 10
+    },
+    "num": {
+      "ok": true,
+      "leg_time": 0.28,
+      "n_pred": 4,
+      "svr": 0.0,
+      "typed_f1": 0.0,
+      "n_gen_edges": 3
+    }
+  },
+  {
+    "name": "factorial",
+    "llm": {
+      "executed": true,
+      "def_name": "factorial",
+      "pass_rate": 1.0,
+      "cases": [
+        {
+          "args": "(0,)",
+          "expected": "1",
+          "got": "1",
+          "pass": true
+        },
+        {
+          "args": "(1,)",
+          "expected": "1",
+          "got": "1",
+          "pass": true
+        },
+        {
+          "args": "(5,)",
+          "expected": "120",
+          "got": "120",
+          "pass": true
+        },
+        {
+          "args": "(7,)",
+          "expected": "5040",
+          "got": "5040",
+          "pass": true
+        }
+      ],
+      "code_time": 0.41,
+      "code_tokens_est": 8
+    },
+    "num": {
+      "ok": true,
+      "leg_time": 0.29,
+      "n_pred": 5,
+      "svr": 0.0,
+      "typed_f1": 0.0,
+      "n_gen_edges": 4
+    }
+  },
+  {
+    "name": "gcd",
+    "llm": {
+      "executed": true,
+      "def_name": "gcd",
+      "pass_rate": 1.0,
+      "cases": [
+        {
+          "args": "(48, 18)",
+          "expected": "6",
+          "got": "6",
+          "pass": true
+        },
+        {
+          "args": "(17, 5)",
+          "expected": "1",
+          "got": "1",
+          "pass": true
+        },
+        {
+          "args": "(0, 9)",
+          "expected": "9",
+          "got": "9",
+          "pass": true
+        },
+        {
+          "args": "(54, 24)",
+          "expected": "6",
+          "got": "6",
+          "pass": true
+        }
+      ],
+      "code_time": 0.45,
+      "code_tokens_est": 8
+    },
+    "num": {
+      "ok": true,
+      "leg_time": 0.29,
+      "n_pred": 5,
+      "svr": 0.0,
+      "typed_f1": 0.0,
+      "n_gen_edges": 4
+    }
+  },
+  {
+    "name": "sum_range",
+    "llm": {
+      "executed": true,
+      "def_name": "sum_to_n",
+      "pass_rate": 1.0,
+      "cases": [
+        {
+          "args": "(0,)",
+          "expected": "0",
+          "got": "0",
+          "pass": true
+        },
+        {
+          "args": "(3,)",
+          "expected": "6",
+          "got": "6",
+          "pass": true
+        },
+        {
+          "args": "(10,)",
+          "expected": "55",
+          "got": "55",
+          "pass": true
+        },
+        {
+          "args": "(100,)",
+          "expected": "5050",
+          "got": "5050",
+          "pass": true
+        }
+      ],
+      "code_time": 0.37,
+      "code_tokens_est": 7
+    },
+    "num": {
+      "ok": true,
+      "leg_time": 0.3,
+      "n_pred": 6,
+      "svr": 0.0,
+      "typed_f1": 0.20000000000000004,
+      "n_gen_edges": 5
+    }
+  },
+  {
+    "name": "is_palindrome",
+    "llm": {
+      "executed": true,
+      "def_name": "is_palindrome",
+      "pass_rate": 1.0,
+      "cases": [
+        {
+          "args": "('racecar',)",
+          "expected": "True",
+          "got": "true",
+          "pass": true
+        },
+        {
+          "args": "('hello',)",
+          "expected": "False",
+          "got": "false",
+          "pass": true
+        },
+        {
+          "args": "('a',)",
+          "expected": "True",
+          "got": "true",
+          "pass": true
+        },
+        {
+          "args": "('abba',)",
+          "expected": "True",
+          "got": "true",
+          "pass": true
+        }
+      ],
+      "code_time": 0.34,
+      "code_tokens_est": 6
+    },
+    "num": {
+      "ok": true,
+      "leg_time": 0.31,
+      "n_pred": 6,
+      "svr": 0.0,
+      "typed_f1": 0.0,
+      "n_gen_edges": 5
+    }
+  },
+  {
+    "name": "count_even",
+    "llm": {
+      "executed": true,
+      "def_name": "count_even",
+      "pass_rate": 1.0,
+      "cases": [
+        {
+          "args": "([1, 2, 3, 4],)",
+          "expected": "2",
+          "got": "2",
+          "pass": true
+        },
+        {
+          "args": "([],)",
+          "expected": "0",
+          "got": "0",
+          "pass": true
+        },
+        {
+          "args": "([2, 4, 6],)",
+          "expected": "3",
+          "got": "3",
+          "pass": true
+        },
+        {
+          "args": "([1, 3],)",
+          "expected": "0",
+          "got": "0",
+          "pass": true
+        }
+      ],
+      "code_time": 0.37,
+      "code_tokens_est": 7
+    },
+    "num": {
+      "ok": true,
+      "leg_time": 0.3,
+      "n_pred": 6,
+      "svr": 0.0,
+      "typed_f1": 0.20000000000000004,
+      "n_gen_edges": 5
+    }
+  },
+  {
+    "name": "last_digit",
+    "llm": {
+      "executed": true,
+      "def_name": "last_decimal_digit",
+      "pass_rate": 1.0,
+      "cases": [
+        {
+          "args": "(123,)",
+          "expected": "3",
+          "got": "3",
+          "pass": true
+        },
+        {
+          "args": "(0,)",
+          "expected": "0",
+          "got": "0",
+          "pass": true
+        },
+        {
+          "args": "(10,)",
+          "expected": "0",
+          "got": "0",
+          "pass": true
+        },
+        {
+          "args": "(987654321,)",
+          "expected": "1",
+          "got": "1",
+          "pass": true
+        }
+      ],
+      "code_time": 0.36,
+      "code_tokens_est": 7
+    },
+    "num": {
+      "ok": true,
+      "leg_time": 0.39,
+      "n_pred": 5,
+      "svr": 100.0,
+      "typed_f1": 0.25,
+      "n_gen_edges": 4
+    }
+  },
+  {
+    "name": "sum_a_b",
+    "llm": {
+      "executed": true,
+      "def_name": "sum",
+      "pass_rate": 1.0,
+      "cases": [
+        {
+          "args": "(2, 3)",
+          "expected": "5",
+          "got": "5",
+          "pass": true
+        },
+        {
+          "args": "(-1, 1)",
+          "expected": "0",
+          "got": "0",
+          "pass": true
+        },
+        {
+          "args": "(100, 200)",
+          "expected": "300",
+          "got": "300",
+          "pass": true
+        }
+      ],
+      "code_time": 0.33,
+      "code_tokens_est": 6
+    },
+    "num": {
+      "ok": true,
+      "leg_time": 0.3,
+      "n_pred": 6,
+      "svr": 0.0,
+      "typed_f1": 0.20000000000000004,
+      "n_gen_edges": 5
+    }
+  },
+  {
+    "name": "pos_or_neg",
+    "llm": {
+      "executed": true,
+      "def_name": "sign",
+      "pass_rate": 1.0,
+      "cases": [
+        {
+          "args": "(5,)",
+          "expected": "1",
+          "got": "1",
+          "pass": true
+        },
+        {
+          "args": "(-3,)",
+          "expected": "-1",
+          "got": "-1",
+          "pass": true
+        },
+        {
+          "args": "(0,)",
+          "expected": "0",
+          "got": "0",
+          "pass": true
+        },
+        {
+          "args": "(999,)",
+          "expected": "1",
+          "got": "1",
+          "pass": true
+        }
+      ],
+      "code_time": 0.41,
+      "code_tokens_est": 8
+    },
+    "num": {
+      "ok": true,
+      "leg_time": 0.27,
+      "n_pred": 3,
+      "svr": 0.0,
+      "typed_f1": 0.0,
+      "n_gen_edges": 2
+    }
+  },
+  {
+    "name": "max2",
+    "llm": {
+      "executed": true,
+      "def_name": "max",
+      "pass_rate": 1.0,
+      "cases": [
+        {
+          "args": "(3, 7)",
+          "expected": "7",
+          "got": "7",
+          "pass": true
+        },
+        {
+          "args": "(10, 2)",
+          "expected": "10",
+          "got": "10",
+          "pass": true
+        },
+        {
+          "args": "(-1, -5)",
+          "expected": "-1",
+          "got": "-1",
+          "pass": true
+        }
+      ],
+      "code_time": 0.36,
+      "code_tokens_est": 7
+    },
+    "num": {
+      "ok": true,
+      "leg_time": 0.29,
+      "n_pred": 5,
+      "svr": 100.0,
+      "typed_f1": 0.25,
+      "n_gen_edges": 4
+    }
+  }
+]
