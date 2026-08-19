@@ -1355,3 +1355,34 @@ full scale for AR-generated outputs. A solver-valid AR graph executes.
 
 **Artifacts:** `scripts/executability_bridge_check.py`,
 `docs/assets/exp/mq3/executability_bridge.txt`.
+
+---
+
+## MQ3 DESIGN CONSTRAINT — Corpus is not executable under the MVP interpreter `[RECORDED 2026-08-18 — design revision]`
+
+**Finding (before building the benchmark — per pre-registration discipline):** The
+pre-registered MQ3 task suite requires *functional correctness on held-out test
+cases* (execute → compute → compare output). A full corpus scan (3,951 ≤128-node
+graphs) against `GraphInterpreter.run()` shows this is infeasible on the existing
+corpus with the MVP interpreter:
+
+- **run_ok: 2** / 3,951 (methods: `increment_commands_counter`, `subscribed` — both
+  trivial `+ 1` counters)
+- **not_implemented: 3,769** — the corpus is Rails domain business logic; literal
+  pools are method calls (`'[]'` ×768, `'object'` ×615, `'new'` ×452, `map`, `each`,
+  `fetch`, `join`, `to_s`, `raise`…), not the MVP interpreter's arithmetic
+  op-set (`+ - * < <= > >= == != print safe_op`). 1,261 distinct unsupported ops.
+- **even-common-builtins-only: 4** / 3,951.
+
+**Consequence:** a functional-correctness benchmark drawn from the corpus as-is
+would either crash (NotImplementedError) or trivially measure "interpreter can't
+run it" — not the pipeline's ability to generate correct programs.
+
+**Design revision (pre-registered discipline):** the pre-registration's own
+examples (Fibonacci, sorting, string ops) are classic algorithms, not corpus
+methods. The honest task suite is therefore a **curated executable corpus**:
+author classic small algorithms as real Ruby, compress via the existing pipeline
+(02/03/04), so every task (a) is genuinely executable by the interpreter and
+(b) exercises the pipeline end-to-end (LLM → BoM → AR → solver → interpreter).
+Bounds: every task's ops ⊆ interpreter support (with a documented interpreter
+extension where a classic algorithm needs one common op, e.g. `%`).
