@@ -1,25 +1,25 @@
 # Project Status Tracker
 
-**Last Updated**: 2026-08-18 (Exp 3 fully PASS + SVR closure; Exp 2 gate pre-registered)
+**Last Updated**: 2026-08-18 (Exp 2 formal PASS — A→C demonstrated end-to-end; MQ3 next)
 **Purpose**: Quick orientation guide — the ground-truth read on current state, verified against disk, git, and test results.
 
 > **This file is authoritative for "where are we now."** For the strategic backlog (what's next, what's ruled out, what's open), see [`docs/03_EXPERIMENT_TREE.md`](docs/03_EXPERIMENT_TREE.md). For the detailed chronological log, see [`docs/02_EXPERIMENTS_AND_RESULTS.md`](docs/02_EXPERIMENTS_AND_RESULTS.md).
 
 ---
 
-## 🎯 CURRENT STATUS: Exp 3 PASS (Tier-1) — AR Paradigm Routes, Exp 2 UN-GATED
+## 🎯 CURRENT STATUS: Exp 2 PASS — A→C demonstrated end-to-end; MQ3 goal gate next
 
 ### Where we are
 
-**Exp 3 (autoregressive edge-list generation) PASSED — fully (Tier-1 + Tier-2).** The pivot was right: replacing the dense-matrix DiT with an AR transformer that emits the edge list as tokens, conditioned on the same motif array, achieves **held-out typed-F1 0.776 / 0.777 across two seeds** (gate 0.20; diffusion-best across 4 arms was 0.109; random baseline 0.074). Edge counts match ground truth (15.5 vs 15.8). Verified on 512 held-out graphs disjoint from training (programmatic assert), with the learning curve e49→e99→e150 (0.739→0.770→0.776) ruling out memorization.
+**Exp 2 (Legislative Branch) PASSED, reproduced.** An LLM compiles method context (name/repo/file + literal pool — no-leak) into the Bill of Materials, the AR Executive (Exp 3) draws the graph, and end-to-end held-out typed-F1 is **0.490 / 0.496 across two draws** (gate 0.20 → 2.45×; floor 0.26; ceiling 0.776 validating the harness chain). The **founding A→C premise — intent → executable structure — is now demonstrated end-to-end** on 512 real held-out Ruby methods, at ~1.3s/method on local hardware.
 
-**The bottleneck was the DiT-over-dense-adjacency implementation, not the A→C thesis.** Exp 2 (Legislative Branch: LLM compiles intent → Bill of Materials) is **FORMALLY UN-GATED** (pre-registered Tier-2 criterion met: Δ0.0009 across seeds).
+The full chain works: **Legislative LLM → BoM → AR Executive → ConstraintSolver → (Justice/interpreter next)**. Both earlier gates fed into this: Exp 3 proved the AR paradigm; the no-leak + decomposition + ceiling-control disciplines built on it.
 
-| Exp | Verdict | Held-out typed-F1 |
+| Gate | Verdict | Headline |
 |---|---|---|
-| 1.5 Routing Fidelity | AMBIGUOUS | 0.085 |
-| 1.6–1.9 Enrichment arms (A–D) | FAIL ×3, AMBIGUOUS ×1 (best 0.109) | ≤0.109 |
-| **3 AR Edge-List** | **PASS (2 seeds)** | **0.776 / 0.777** |
+| Exp 3 AR Executive | PASS (2 seeds) | 0.776 / 0.777, SVR 63–72% |
+| **Exp 2 Legislative** | **PASS (2 draws)** | **e2e 0.490 / 0.496** |
+| MQ3 goal gate | PRE-REGISTERED | benchmark vs LLM codegen (`e923783`) |
 
 ### Summary of completed work
 
@@ -39,9 +39,7 @@
 
 ### Immediate next action
 
-**[P1] Execute Exp 2 (Legislative Branch).** Gate pre-registered 2026-08-18 (ledger, commit `4169847`): end-to-end held-out typed-F1 ≥ 0.20 AND ≥ +0.05 over random-BoM control; no-leak guardrail (LLM sees only method context + literal pool); decomposition rule separates Legislative vs Executive failure. Create branch `exp/legislative-branch`, connect a hosted LLM as the Legislator over the frozen AR Executive, then run the gate.
-
-**[P0 — project-level goal] MQ3 goal gate pre-registered 2026-08-18** (ledger commit `e923783`): the benchmark-vs-LLM claim is now on the record — GO / PIVOT / KILL criteria defined (cost-per-correct-program, validity-by-construction, fairness guards). Execution is blocked on Exp 2 PASS + the executability bridge check. This is the gate that determines whether the whole program "succeeds."
+**[P1] Execute the MQ3 goal gate.** Pre-registered `e923783`: benchmark the full pipeline (LLM → BoM → AR → solver → interpreter) against an LLM emitting Ruby directly, on a held-out task suite, measuring functional correctness + cost-per-correct-program + validity/verifiability. **Precondition:** the executability bridge check (Graph-Walk Interpreter correctly executes ≥90% of solver-valid AR outputs) must pass first — it's the untested link in the chain and the gate is void without it.
 
 **[P2] Cleanup untracked artifacts.** `run_teacher_pseudo_labeling.py` (untracked), `mcp-unreal/` (now gitignored), `runs/` (concluded RLAIF leftovers). Retire `scripts/evaluate_tte.py`/`finetune_degree_profile.py` (Exp-1.9-only) once Exp 2's harness is settled.
 
