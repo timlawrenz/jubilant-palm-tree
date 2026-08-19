@@ -1289,3 +1289,46 @@ Both draws pass every pre-registered criterion; controls identical across
 runs. **FORMAL VERDICT: PASS (reproduced).** The A→C loop (LLM intent →
 BoM → AR Executive → graph) is demonstrated end-to-end on 512 held-out real
 methods at ~0.49 e2e typed-F1, 2× the gate, +0.23 over floor.
+
+---
+
+## DEFERRED HYPOTHESIS NOTE — Founding trigger: spec-intent + outside-in generation `[RECORDED 2026-08-18 — DEFERRED, NOT TESTED]`
+
+**Status:** Recorded per the project owner's explicit judgment. NOT tested. NOT abandoned. Do not
+treat this as a dead end, and do not confuse it with any concluded experiment.
+
+### The founding hypothesis (as stated by the project owner)
+
+The project's original intuition, described as a gut-feeling from experience writing complex
+methods — deliberately *not* backed by preliminary data at inception:
+
+1. **Intent signal = plaintext describing behavior.** The model should be trained on / conditioned
+   by RSpec-style plaintext descriptions of what code does, *heuristically linked to the code they
+   describe* (the Ruby/Rails spec ecosystem), rather than on code-internal metadata alone.
+2. **Generation is outside-in.** The program tree should be painted coarse-to-fine: the
+   least-indented skeleton first, then each deeper level — the mental model of a programmer, and
+   the architectural metaphor behind the original DiT/denoiser choice.
+
+### Partial evidence found in the repo (data layer exists; never used)
+
+- `dataset_paired_data_example.jsonl`: 4,000 rows, ids 1:1 with the graph corpus; fields
+  `method_source`, `ast_json`, `descriptions[]` with sources `method_name`, `docstring`,
+  `test_description` (sample coverage: test_description ~9%, docstring ~3% in this example file).
+- `scripts/05_create_paired_dataset.rb`, `scripts/custom_rspec_formatter.rb`,
+  `scripts/analyze_rspec_patterns.rb`: the spec→method heuristic linkage machinery was built and
+  parked before the corpus pipeline superseded it.
+
+### Why deferred (owner's reasoning, 2026-08-18)
+
+The current path (AR edge-list Executive + LLM Legislator on metadata) may be only a mandatory
+stepping stone, not the final approach. The project is close to its final gates (MQ3 benchmark,
+GO/PIVOT/KILL). Pivoting now would forfeit a strong, nearly-complete paper for an untested
+intuition. Decision: **finish the current path with rigor; re-evaluate afterwards.**
+
+### Trigger for revisiting (write these down)
+
+- MQ3 benchmark concludes (GO/PIVOT/KILL verdict) OR the AR path hits an unfixable wall.
+- Any new evidence that the pairing layer can reach meaningful coverage (e.g., full paired
+  dataset with high test_description coverage) or that depth-ordered sequences train well.
+- Then pre-register: intent = descriptions (no-leak: never the graph), generation = depth-ordered
+  edge sequences (depth from `ast_json`), same 0.20 gate, same held-out discipline.
