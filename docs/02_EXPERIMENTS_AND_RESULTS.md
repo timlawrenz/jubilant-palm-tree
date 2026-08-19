@@ -1386,3 +1386,20 @@ author classic small algorithms as real Ruby, compress via the existing pipeline
 (b) exercises the pipeline end-to-end (LLM → BoM → AR → solver → interpreter).
 Bounds: every task's ops ⊆ interpreter support (with a documented interpreter
 extension where a classic algorithm needs one common op, e.g. `%`).
+
+### Second gap found in the same scan (2026-08-18) — literal-pointer binding absent
+
+ALL 10 curated tasks failed `GraphInterpreter.run()` with
+`NotImplementedError: Operation n not implemented` — variable *names* (`n`,
+`a`, `s`, `total`, `i`) enter the literal pool as strings, but NO component
+assigns `Node.literal_pointer` (pool index of the value/op a node reads/calls).
+Per `schema.py` + `01_VISION`: "The DiT leaves this None. The LLM fills it with
+an integer index." The Fibonacci MVP demo works only because its pointer table
+was hand-written. The earlier bridge check (323/323 halt) used
+`run_with_limit`, which branches on step-parity and never resolves data — it
+proves walkability, NOT computability.
+
+**Implication for MQ3 functional correctness:** executing any pipeline-generated
+graph requires implementing the deterministic pointer-binding step (Jedi/Legislative
+responsibility) + extending the MVP op set (%, reverse, each, …). Both are
+bounded engineering work on the critical path to the functional-correctness axis.
