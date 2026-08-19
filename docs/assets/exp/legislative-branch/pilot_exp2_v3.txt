@@ -1,0 +1,30 @@
+[ARDataset] EVAL: 512 graphs (holdout=632)
+paired 20 rows with 20 held-out graphs
+=== CEILING (GT BoM) ===
+ceiling mean typed-F1: 0.7355 (expect ~0.776)
+=== FLOOR (random BoM) ===
+floor mean typed-F1: 0.2760
+=== LLM (qwen3-coder:30b) ===
+  'list' n_gt=27 n_pred=19 fid=0.26 e2e=0.154 t=0.5s
+  'client_class' n_gt=87 n_pred=20 fid=0.60 e2e=0.526 t=0.5s
+  'errors_module' n_gt=10 n_pred=300 fid=0.50 e2e=0.526 t=3.6s
+  'waiters_module' n_gt=20 n_pred=300 fid=0.35 e2e=0.462 t=3.6s
+  'authorizer_class' n_gt=11 n_pred=300 fid=0.27 e2e=0.571 t=3.7s
+  'plugin_class' n_gt=26 n_pred=300 fid=0.15 e2e=0.000 t=3.7s
+  'options' n_gt=5 n_pred=4 fid=0.50 e2e=0.800 t=0.3s
+  'block_comment' n_gt=36 n_pred=300 fid=0.25 e2e=0.316 t=3.6s
+  'escape_html' n_gt=10 n_pred=6 fid=0.33 e2e=0.444 t=0.3s
+  'default' n_gt=13 n_pred=8 fid=0.62 e2e=1.000 t=0.3s
+  'endpoint_parameter_value' n_gt=71 n_pred=300 fid=0.21 e2e=0.242 t=3.6s
+  'context_param_value' n_gt=56 n_pred=300 fid=0.18 e2e=0.291 t=3.6s
+  'error_struct?' n_gt=24 n_pred=300 fid=0.46 e2e=0.458 t=3.6s
+  'format' n_gt=10 n_pred=300 fid=0.20 e2e=0.471 t=3.6s
+  'output_event_entries' n_gt=64 n_pred=300 fid=0.31 e2e=0.167 t=3.6s
+  'input_eventstream_shape' n_gt=41 n_pred=300 fid=0.46 e2e=0.400 t=3.6s
+  'features_step_definitions_file' n_gt=8 n_pred=300 fid=0.38 e2e=0.571 t=3.7s
+  'hash' n_gt=29 n_pred=10 fid=0.20 e2e=0.222 t=0.4s
+  'inline_hash?' n_gt=17 n_pred=300 fid=0.06 e2e=0.129 t=3.6s
+  'lstrip_prefix' n_gt=13 n_pred=6 fid=0.50 e2e=0.444 t=0.3s
+
+LLM: parse=20/20 mean_fid=0.340 mean_e2e=0.4097 mean_t=2.5s (512 extrap: 21 min)
+PILOT_EXIT=0

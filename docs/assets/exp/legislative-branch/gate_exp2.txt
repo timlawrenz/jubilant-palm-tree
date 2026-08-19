@@ -1,0 +1,34 @@
+[ARDataset] EVAL: 512 graphs (holdout=632)
+paired 512 rows with 512 held-out graphs
+=== FLOOR (random BoM) ===
+floor mean: 0.2598
+=== CEILING (GT BoM) ===
+ceiling mean: 0.7761
+=== LLM (qwen3-coder:30b) ===
+  32/512 mean_e2e_so_far=0.3696 mean_t=2.6s
+  64/512 mean_e2e_so_far=0.3360 mean_t=2.4s
+  96/512 mean_e2e_so_far=0.3707 mean_t=2.1s
+  128/512 mean_e2e_so_far=0.3664 mean_t=2.1s
+  160/512 mean_e2e_so_far=0.3908 mean_t=1.9s
+  192/512 mean_e2e_so_far=0.4345 mean_t=1.7s
+  224/512 mean_e2e_so_far=0.4614 mean_t=1.6s
+  256/512 mean_e2e_so_far=0.4853 mean_t=1.5s
+  288/512 mean_e2e_so_far=0.5137 mean_t=1.4s
+  320/512 mean_e2e_so_far=0.5163 mean_t=1.3s
+  352/512 mean_e2e_so_far=0.5031 mean_t=1.3s
+  384/512 mean_e2e_so_far=0.4977 mean_t=1.3s
+  416/512 mean_e2e_so_far=0.4982 mean_t=1.3s
+  448/512 mean_e2e_so_far=0.4997 mean_t=1.3s
+  480/512 mean_e2e_so_far=0.4991 mean_t=1.3s
+  512/512 mean_e2e_so_far=0.4901 mean_t=1.3s
+
+============================================================
+EXP 2 GATE (N=512 held-out)
+  CEILING (GT BoM): 0.7761
+  FLOOR (random):   0.2598
+  LLM mean e2e:     0.4901
+  LLM mean fid:     0.3979
+  mean t/call:      1.3s
+  rows: docs/assets/exp/legislative-branch/gate_rows.csv
+============================================================
+GATE_EXIT=0

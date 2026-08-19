@@ -1206,3 +1206,39 @@ Controls (not gates): random-BoM baseline (uniform motifs — measures floor); g
 1. Exp 2 must PASS its pre-registered gate (Legislative LLM → BoM end-to-end ≥ 0.20 held-out) — otherwise the pipeline has no intent path and the benchmark would trivially FAIL on the LLM's home turf.
 2. The Graph-Walk Interpreter must demonstrate correct execution on ≥ 90% of solver-valid AR outputs (an executability bridge check) — otherwise "correctness" cannot be measured and the gate is void.
 3. The Legislative LLM and the benchmark baseline LLM must be the same model family (isolates the pipeline's contribution from LLM capability differences).
+
+### Design revision note (2026-08-18, during execution — recorded per ledger convention)
+
+**Source-code join investigated and REJECTED.** The pre-registered no-leak input
+is `{method_name, repo_name, file_path, literal_pool}`. During execution we
+tested whether `train.jsonl`'s `raw_source` (actual Ruby method text) could be
+joined to the compressed graphs to enrich Legislative input. Result: **no
+reliable join exists** — id spaces differ (0/3951 overlap), and file-path-level
+matches (43.9%) are method-mismatched (e.g., a file with one method mapped to
+two different compressed methods). Any source-join would silently misalign
+methods, poisoning the gate. The pre-registered input set stands as the only
+per-graph signal actually available. A low BoM fidelity therefore tests the
+literal claim: *do method context + literals determine structure?* — which is
+exactly the falsifiable question pre-registered.
+
+### Pilot results (2026-08-18, N=20 held-out — design-validation milestone)
+
+Ran before the full gate to validate the harness chain (ceiling control) and
+the Legislative signal. Three arms on the same 20 held-out graphs:
+
+| Arm | mean end-to-end typed-F1 | Notes |
+|---|---|---|
+| CEILING (GT BoM → AR) | 0.7355 | harness validated (≈0.776 on 20-graph subsample) |
+| FLOOR (random BoM → AR) | 0.2760 | pipeline floor on wrong BoMs |
+| **LLM (qwen3-coder:30b → BoM → AR)** | **0.4097** | 20/20 parse, ~2.5s/call, 21 min extrap for 512 |
+
+Gate pre-check vs pre-registered criteria: 0.4097 ≥ 0.20 ✓; Δ over floor
++0.134 ≥ +0.05 ✓. Per-graph: options 0.80, features_step_definitions_file
+0.57, client_class 0.53 — the LLM genuinely infers structure from literals +
+method context. BoM fidelity 0.34 (modest — length hallucination common) but
+the pipeline tolerates imperfect BoMs, per the pre-registered decomposition.
+
+**Bug fixed during execution:** pilot prefix mapping was off-by-one (Boundary →
+135 instead of 134), silently shifting every conditioning token. The CEILING
+arm scored 0.06 → caught the bug → fixed → ceiling 0.7355. The ceiling control
+earned its keep a second time (as in Exp 3).

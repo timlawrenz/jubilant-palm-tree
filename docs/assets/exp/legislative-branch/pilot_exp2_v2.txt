@@ -1,0 +1,28 @@
+[ARDataset] EVAL: 512 graphs (holdout=632)
+paired 20 rows with 20 held-out graphs
+=== CEILING (GT BoM) ===
+ceiling mean typed-F1: 0.7355 (expect ~0.776)
+=== FLOOR (random BoM) ===
+floor mean typed-F1: 0.2760
+=== LLM (qwen3-coder:30b) ===
+  'list' n_gt=27 n_pred=19 fid=0.26 e2e=0.154 t=0.5s
+  'client_class' n_gt=87 n_pred=20 fid=0.60 e2e=0.526 t=0.5s
+  'errors_module' n_gt=10 n_pred=300 fid=0.50 e2e=0.421 t=3.6s
+  'waiters_module' n_gt=20 n_pred=300 fid=0.35 e2e=0.462 t=3.6s
+  'authorizer_class' n_gt=11 n_pred=300 fid=0.27 e2e=0.476 t=3.6s
+  'plugin_class' n_gt=26 n_pred=300 fid=0.15 e2e=0.163 t=3.6s
+  'options' n_gt=5 n_pred=4 fid=0.50 e2e=0.800 t=0.4s
+Traceback (most recent call last):
+  File "/tmp/pilot_exp2.py", line 194, in <module>
+    main()
+  File "/tmp/pilot_exp2.py", line 183, in main
+    f1, ge, gte = score_graph(model, pred if pred else ["Boundary"], g, DEVICE)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/pilot_exp2.py", line 110, in score_graph
+    heat = logit_heatmap_from_edges(edges, n).unsqueeze(0).to(device)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/tim/source/activity/jubilant-palm-tree/src/models/ar_edge_list.py", line 113, in logit_heatmap_from_edges
+    x[0, s, d] = LOGIT_ON
+    ~^^^^^^^^^
+IndexError: index 128 is out of bounds for dimension 1 with size 128
+PILOT_EXIT=1
