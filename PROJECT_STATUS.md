@@ -41,7 +41,7 @@
 
 **[P1] Execute Exp 2 (Legislative Branch).** Gate pre-registered 2026-08-18 (ledger, commit `4169847`): end-to-end held-out typed-F1 ≥ 0.20 AND ≥ +0.05 over random-BoM control; no-leak guardrail (LLM sees only method context + literal pool); decomposition rule separates Legislative vs Executive failure. Create branch `exp/legislative-branch`, connect a hosted LLM as the Legislator over the frozen AR Executive, then run the gate.
 
-**[P0 — project-level goal] MQ3 goal gate pre-registered 2026-08-18** (ledger commit `...`): the benchmark-vs-LLM claim is now on the record — GO / PIVOT / KILL criteria defined (cost-per-correct-program, validity-by-construction, fairness guards). Execution is blocked on Exp 2 PASS + the executability bridge check. This is the gate that determines whether the whole program "succeeds."
+**[P0 — project-level goal] MQ3 goal gate pre-registered 2026-08-18** (ledger commit `e923783`): the benchmark-vs-LLM claim is now on the record — GO / PIVOT / KILL criteria defined (cost-per-correct-program, validity-by-construction, fairness guards). Execution is blocked on Exp 2 PASS + the executability bridge check. This is the gate that determines whether the whole program "succeeds."
 
 **[P2] Cleanup untracked artifacts.** `run_teacher_pseudo_labeling.py` (untracked), `mcp-unreal/` (now gitignored), `runs/` (concluded RLAIF leftovers). Retire `scripts/evaluate_tte.py`/`finetune_degree_profile.py` (Exp-1.9-only) once Exp 2's harness is settled.
 
