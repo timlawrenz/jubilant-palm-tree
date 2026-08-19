@@ -1403,3 +1403,33 @@ proves walkability, NOT computability.
 graph requires implementing the deterministic pointer-binding step (Jedi/Legislative
 responsibility) + extending the MVP op set (%, reverse, each, …). Both are
 bounded engineering work on the critical path to the functional-correctness axis.
+
+### Third and deepest gap (2026-08-18) — corpus conditional representation is NOT branch-executable
+
+Corpus scan (3,951 ≤128-node graphs, 1,288 contain Condition/Loop):
+- Condition EXEC-out edge shapes: `()` ×951, `(0,)` ×687, `(1,)` ×199, `(2,)` ×163,
+  `(3,)` ×36 … — **no graph has the `{0,1}` True/False EXEC-branch pair** the
+  interpreter's `run()` contract requires.
+- The compressor emits Ruby `if` bodies as **DATA edges INTO the Condition node**;
+  control-flow branch structure is simply not represented.
+- The 6-Laws validator (degree/acyclic/orphan/sink) never checks branch edges, so
+  "solver-valid" (SVR 63-72%) and "interpreter-branchable" are **different
+  properties**. The earlier executability bridge check (323/323 halt) used
+  `run_with_limit`, which branches on step parity and never inspects branch
+  edges — it validated walkability, not conditional execution.
+
+**Consequence for MQ3:** the strict functional-correctness axis (execute →
+compute → compare on test cases) is **not measurable on pipeline output in the
+current representation**. Any graph following corpus conventions lacks the
+branch information an executor needs. The demo's Fibonacci graph is the only
+executable graph because its branches were hand-wired.
+
+**Unblock (named, not yet decided):** change the compressor to emit EXEC
+branch edges {0,1} for Condition/Loop (the demo contract), recompress the
+corpus, retrain the AR Executive — a corpus-wide representation change, not a
+harness fix. This is a project-level decision, not an implementation detail.
+
+**Immediate path (honest measurement):** MQ3 runs on the axes that ARE
+measurable today — validity-by-construction, routing fidelity, cost; LLM-arm
+functional correctness via real Ruby; NUM-arm functional correctness marked
+BLOCKED-by-representation with the unblock named above.
