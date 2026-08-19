@@ -1332,3 +1332,26 @@ intuition. Decision: **finish the current path with rigor; re-evaluate afterward
   dataset with high test_description coverage) or that depth-ordered sequences train well.
 - Then pre-register: intent = descriptions (no-leak: never the graph), generation = depth-ordered
   edge sequences (depth from `ast_json`), same 0.20 gate, same held-out discipline.
+
+---
+
+## MQ3 PRECONDITION — Executability Bridge Check — `[CONCLUDED — PASS]`
+
+**Date:** 2026-08-18. **Branch:** main. **Depends on:** Exp 2 PASS (AR Executive
+is the generator), MQ3 goal gate `e923783` precondition #2.
+
+**Goal:** Verify the Graph-Walk Interpreter executes ≥90% of solver-valid AR
+outputs — the untested link in the Legislative → Executive → Judicial →
+Interpreter chain, and a stated MQ3 precondition.
+
+**Evidence (held-out 512, GT-BoM ceiling arm):** 323 graphs solver-valid
+(6-Laws perfect; = 63% of 512, consistent with the SVR 63-72% from the audit
+closure). Of those, **323 halted** in `GraphInterpreter.run_with_limit`:
+0 error_no_entry, 0 infinite_loop, 0 constructor errors. **Halt rate 1.000**
+(precondition ≥ 0.90).
+
+**Verdict: PASS.** The 6-Laws ⟺ executability equivalence (Exp 1) holds at
+full scale for AR-generated outputs. A solver-valid AR graph executes.
+
+**Artifacts:** `scripts/executability_bridge_check.py`,
+`docs/assets/exp/mq3/executability_bridge.txt`.

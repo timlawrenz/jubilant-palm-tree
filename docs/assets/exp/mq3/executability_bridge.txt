@@ -1,0 +1,16 @@
+EXECUTABILITY BRIDGE CHECK — 2026-08-18 (MQ3 precondition e923783)
+
+Model: checkpoints/ar/ar_s0_e150.pt (d=384, L=8)
+Protocol: GT-BoM (ceiling arm) -> AR greedy decode -> ConstraintSolver ->
+GraphValidator (6 Laws) -> among solver-valid only, ExecutionGraph (GT literal
+pool, node pointer = id) -> GraphInterpreter.run_with_limit(max_steps=2000).
+
+solver-valid (denominator): 323   (= 63% of 512, consistent with SVR 63-72%)
+halted (execute correctly):   323
+error_no_entry: 0   infinite_loop: 0   constructor errors: 0
+HALT RATE: 1.000   (precondition >= 0.90: PASS)
+
+Script: scripts/executability_bridge_check.py
+Meaning: every solver-valid AR output is executable by the Graph-Walk
+Interpreter; the 6-Laws <=> executability equivalence (Exp 1) holds at full
+scale for AR outputs. MQ3 goal gate is UNBLOCKED.
