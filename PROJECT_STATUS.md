@@ -86,3 +86,29 @@ The full chain works: **Legislative LLM → BoM → AR Executive → ConstraintS
 |---|---|---|
 | Base DiT (340) | `checkpoints/num_dit_epoch_340.pt` | Pre-training only |
 | Best with solver | `checkpoints/num_dit_epoch_340.pt` + `ConstraintSolver` | **10% SVR** (current best pipeline) |
+
+---
+
+## OPEN DECISION (2026-08-18) — MQ3 functional-correctness axis: representation fork
+
+The MQ3 audit surfaced a project-level fork that no experiment alone can decide:
+
+**A. Keep corpus representation, narrow MQ3's correctness claim.**
+Functional correctness measured on linear/branch-free tasks only (executable
+today: ~2/3951 corpus graphs + curated linear tasks). Conditional graphs are
+documented as non-executable (no {0,1} EXEC branch pair anywhere in the corpus).
+Cheap; honest; leaves the branch gap as a stated limitation.
+
+**B. Fix the representation (compressor emits branch edges), recompress, retrain AR.**
+Makes conditional graphs executable per the interpreter's demo contract; enables
+true functional correctness for the whole curated suite. Cost: corpus-wide
+recompression + AR retrain (~1-2 GPU-hours) + re-run Exp 3/2 gates on the new
+representation. This is the "unblock" named in the ledger (commit ce1cdf7).
+
+**C. Revisit the deferred founding hypothesis (spec-intent + outside-in).**
+The branch-gap finding strengthens the original intuition that flat
+sequence/matrix representations fight the tree structure of code. But per the
+owner's standing direction, this is POST-MQ3.
+
+**Current position:** option A is executing now (the runnable-arms benchmark).
+Options B/C wait for the owner's call after the benchmark lands.
