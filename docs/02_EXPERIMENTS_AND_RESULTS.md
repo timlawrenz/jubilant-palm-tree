@@ -1579,3 +1579,27 @@ it should change. (Bug fixed en route: nested-Sequence exit propagation
 initially altered 1,222 clean graphs; restricted to has_branch subtrees.)
 
 Next: G2 — the curated suite must EXECUTE to correct outputs.
+
+
+### G2 RESULT (2026-08-18) — PASS (50/50 = 1.000, gate >= 0.90)
+
+20-task curated suite (authored BEFORE execution per pre-registration):
+- **15 executable tasks, 50/50 test cases correct (1.000)** — sum_a_b, add_mod,
+  diff2, div2, double_minus_one, gt, is_even, is_odd, is_palindrome,
+  is_positive, last_digit, max2, min2, mul2, pos_or_neg.
+- **5 dropped per the pre-registered "drop, don't hack" rule**: fib, factorial,
+  gcd (recursion — needs call-stack semantics), sum_range (while — needs loop
+  back-edge iteration), count_even (array each — needs block-unroll).
+
+Implemented to reach this: C1.2 join-semantics compressor (branch {0,1} edges,
+exit-tracking, terminal return/yield, nil/true/false literals), C2 args-in-memory
+binding (`run(args=...)` + `last_value` capture), C3 op extensions (`%`, `/`,
+`reverse`, nil/true/false), SEQUENCE-wrapper value resolution (parenthesized
+expressions).
+
+Representation quality checks en route: G1 confinement (clean graphs 1.000,
+0 touched), the nested-Sequence exit bug caught and fixed, the `(a+b)` begin
+wrapper bug caught and fixed via _resolve_data SEQUENCE case.
+
+Next: G3 — swap corpus v2 into the training pipeline, retrain AR Executive
+(2 seeds), re-run Exp 3's gate (held-out typed-F1 >= 0.20).

@@ -67,6 +67,14 @@ class ASTCompressor:
         # Check if the node inherently represents a literal value or identifier
         literal_ptr = None
         children = ast_dict.get("children", [])
+
+        # Bound primitive bool/nil nodes: pool-valid values, interpreter-aware
+        if ruby_type == "nil":
+            literal_ptr = self.get_literal_pointer("nil")
+        elif ruby_type == "true":
+            literal_ptr = self.get_literal_pointer(True)
+        elif ruby_type == "false":
+            literal_ptr = self.get_literal_pointer(False)
         
         # Heuristic: If a child is a string/int/float, it's a literal for this node
         # e.g., {"type": "send", "children": [null, "puts", ...]} -> "puts" is a literal
@@ -194,6 +202,9 @@ class ASTCompressor:
         # Open exits of THIS node:
         # - branch subtrees: exits = last child's open exits (join propagation)
         # - branch-free subtrees: [(self, 0)] — EXACT old chaining behavior
+        # - return/yield: TERMINAL — no continuation (method ends here)
+        if ruby_type in ("return", "yield"):
+            return current_id, [], has_branch
         if has_branch and motif in (MotifType.SEQUENCE, MotifType.BOUNDARY):
             if child_exits:
                 return current_id, child_exits[-1], True
