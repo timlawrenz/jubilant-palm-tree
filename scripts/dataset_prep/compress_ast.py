@@ -97,8 +97,6 @@ class ASTCompressor:
         # Heuristic edge routing based on Motif type
         if motif in (MotifType.SEQUENCE, MotifType.BOUNDARY):
             # Sequence: chain children with EXECUTION edges
-            # e.g., child 0 -> child 1 -> child 2
-            # Connect parent to first child
             if child_ids:
                 self.edges.append(Edge(
                     source_node=current_id,
@@ -113,8 +111,56 @@ class ASTCompressor:
                     edge_type=EdgeType.EXECUTION,
                     input_index=0
                 ))
+        elif ruby_type == "if":
+            # Exp 4 C1: emit the {0,1} True/False EXEC branch pair.
+            # AST shape: (if cond then_body else_body) — cond is DATA-in,
+            # then/else are EXEC-out idx 0/1. Missing else -> (nil) placeholder.
+            if child_ids:
+                self.edges.append(Edge(
+                    source_node=child_ids[0],
+                    target_node=current_id,
+                    edge_type=EdgeType.DATA,
+                    input_index=0
+                ))
+            def _branch(child_idx, out_idx):
+                if child_idx < len(child_ids):
+                    self.edges.append(Edge(
+                        source_node=current_id,
+                        target_node=child_ids[child_idx],
+                        edge_type=EdgeType.EXECUTION,
+                        input_index=out_idx
+                    ))
+                else:
+                    # missing branch: terminate at a fresh MESSAGE (nil) node
+                    nil_id = self.node_counter
+                    self.node_counter += 1
+                    self.nodes.append(Node(
+                        node_id=nil_id, motif=MotifType.MESSAGE,
+                        literal_pointer=self.get_literal_pointer("nil")))
+                    self.edges.append(Edge(
+                        source_node=current_id, target_node=nil_id,
+                        edge_type=EdgeType.EXECUTION, input_index=out_idx))
+            _branch(1, 0)  # True path
+            _branch(2, 1)  # False path
+        elif ruby_type in ("while", "until"):
+            # AST shape: (while cond body). cond DATA-in, body EXEC-out idx 0.
+            # Exit idx 1 resolved in post-process (next sibling in parent).
+            if child_ids:
+                self.edges.append(Edge(
+                    source_node=child_ids[0],
+                    target_node=current_id,
+                    edge_type=EdgeType.DATA,
+                    input_index=0
+                ))
+            if len(child_ids) > 1:
+                self.edges.append(Edge(
+                    source_node=current_id,
+                    target_node=child_ids[1],
+                    edge_type=EdgeType.EXECUTION,
+                    input_index=0
+                ))
         else:
-            # Condition, Loop, Message, State: connect children via DATA edges
+            # Message, State: connect children via DATA edges
             for i, child_id in enumerate(child_ids):
                 self.edges.append(Edge(
                     source_node=child_id,

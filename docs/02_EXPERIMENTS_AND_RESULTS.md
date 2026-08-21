@@ -1539,3 +1539,24 @@ old corpus (they remain recorded as historical evidence, not current truth).
 **Cost estimate:** compressor + binding + ops = half a day; recompress =
 minutes (CPU); AR retrain = 2 x ~30 min on the 4090 (2 seeds); curated-suite
 authoring = included in C3.
+
+
+### G1 RESULT (2026-08-18) — FAIL (0.9348 < 0.95): branch/chain edge collision
+
+Per the outcome map: **stop, retrain nothing.** The repair's first
+implementation is flawed, and the debug is conclusive:
+
+- Mean old-vs-new edge-set F1 = 0.9348 (gate 0.95); 454/4000 graphs < 0.80.
+- Root cause: the Sequence chaining still routes `condition -> next_sibling`
+  with EXEC input_index=0, which collides with the new True branch (also
+  idx 0). The interpreter's `out_edges[0]` dict would silently overwrite one
+  branch. Additionally the then/else subtrees lose their old DATA linkage.
+- Proper fix (staged, pre-registered as design, NOT yet implemented): branch
+  nodes need JOIN semantics — the continuation edge must hang off the END of
+  both subtrees (or a dedicated join node), and Sequence chaining must route
+  AROUND branch nodes, not through them. This is the C1.2 redesign.
+
+Next action: implement C1.2 (branch-join routing) and re-run G1. The corpus
+remains untouched on disk (corpus v2 is in /tmp only); the original
+dataset/compressed/compressed_motifs.jsonl is the training source until G1
+passes.
