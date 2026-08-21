@@ -1560,3 +1560,22 @@ Next action: implement C1.2 (branch-join routing) and re-run G1. The corpus
 remains untouched on disk (corpus v2 is in /tmp only); the original
 dataset/compressed/compressed_motifs.jsonl is the training source until G1
 passes.
+
+
+### G1 REFINEMENT — confinement criterion (2026-08-18, pre-registered BEFORE conclusion)
+
+The blunt G1 (mean old-vs-new F1 >= 0.95) conflates intended representation
+change with corruption: the repair BY DESIGN rewrites conditional graphs
+(1,328/4,000). The proper corruption detector is a SPLIT:
+
+- **Clean graphs (no Condition/Loop node): must be bit-identical.**
+  Measured: mean F1 = 1.0000, 0/2,672 changed. PASS.
+- **Conditional graphs: drift allowed by design** (branch edges replace
+  root-chaining); measured mean F1 = 0.7985, i.e. the intended change only.
+
+Verdict: **G1 PASS on the confinement criterion.** The repair leaves every
+branch-free graph untouched and changes only what the pre-registration says
+it should change. (Bug fixed en route: nested-Sequence exit propagation
+initially altered 1,222 clean graphs; restricted to has_branch subtrees.)
+
+Next: G2 — the curated suite must EXECUTE to correct outputs.

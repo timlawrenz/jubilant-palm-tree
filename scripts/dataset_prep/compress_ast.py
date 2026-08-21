@@ -54,9 +54,9 @@ class ASTCompressor:
         self.reverse_pool[value] = ptr
         return ptr
 
-    def process_ast(self, ast_dict) -> int:
+    def process_ast(self, ast_dict):
         if not ast_dict or not isinstance(ast_dict, dict) or "type" not in ast_dict:
-            return -1
+            return -1, [], False
 
         current_id = self.node_counter
         self.node_counter += 1
@@ -89,14 +89,21 @@ class ASTCompressor:
 
         # Process children and create edges
         child_ids = []
+        child_exits = []   # open continuation points of each child subtree
+        child_has_branch = []
         for child in valid_children:
-            child_id = self.process_ast(child)
+            child_id, exits, has_branch = self.process_ast(child)
             if child_id != -1:
                 child_ids.append(child_id)
+                child_exits.append(exits)
+                child_has_branch.append(has_branch)
+        has_branch = ruby_type in ("if", "while", "until") or any(child_has_branch)
 
         # Heuristic edge routing based on Motif type
         if motif in (MotifType.SEQUENCE, MotifType.BOUNDARY):
-            # Sequence: chain children with EXECUTION edges
+            # Sequence: chain children with EXECUTION edges. Continuation
+            # attaches to the OPEN EXITS of the previous child, not the child
+            # root — so branch nodes (if/while) get join semantics.
             if child_ids:
                 self.edges.append(Edge(
                     source_node=current_id,
@@ -105,16 +112,16 @@ class ASTCompressor:
                     input_index=0
                 ))
             for i in range(len(child_ids) - 1):
-                self.edges.append(Edge(
-                    source_node=child_ids[i],
-                    target_node=child_ids[i+1],
-                    edge_type=EdgeType.EXECUTION,
-                    input_index=0
-                ))
+                for (exit_node, out_idx) in child_exits[i]:
+                    self.edges.append(Edge(
+                        source_node=exit_node,
+                        target_node=child_ids[i + 1],
+                        edge_type=EdgeType.EXECUTION,
+                        input_index=out_idx
+                    ))
         elif ruby_type == "if":
-            # Exp 4 C1: emit the {0,1} True/False EXEC branch pair.
-            # AST shape: (if cond then_body else_body) — cond is DATA-in,
-            # then/else are EXEC-out idx 0/1. Missing else -> (nil) placeholder.
+            # C1.2: {0,1} True/False EXEC branch pair; cond is DATA-in.
+            # Continuation = open exits of BOTH subtrees (join semantics).
             if child_ids:
                 self.edges.append(Edge(
                     source_node=child_ids[0],
@@ -122,6 +129,7 @@ class ASTCompressor:
                     edge_type=EdgeType.DATA,
                     input_index=0
                 ))
+            missing_exits = []
             def _branch(child_idx, out_idx):
                 if child_idx < len(child_ids):
                     self.edges.append(Edge(
@@ -131,7 +139,6 @@ class ASTCompressor:
                         input_index=out_idx
                     ))
                 else:
-                    # missing branch: terminate at a fresh MESSAGE (nil) node
                     nil_id = self.node_counter
                     self.node_counter += 1
                     self.nodes.append(Node(
@@ -140,11 +147,22 @@ class ASTCompressor:
                     self.edges.append(Edge(
                         source_node=current_id, target_node=nil_id,
                         edge_type=EdgeType.EXECUTION, input_index=out_idx))
-            _branch(1, 0)  # True path
-            _branch(2, 1)  # False path
+                    missing_exits.append((nil_id, 0))
+            _branch(1, 0)
+            _branch(2, 1)
+            # JOIN: open exits = union of then-exits and else-exits
+            join_exits = []
+            if len(child_exits) > 1:
+                join_exits.extend(child_exits[1])
+            if len(child_exits) > 2:
+                join_exits.extend(child_exits[2])
+            join_exits.extend(missing_exits)
+            if not join_exits:
+                join_exits = [(current_id, 0)]
+            return current_id, join_exits, True
         elif ruby_type in ("while", "until"):
-            # AST shape: (while cond body). cond DATA-in, body EXEC-out idx 0.
-            # Exit idx 1 resolved in post-process (next sibling in parent).
+            # cond DATA-in; body EXEC-out idx 0. Open exits: (body_end, 0) for
+            # the run-through path and (self, 1) for the loop-exit path.
             if child_ids:
                 self.edges.append(Edge(
                     source_node=child_ids[0],
@@ -159,6 +177,10 @@ class ASTCompressor:
                     edge_type=EdgeType.EXECUTION,
                     input_index=0
                 ))
+            exits = [(current_id, 1)]  # loop-exit path (parent joins here)
+            if len(child_exits) > 1:
+                exits.extend(child_exits[1])  # run-through path
+            return current_id, exits, True
         else:
             # Message, State: connect children via DATA edges
             for i, child_id in enumerate(child_ids):
@@ -169,7 +191,13 @@ class ASTCompressor:
                     input_index=i
                 ))
 
-        return current_id
+        # Open exits of THIS node:
+        # - branch subtrees: exits = last child's open exits (join propagation)
+        # - branch-free subtrees: [(self, 0)] — EXACT old chaining behavior
+        if has_branch and motif in (MotifType.SEQUENCE, MotifType.BOUNDARY):
+            if child_exits:
+                return current_id, child_exits[-1], True
+        return current_id, [(current_id, 0)], has_branch
 
 def compress_dataset(input_file: str, output_file: str, limit: int = None):
     print(f"Compressing {input_file} into Universal Motifs...")
