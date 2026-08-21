@@ -1603,3 +1603,23 @@ wrapper bug caught and fixed via _resolve_data SEQUENCE case.
 
 Next: G3 — swap corpus v2 into the training pipeline, retrain AR Executive
 (2 seeds), re-run Exp 3's gate (held-out typed-F1 >= 0.20).
+
+
+### G3 BLOCKED (2026-08-18) — GPU contested by user-owned ComfyUI
+
+4090 (24GB) is held by ComfyUI (`main.py --listen 0.0.0.0 --enable-manager
+--fp32-text-enc`, started 2026-08-20, cwd /mnt/fscache/essdee/ComfyUI, PID
+336676, 18.7GB). Free VRAM ~4.4GB; the Exp 4 retrain needs ~10GB
+(same config as Exp 3: d=384, L=8, bs=32 ≈ 8.7GB peak).
+
+Decision (owner was asked; no answer within window): DO NOT touch ComfyUI.
+G3 deferred; the scheduler request jpt-exp4-retrain-1787346414 remains
+queued (10GB, 6h). Corpus v2 is ready in /tmp/corpus_v2.jsonl and passes
+G1 (confinement 1.000 clean) and G2 (50/50). Everything needed for the
+retrain is staged — only GPU availability is missing.
+
+Unblock options for next session:
+  A. Owner pauses ComfyUI -> claim the queued request -> train 2 seeds.
+  B. Retrain with a smaller batch (bs=16 ≈ 5GB) inside the 4.4GB-visible
+     budget (untested, may OOM).
+  C. Run G3 on strix (ROCm, slower but idle).
