@@ -1487,3 +1487,55 @@ axis). The data is recorded honestly as *evidence*, not conclusion.
 
 **Artifacts:** `docs/assets/exp/mq3/mq3_runnable_arms.json`,
 `mq3_runnable_v3_run.txt`, `scripts/mq3/tasks.py`.
+
+
+---
+
+## Exp 4 — Representation Repair & Retrain (branch-executable corpus) — `[ACTIVE — GATE PRE-REGISTERED 2026-08-18]`
+
+**Motivation (all from this session's audit):** MQ3's functional-correctness axis
+is unmeasurable because (gap 1) corpus methods don't execute (2/3951 run_ok),
+(gap 2) `literal_pointer` binding is absent (arch: "the LLM fills it"), and
+(gap 3) corpus Condition/Loop nodes NEVER carry the {0,1} EXEC branch pair the
+interpreter's contract requires (all 1,288 conditional graphs affected).
+
+### What changes (BEFORE code — this is the pre-registration)
+
+**C1. Compressor** (`scripts/dataset_prep/compress_ast.py`): Condition/Loop
+nodes emit EXEC branch edges — index 0 = True/body path, index 1 = False/exit
+path; branch bodies become EXEC subtrees; condition expression stays DATA-in.
+
+**C2. Deterministic pointer binding:** GraphInterpreter.run(args=...) seeds
+memory from argument registers keyed by the compressor's variable-name literal
+entries — the missing Jedi step, deterministic, no learned component.
+
+**C3. Interpreter op extension (bounded, list fixed in advance):** % (mod),
+reverse (string), array each loop-unroll. Nothing else. (Tasks needing more
+are dropped, not hacked.)
+
+### Gates (all pre-registered, before any new training)
+
+| Gate | Criterion | Meaning |
+|---|---|---|
+| G1 | Recompressed corpus GT matches original GT at typed-F1 >= 0.95 | The repair didn't silently corrupt the corpus |
+| G2 | >= 90% of a 20-task curated executable suite run to CORRECT outputs from their GT graphs in the interpreter | Representation is now genuinely executable |
+| G3 | AR retrain on corpus-v2 re-passes Exp 3's gate (held-out typed-F1 >= 0.20, 2 seeds) | The Executive learns the new representation |
+| G4 | MQ3 runnable arms re-run with functional correctness measurable | GO/PIVOT/KILL per e923783 applies unchanged |
+
+**Adversarial pass:** corpus-v2 round-trip diff (G1 is the check); 2-seed
+retrain; no-leak guardrail unchanged (Legislator still never sees graphs);
+metric code unchanged; curated suite authored BEFORE seeing any results.
+
+**Outcome map:**
+- G1 fails -> compressor repair flawed -> stop, debug, retrain nothing.
+- G1-G3 pass + MQ3 GO -> project thesis confirmed end-to-end.
+- G1-G3 pass + MQ3 PIVOT/KILL -> the fair verdict is IN; per owner instruction
+  this is when we re-open the DEFERRED founding hypothesis (spec-intent +
+  outside-in generation, ledger note 985a114) — retraining exists to serve it.
+
+**Scope note:** this supersedes the Exp 3/Exp 2 pass numbers computed on the
+old corpus (they remain recorded as historical evidence, not current truth).
+
+**Cost estimate:** compressor + binding + ops = half a day; recompress =
+minutes (CPU); AR retrain = 2 x ~30 min on the 4090 (2 seeds); curated-suite
+authoring = included in C3.
