@@ -1669,3 +1669,35 @@ memorizer can't route unseen branch graphs at 0.72).
 
 Next: G4 — MQ3 re-run with functional correctness measurable (the branch gap
 is closed; the curated suite executes).
+
+
+### G4 PRECONDITION GAP FOUND (2026-08-22) — the Jedi literal-binding step is still missing
+
+G1/G2/G3 are PASS. G4 (MQ3 re-run with functional correctness) rests on ONE
+more precondition that is NOT met, and G2 did not cover it:
+
+- G2 proved **GT graphs** execute (50/50). GT graphs carry `literal_pointer`
+  on every MESSAGE/STATE node, produced by the compressor from the AST.
+- G3 proved the retrained AR **routes** on the v2 representation
+  (held-out typed-F1 0.715/0.758).
+- But the AR Executive's output vocabulary is `(src, dst, edge_type,
+  input_index)` — **no literal pointer**. A pipeline-GENERATED graph has nodes
+  (from the BoM) and edges (from the AR) but every node's `literal_pointer`
+  is None, so `GraphInterpreter.run()` cannot resolve memory/ops and raises
+  `NotImplementedError` / returns no output.
+
+This is exactly the step the schema named from day one: schema.py's comment
+"The DiT leaves this None. The LLM fills it with an integer index." The
+Legislative branch is supposed to emit the Constant Pool AND bind each node to
+its literal — the "Jedi" bridge (vision doc §5 "Semantic Integration"). That
+component has never been implemented.
+
+**Consequence:** MQ3's functional-correctness axis for the NUM arm is STILL
+unmeasurable — not because of representation or routing (both now fixed) but
+because no component assigns the memory/op pointers a generated graph needs to
+execute. The LLM-arm baseline (writes Ruby, runs real Ruby) remains fully
+measured: 1.00.
+
+**Next, pre-registered:** Exp 4.5 — the Jedi literal-binding step (Legislative
+emits (node_id -> literal_pool index) binding; deterministic, no learned
+component). Then G4 re-run is actually decidable.
