@@ -1650,3 +1650,22 @@ B. Small-config 4090 side-run under the 4.2GB free headroom (untested, risky
 C. Debug strix bf16 (fp32 fallback probe next; even if un-NaN'd, cadence makes
    only a reduced-epoch run possible: ~2h/seed at best).
 Strix slot released; queue untouched; nothing running.
+
+
+### G3 RESULT (2026-08-22) — PASS
+
+AR retrain on branch-executable corpus v2 (md5 3c7bf6…; 3316 train / 632
+holdout / 512 eval), 150 epochs, 2 seeds, 4090 (12s/epoch, loss s0=0.0171
+s1=0.0157). Gate: held-out typed-F1 >= 0.20, 2 seeds.
+
+- s0: held-out typed-F1 0.7150, gen_edges 14.0 vs gt 14.7
+- s1: held-out typed-F1 0.7576, gen_edges 14.6 vs gt 14.7
+
+**Verdict: PASS (both seeds, 3.6-3.8x gate).** Fidelity is slightly below the
+old-corpus 0.776 — expected: v2 GT contains branch edges (richer conditional
+target), and the model matches edge-count near-exactly. Train-cache guardrail
+fired (+0.23) as before; resolved identically (disjoint split proven; a
+memorizer can't route unseen branch graphs at 0.72).
+
+Next: G4 — MQ3 re-run with functional correctness measurable (the branch gap
+is closed; the curated suite executes).
