@@ -1701,3 +1701,49 @@ measured: 1.00.
 **Next, pre-registered:** Exp 4.5 — the Jedi literal-binding step (Legislative
 emits (node_id -> literal_pool index) binding; deterministic, no learned
 component). Then G4 re-run is actually decidable.
+
+
+---
+
+## Exp 4.5 — The Jedi Bridge: literal-pointer binding — `[ACTIVE — GATE PRE-REGISTERED 2026-08-22]`
+
+**Motivation:** G1/G2/G3 closed (representation executable, routing proven).
+G4 uncovered the last unimplemented component named on schema day one: the
+LLM fills `Node.literal_pointer` (the "Jedi" bridge, vision doc §5). Without
+it, a pipeline-GENERATED graph has nodes+edges but no memory/op pointers, and
+`GraphInterpreter.run()` cannot execute it. This arm builds it.
+
+### Changes (BEFORE code — this is the pre-registration)
+
+**C1. Legislative output format (expanded):** the Legislator prompt emits
+(a) the motif sequence (as today) and (b) a literal binding table:
+`nodeIndex=literal` entries assigning each MESSAGE/STATE node its literal
+pool value (op string or variable name). Same no-leak guardrail: the LLM
+sees ONLY method name/repo/file/literal_pool, never the graph.
+
+**C2. Deterministic assembler:** BoM + binding table + AR edges ->
+ExecutionGraph (nodes carry literal_pointer = pool index of their bound
+literal; unbound nodes -> pool["nil"]). No learned component in the assembly.
+Constant pool is the method's real literal pool (given to the LLM at prompt
+time, so binding references it honestly).
+
+**C3. Nothing else changes.** AR Executive frozen at v2 seed-0 (`v2_s0_e150.pt`),
+solver and interpreter as-is.
+
+### Gates
+
+| Gate | Criterion | Meaning |
+|---|---|---|
+| G4.5a | With GT-derived BoM + GT binding, AR-generated graphs execute correctly on >= 50% of the curated suite's test CASES | Generated (not GT) graphs CAN execute once pointed |
+| G4.5b | Full pipeline (LLM BoM + LLM binding + AR + solver + interpreter) executes correctly on >= 30% of cases AND beats the random-binding benchmark (10%) | The Legislative-emitted binding carries signal |
+| G4.5c | G4/MQ3 re-run becomes decidable: every executable-suite case is either correct or executed-wrong (no NotImplementedError blockage) | Functional axis finally measurable |
+
+**Outcome map:**
+- G4.5a fails -> the AR Executive cannot produce executable graphs even with
+  correct conditioning; G4 stays blocked; retrain or accept-and-write-up.
+- G4.5a+b pass -> G4 (MQ3 benchmark) re-runs immediately after; GO/PIVOT/KILL
+  per `e923783` unchanged.
+- Any LLM binding leakage (graph info in prompt) -> void run, per no-leak rule.
+
+**Cost:** LLM calls (~1.5s x 15 tasks x2 arms) + interpreter runs (CPU). No
+GPU needed.
