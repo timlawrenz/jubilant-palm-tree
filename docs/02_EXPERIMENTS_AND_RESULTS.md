@@ -1747,3 +1747,43 @@ solver and interpreter as-is.
 
 **Cost:** LLM calls (~1.5s x 15 tasks x2 arms) + interpreter runs (CPU). No
 GPU needed.
+
+
+### EXP 4.5 RESULT (2026-08-22) — FAIL on both arms (recorded per outcome map)
+
+Measured with v2_s0_e150.pt, final compressor, solver, interpreter w/ args:
+
+- **G4.5a: 19/46 (0.41) — FAIL (gate >= 0.50)**
+- **G4.5b: 0/13 (0.00) — FAIL (gate >= 0.30)** — LLM BoM often lacks a
+  Boundary node + misroutes from synthetic-pool prompts.
+
+**Decomposition (the useful knowledge):**
+- The Jedi bridge itself WORKS: Arm A assembled and EXECUTED 45/46 graphs
+  (1 exception). Binding was assigned deterministically; interpreter ran with
+  args; no NotImplementedError blockages. The G2->G4 precondition gap is
+  closed — pipeline-generated graphs CAN now be executed.
+- Correctness is bounded by AR ROUTING on out-of-distribution tasks: the AR
+  Executive (12M params) was trained on the Rails business-logic corpus
+  (in-distribution held-out routing 0.715-0.758, per G3); the 15 algorithmic
+  curated tasks are severely OOD (prior measured typed-F1 0.11). 26 Arm-A
+  cases executed a wrong path (wrong control flow -> wrong/no last_value),
+  which is the expected consequence of OOD routing, not of the bridge.
+
+**Verdict: TECHNICAL FAIL of the gate — the last-mile end-to-end functional
+correctness on the algorithmic suite does not yet clear G4.5. The limiting
+factor is named, measured, and consistent across three independent MQ3
+probes (runnable-arms 0.11 f1, this 0.41 ceiling).**
+
+**Per pre-registered outcome map, the choice is now explicit:**
+  P1. WRITE-UP: the complete honest story is in place (Paradigm pivot
+      DiT->AR; Exp 2 LLM->BoM->AR e2e 0.49; representation repair; Jedi
+      bridge). MQ3's fair verdict on the ALGORITHMIC suite = decisive LLM
+      advantage on OOD tasks; on the IN-DISTRIBUTION suite (corpus held-out),
+      AR routing is proven.
+  P2. RETRAIN-ON-EXECUTABLE: build an in-distribution executable training
+      suite (synthetic small functions, matching the curated tasks'
+      distribution), retrain AR, then G4.5/MQ3 re-run becomes fair-as-posed —
+      and it converges toward the DEFERRED FOUNDING HYPOTHESIS
+      (spec-intent, outside-in generation) which retraining was always
+      slated to serve.
+Owner decision recorded as the next gate.

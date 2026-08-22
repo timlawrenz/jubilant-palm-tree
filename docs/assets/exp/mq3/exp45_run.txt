@@ -1,0 +1,119 @@
+Compressing /tmp/mq3_asts45.jsonl into Universal Motifs...
+Successfully compressed 20 graphs.
+Output saved to /tmp/mq3_compressed45.jsonl
+A is_palindrome ('racecar',)-> got=True exp=True edges=6 bound=6 OK
+B is_palindrome ('racecar',)-> got=None exp=True edges=2 bound=5 x
+A is_palindrome ('hello',)-> got=False exp=False edges=6 bound=6 OK
+B is_palindrome ('hello',)-> got=None exp=False edges=2 bound=5 x
+A is_palindrome ('a',)-> got=True exp=True edges=6 bound=6 OK
+B is_palindrome ('a',)-> got=None exp=True edges=2 bound=5 x
+A is_palindrome ('abba',)-> got=True exp=True edges=6 bound=6 OK
+B is_palindrome ('abba',)-> got=None exp=True edges=2 bound=5 x
+A last_digit (123,)-> got=None exp=3 edges=4 bound=5 x
+B last_digit (123,)-> ERROR Graph has no BOUNDARY node to start execution.
+A last_digit (0,)-> got=None exp=0 edges=4 bound=5 x
+B last_digit (0,)-> ERROR Graph has no BOUNDARY node to start execution.
+A last_digit (10,)-> got=None exp=0 edges=4 bound=5 x
+B last_digit (10,)-> ERROR Graph has no BOUNDARY node to start execution.
+A last_digit (987654321,)-> got=None exp=1 edges=4 bound=5 x
+B last_digit (987654321,)-> ERROR Graph has no BOUNDARY node to start execution.
+A sum_a_b (2, 3)-> got=5 exp=5 edges=6 bound=6 OK
+B sum_a_b (2, 3)-> got=None exp=5 edges=4 bound=6 x
+A sum_a_b (-1, 1)-> got=0 exp=0 edges=6 bound=6 OK
+B sum_a_b (-1, 1)-> ERROR Graph has no BOUNDARY node to start execution.
+A sum_a_b (100, 200)-> got=300 exp=300 edges=6 bound=6 OK
+B sum_a_b (100, 200)-> ERROR Graph has no BOUNDARY node to start execution.
+A pos_or_neg (5,)-> ERROR None
+B pos_or_neg (5,)-> ERROR Graph has no BOUNDARY node to start execution.
+A pos_or_neg (-3,)-> ERROR None
+B pos_or_neg (-3,)-> ERROR Graph has no BOUNDARY node to start execution.
+A pos_or_neg (0,)-> ERROR None
+B pos_or_neg (0,)-> ERROR Graph has no BOUNDARY node to start execution.
+A pos_or_neg (999,)-> ERROR None
+B pos_or_neg (999,)-> ERROR Graph has no BOUNDARY node to start execution.
+A max2 (3, 7)-> got=None exp=7 edges=7 bound=8 x
+B max2 (3, 7)-> ERROR Graph has no BOUNDARY node to start execution.
+A max2 (10, 2)-> got=None exp=10 edges=7 bound=8 x
+B max2 (10, 2)-> ERROR Graph has no BOUNDARY node to start execution.
+A max2 (-1, -5)-> got=None exp=-1 edges=7 bound=8 x
+B max2 (-1, -5)-> ERROR Graph has no BOUNDARY node to start execution.
+A min2 (3, 7)-> got=None exp=3 edges=7 bound=8 x
+B min2 (3, 7)-> ERROR Graph has no BOUNDARY node to start execution.
+A min2 (10, 2)-> got=None exp=2 edges=7 bound=8 x
+B min2 (10, 2)-> ERROR Graph has no BOUNDARY node to start execution.
+A min2 (-1, -5)-> got=None exp=-5 edges=7 bound=8 x
+B min2 (-1, -5)-> ERROR Graph has no BOUNDARY node to start execution.
+A diff2 (10, 3)-> got=7 exp=7 edges=6 bound=6 OK
+B diff2 (10, 3)-> ERROR Graph has no BOUNDARY node to start execution.
+A diff2 (3, 10)-> got=-7 exp=-7 edges=6 bound=6 OK
+B diff2 (3, 10)-> ERROR Graph has no BOUNDARY node to start execution.
+A diff2 (5, 5)-> got=0 exp=0 edges=6 bound=6 OK
+B diff2 (5, 5)-> ERROR Graph has no BOUNDARY node to start execution.
+A mul2 (3, 4)-> got=12 exp=12 edges=6 bound=6 OK
+B mul2 (3, 4)-> ERROR Graph has no BOUNDARY node to start execution.
+A mul2 (0, 9)-> got=0 exp=0 edges=6 bound=6 OK
+B mul2 (0, 9)-> ERROR Graph has no BOUNDARY node to start execution.
+A mul2 (7, 6)-> got=42 exp=42 edges=6 bound=6 OK
+B mul2 (7, 6)-> ERROR Graph has no BOUNDARY node to start execution.
+A div2 (10, 2)-> got=5 exp=5 edges=6 bound=6 OK
+B div2 (10, 2)-> ERROR Graph has no BOUNDARY node to start execution.
+A div2 (7, 2)-> got=3 exp=3 edges=6 bound=6 OK
+B div2 (7, 2)-> ERROR Graph has no BOUNDARY node to start execution.
+A div2 (0, 5)-> got=0 exp=0 edges=6 bound=6 OK
+B div2 (0, 5)-> ERROR Graph has no BOUNDARY node to start execution.
+A is_even (4,)-> got=None exp=True edges=6 bound=7 x
+B is_even (4,)-> got=None exp=True edges=2 bound=5 x
+A is_even (7,)-> got=None exp=False edges=6 bound=7 x
+B is_even (7,)-> got=None exp=False edges=2 bound=5 x
+A is_even (0,)-> got=None exp=True edges=6 bound=7 x
+B is_even (0,)-> got=None exp=True edges=2 bound=5 x
+A is_even (11,)-> got=None exp=False edges=6 bound=7 x
+B is_even (11,)-> got=None exp=False edges=2 bound=5 x
+A is_positive (5,)-> got=None exp=True edges=4 bound=5 x
+B is_positive (5,)-> ERROR Graph has no BOUNDARY node to start execution.
+A is_positive (-5,)-> got=None exp=False edges=4 bound=5 x
+B is_positive (-5,)-> ERROR Graph has no BOUNDARY node to start execution.
+A is_positive (0,)-> got=None exp=False edges=4 bound=5 x
+B is_positive (0,)-> ERROR Graph has no BOUNDARY node to start execution.
+A gt (5, 3)-> got=True exp=True edges=6 bound=6 OK
+B gt (5, 3)-> got=None exp=True edges=3 bound=5 x
+A gt (3, 5)-> got=False exp=False edges=6 bound=6 OK
+B gt (3, 5)-> got=None exp=False edges=3 bound=5 x
+A gt (5, 5)-> got=False exp=False edges=6 bound=6 OK
+B gt (5, 5)-> got=None exp=False edges=3 bound=5 x
+A add_mod (7, 5, 10)-> got=None exp=2 edges=8 bound=9 x
+B add_mod (7, 5, 10)-> ERROR Graph has no BOUNDARY node to start execution.
+A add_mod (6, 4, 5)-> got=None exp=0 edges=8 bound=9 x
+B add_mod (6, 4, 5)-> ERROR Graph has no BOUNDARY node to start execution.
+A add_mod (100, 25, 7)-> got=None exp=6 edges=8 bound=9 x
+B add_mod (100, 25, 7)-> ERROR Graph has no BOUNDARY node to start execution.
+A double_minus_one (1,)-> got=None exp=1 edges=6 bound=7 x
+B double_minus_one (1,)-> ERROR Graph has no BOUNDARY node to start execution.
+A double_minus_one (5,)-> got=None exp=9 edges=6 bound=7 x
+B double_minus_one (5,)-> ERROR Graph has no BOUNDARY node to start execution.
+A double_minus_one (10,)-> got=None exp=19 edges=6 bound=7 x
+B double_minus_one (10,)-> ERROR Graph has no BOUNDARY node to start execution.
+A is_odd (3,)-> got=None exp=True edges=6 bound=7 x
+B is_odd (3,)-> got=None exp=True edges=2 bound=5 x
+A is_odd (4,)-> got=None exp=False edges=6 bound=7 x
+B is_odd (4,)-> ERROR Graph has no BOUNDARY node to start execution.
+A is_odd (0,)-> got=None exp=False edges=6 bound=7 x
+B is_odd (0,)-> ERROR Graph has no BOUNDARY node to start execution.
+A is_odd (15,)-> got=None exp=True edges=6 bound=7 x
+B is_odd (15,)-> ERROR Graph has no BOUNDARY node to start execution.
+
+============================================================
+EXP 4.5 JEDI BRIDGE RESULTS
+============================================================
+Arm A (GT BoM+GT binding, AR edges): 19/46 (0.41)  gate >= 0.50
+Arm B (LLM BoM+LLM binding, AR edges): 0/13 (0.00)  gate >= 0.30 AND > 0.10 random
+failures: 41
+  ('last_digit', 'B', 'Graph has no BOUNDARY node to start execution.')
+  ('last_digit', 'B', 'Graph has no BOUNDARY node to start execution.')
+  ('last_digit', 'B', 'Graph has no BOUNDARY node to start execution.')
+  ('last_digit', 'B', 'Graph has no BOUNDARY node to start execution.')
+  ('sum_a_b', 'B', 'Graph has no BOUNDARY node to start execution.')
+  ('sum_a_b', 'B', 'Graph has no BOUNDARY node to start execution.')
+  ('pos_or_neg', 'A', 'None')
+  ('pos_or_neg', 'B', 'Graph has no BOUNDARY node to start execution.')
+EXP45_EXIT=0
