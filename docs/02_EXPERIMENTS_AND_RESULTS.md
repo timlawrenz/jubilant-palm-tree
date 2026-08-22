@@ -1623,3 +1623,30 @@ Unblock options for next session:
   B. Retrain with a smaller batch (bs=16 ≈ 5GB) inside the 4.4GB-visible
      budget (untested, may OOM).
   C. Run G3 on strix (ROCm, slower but idle).
+
+
+### G3 BLOCKED v2 (2026-08-22) — strix retrain measured: NaN + 310-510s/epoch
+
+Attempted the pre-staged strix fallback (option C): claimed
+jpt-exp4-strix-1787367124, synced repo (1bf0cde), swapped v2 corpus
+(md5 3c7bf6…), launched 150-epoch 2-seed retrain (d=384 L=8 bs=32).
+
+**Measurements (all recorded, reproducible):**
+- Full run: loss=nan from epoch 1, 510s/epoch (4090 does 11s — 46x slower).
+- AOTriton experimental SDPA: loss=nan, 262s/epoch.
+- Math SDPA (mem-efficient disabled): loss=nan, 310s/epoch.
+- Local CPU smoke on v2 corpus: loss 5.0182 finite, model trains — **data clean**.
+- Token-domain argument: the trainer consumes only token sequences (motif
+  prefix + edge tokens); literal-pool changes cannot produce NaN. The failure
+  is platform (TheRock torch 2.12/rocm7.13) — likely bf16 numerics in the
+  PyTorch 3.14 build at d=384.
+
+**Conclusion:** strix infeasible for G3 (NaN + ~28-46x cadence). 4090 remains
+held by owner's ComfyUI (18.75GB; not to be touched). Remaining viable paths:
+A. Owner pauses ComfyUI → queued 4090 request (jpt-exp4-retrain-1787346414,
+   10GB, 6h) claims → 2×26min retrain.
+B. Small-config 4090 side-run under the 4.2GB free headroom (untested, risky
+   to ComfyUI stability — NOT attempted without owner sign-off).
+C. Debug strix bf16 (fp32 fallback probe next; even if un-NaN'd, cadence makes
+   only a reduced-epoch run possible: ~2h/seed at best).
+Strix slot released; queue untouched; nothing running.
