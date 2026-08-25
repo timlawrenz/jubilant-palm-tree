@@ -34,7 +34,7 @@ The system from May 5 has three branches. A Legislative branch (an LLM) turns in
 
 The Executive's conditioning signal is the motif list. So the routing question is concrete: given the motif sequence `[Boundary, Sequence, Condition, State, ...]` from a real Ruby method, does the DiT produce *that method's graph*, or just any dense graph containing those ingredients?
 
-The metric is typed-F1 over edges: generated edges must match ground-truth edges in both endpoints and type. The gate I pre-registered before running anything: **typed-F1 ≥ 0.20** to continue, with a random matched-density baseline reported alongside so I could tell signal from noise.
+The metric is typed-F1 over edges: generated edges must match ground-truth edges in both endpoints and type. The original routing gate (Exp 1.5, pre-registered) demanded typed-F1 **≥ 0.50**, with a random matched-density baseline reported alongside so I could tell signal from noise. Each enrichment arm after it pre-registered its own gate around a 0.20 continuation bar: enrich further only if the arm reached 0.20, with arm-specific criteria on top (a minimum lift over baseline, an ablation control).
 
 The baseline measurement (512 held-out graphs, permutation augmentation off, same ODE solver and Constraint Solver as every later run):
 
@@ -46,7 +46,7 @@ The baseline measurement (512 held-out graphs, permutation augmentation off, sam
 
 Three facts jump out of that table. The DiT beats random by 1.85×, so the motif signal genuinely steers it. A controllability probe confirmed the steering: swap in a different Bill of Materials under the same noise seed and the output changes substantially (Jaccard 0.50 between the two outputs). And the model over-generates edges by 6.5×, producing dense graphs that have the right *kinds* of nodes but not the right *connections*. One graph in the sample hit 0.600. The median was 0.053. The 0.600 was an outlier, not a capability.
 
-Verdict on the baseline: AMBIGUOUS. Steerable, yes. Specific, no. The natural reading was that the Bill of Materials was too thin, so the obvious move was to enrich the conditioning signal. That is the story of the next five attempts.
+Verdict on the baseline: AMBIGUOUS, per the pre-registered three-outcome map (PASS ≥ 0.50, FAIL within noise of random, AMBIGUOUS in between). Steerable, yes. Specific, no. The natural reading was that the Bill of Materials was too thin, so the obvious move was to enrich the conditioning signal. That is the story of the next five attempts.
 
 ## Attempt 1: RLAIF, the promise from May 5
 
@@ -56,13 +56,13 @@ The finding that survived: the model's easiest path to satisfy any edge-related 
 
 ## Attempts 2 through 5: four arms at the heatmap
 
-With RLAIF closed, the enrichment program moved to the Executive itself. Four arms, each pre-registered with the same 0.20 gate and the same evaluation harness, each attacking the conditioning signal a different way.
+With RLAIF closed, the enrichment program moved to the Executive itself. Four arms, each with a gate pre-registered before its run and built around the 0.20 continuation bar, each attacking the conditioning signal a different way, all evaluated on the same harness.
 
 ### Arm 2: tell it how many edges (edge-count bias)
 
 The cheapest hypothesis: the model over-generates 6.5×, so tell it the target edge count. At each ODE step, a bias nudges the presence channel toward the target density. No retraining; the frozen checkpoint just gets a hint.
 
-The mechanism worked. Edge count dropped from 199 to 26 when pushed, nearly matching ground truth (28). Fidelity fell at every setting: the best arm scored 0.082 against a 0.088 baseline. The density channel carries two signals at once, *whether an edge exists* and *which edge it is*. A uniform bias on the channel cannot push one without flattening the other. Verdict: FAIL.
+The mechanism worked. Edge count dropped from 199 to 26 when pushed (N=128 sweep), nearly matching ground truth (28). Fidelity fell at every setting: the best arm scored 0.082 against a 0.088 baseline. (The baseline edge counts in this post's tables vary between 181 and 199 because the fidelity baseline ran at N=512 and the arm sweeps at N=128; the arm's own in-sweep baseline is the right comparison within each experiment.) The density channel carries two signals at once, *whether an edge exists* and *which edge it is*. A uniform bias on the channel cannot push one without flattening the other. Verdict: FAIL.
 
 ### Arm 3: tell each node its degree (degree-profile bias)
 
@@ -74,11 +74,13 @@ Sharper hint: instead of one global number, give each node its expected in-degre
 | In-degree bias (best) | **0.109** | +46% |
 | Out-degree bias | 0.057 | −23% |
 
+All N=128 except the out-degree row, which is N=64 (out-degree alone was never worth a full rerun once it came in 23% below baseline).
+
 A 46% lift, reproduced at two sample sizes (0.110 at N=64, 0.109 at N=128), and distinguishable from noise. Also not close to the gate: 0.109 against 0.20. And the lift came with the edge count inflating from 193 to 307, so some of the gain was correct edges and a lot was spurious ones. Telling a node "expect about 2.3 inputs" helps it accept edges. It does not help it pick the right donors. Out-degree bias actively hurt, the same flattening pathology as Arm 2. Verdict: AMBIGUOUS, best result of the program, insufficient.
 
 ### Arm 4: draw part of the graph for it (partial-adjacency seeding)
 
-The most direct test of the heatmap's capacity: clamp 10 to 20% of the ground-truth edges into the ODE trajectory as fixed, and let the model complete the rest. Fill-in-the-blank instead of generate-from-noise.
+The most direct test of the heatmap's capacity: clamp a fraction of the ground-truth edges (the sweep ran 5% to 50%) into the ODE trajectory as fixed, and let the model complete the rest. Fill-in-the-blank instead of generate-from-noise.
 
 The seeded edges survived: fidelity scaled linearly with the seeding fraction, reaching 0.30 at 20% seeded and 0.65 at 50%. And the completion? **Zero.** Across every seeding fraction, the model generated no edges beyond the ones clamped in. The unseeded-edge F1 was 0.000 at every setting. Clamping positions in the ODE trajectory breaks the denoising dynamics for everything around them. The model treats the scaffold as fixed and emits nothing else. The RLAIF attractor again: under constraint, erase edges. Verdict: NEGATIVE, and the most informative failure of the four. A model that cannot complete a partially drawn graph has no representation of "edges around a fixed scaffold."
 
@@ -94,7 +96,9 @@ Every arm so far pushed hints at a frozen model. The last arm baked the hint in:
 
 The signal arm is statistically indistinguishable from the frozen base. The separation between signal and null is +0.0125, below the pre-registered 0.05 that would have let me attribute anything to the signal. The training loss tells the same story from the inside: 0.0976 to 0.0985 over 20 epochs. Flat. The fine-tune learned nothing, which is why I call it *inert* rather than failed. It did not hurt. It did nothing at all.
 
-![Training loss of the Exp 1.9 signal arm (top curve) overlaid with the null arm, flat across 20 epochs.](docs/blog/assets/jubilant-palm-tree-flat-loss-exp19.png){: style="width: 100%;"}
+![Training loss of the Exp 1.9 signal and null arms: flat and indistinguishable across 20 epochs.](docs/blog/assets/jubilant-palm-tree-flat-loss-exp19.png){: style="width: 100%;"}
+
+The two curves coincide, and the null arm ends marginally above the signal arm (0.0987 vs 0.0985). Neither learned anything. That is the point: the fine-tune was inert, not merely unsuccessful.
 
 Verdict: FAIL. The pre-registered outcome map fired: with the enrichment program closed, the next move was a paradigm change, not another enrichment.
 
@@ -102,15 +106,15 @@ Verdict: FAIL. The pre-registered outcome map fired: with the enrichment program
 
 Line the attempts up and the pattern is hard to miss:
 
-| Attempt | Mechanism | Best typed-F1 | Verdict |
+| Attempt | Mechanism | Best result | Verdict |
 |---|---|---|---|
-| RLAIF | Structural reward on weights | 7.1% SVR, then collapse | Negative |
+| RLAIF | Structural reward on weights | 7.1% SVR**, then collapse | Negative |
 | Edge-count bias | Global density hint at decode | 0.082 | FAIL |
 | Degree-profile bias | Per-node in-degree hint at decode | **0.109** | AMBIGUOUS |
 | Partial seeding | Clamp real edges, complete the rest | 0.30* (all seeded) | NEGATIVE |
 | Training-time | Degree signal in fine-tune | 0.089 | FAIL |
 
-*Every single number below 0.20. The asterisk on 0.30 is doing a lot of work: that score is almost entirely the seeded edges echoing back, with zero completion.
+*Every single number below 0.20. The asterisk on 0.30 is doing a lot of work: that score is almost entirely the seeded edges echoing back, with zero completion. The double asterisk on RLAIF is a different metric: syntactic validity, not typed-F1, because the routing-fidelity harness did not exist when RLAIF ran.
 
 Five different delivery mechanisms: reward shaping on the weights, global bias at decode, per-node bias at decode, clamping at decode, and gradients at train time. One consistent result. When the delivery mechanism varies and the result does not, the problem is not the delivery.
 
@@ -126,7 +130,7 @@ I want to be precise about what five failures bought, because it is not nothing.
 
 The May 5 result, corrected, says the DiT can produce structurally legal graphs with solver assistance 10% of the time. This post's five attempts say no enrichment of the dense-heatmap conditioning, decode-time or training-time, pushes routing fidelity past 0.109 against a 0.20 gate. Together they isolate the bottleneck with convergent negative evidence: the dense-matrix flow-matching Executive does not have the routing capacity, and you cannot add it by enriching the input.
 
-Every experiment here was gated before it ran, the null controls ran alongside, and each arm closed with a written verdict in the experiment ledger. That is why I can say "closed" and mean it. A killed idea gets a tombstone, not a comeback tour. The enrichment program is closed.
+Every enrichment experiment here was gated before it ran, the null controls ran alongside, and each arm closed with a written verdict in the experiment ledger. The RLAIF detour predates that discipline (it ran in May, before the July gate protocol existed), which is part of why its failure cost more time than the enrichment arms' did. That is why I can say "closed" and mean it. A killed idea gets a tombstone, not a comeback tour. The enrichment program is closed.
 
 **Structure is not routing.** The May 5 post thought it had a generator of programs. It had a generator of legal graphs. Finding that out, cleanly, with gates and nulls and a correction on the record, is the most valuable output this project has produced so far. Negative results that identify a root cause are not waste; they are the narrowing that tells you where the actual problem lives. In this case the problem lives in the representation, and the next post changes it.
 
@@ -140,7 +144,8 @@ If the meta-story sounds familiar, it is: this series is the concrete case study
 
 | Number | Value | What it measures |
 |---|---|---|
-| Routing gate (pre-registered) | 0.20 typed-F1 | Continue-enrichment threshold |
+| Routing gate (Exp 1.5, pre-registered) | 0.50 typed-F1 (PASS bar); landed AMBIGUOUS at 0.085 | Original controllability gate |
+| Enrichment continuation gate (per arm) | 0.20 typed-F1 | Bar every arm had to clear to continue |
 | DiT baseline | 0.085 | Routing fidelity, 512 held-out graphs |
 | Random baseline | 0.046 | Matched-density null |
 | Best enrichment (degree bias) | 0.109 (+46%) | Best of five attempts |
