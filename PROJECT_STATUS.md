@@ -121,3 +121,4 @@ Milestone — research-side handover to the lawrenz.com authoring agent is compl
 - Series brief + per-block data outlines: Obsidian vault `04 - projects/` (`jubilant-palm-tree - Blog Series.md` + `... - Data Outlines.md`)
 - Figures: `docs/blog/assets/jubilant-palm-tree-*.png` — 4 figures, values parsed from raw eval logs by `scripts/make_blog_figures.py` (provenance in `docs/blog/assets/README.md`)
 - Discovery pointer added to the `[[lawrenz.com]]` vault note
+- Post 1 draft in repo (`docs/blog/2026-08-24-the-plateau.md`), reviewed against raw artifacts; revision commits `cdae524` / `b98c067`
