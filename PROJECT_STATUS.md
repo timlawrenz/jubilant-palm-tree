@@ -112,3 +112,12 @@ owner's standing direction, this is POST-MQ3.
 
 **Current position:** option A is executing now (the runnable-arms benchmark).
 Options B/C wait for the owner's call after the benchmark lands.
+
+---
+
+## Blog series handoff (2026-08-24)
+
+Milestone — research-side handover to the lawrenz.com authoring agent is complete:
+- Series brief + per-block data outlines: Obsidian vault `04 - projects/` (`jubilant-palm-tree - Blog Series.md` + `... - Data Outlines.md`)
+- Figures: `docs/blog/assets/jubilant-palm-tree-*.png` — 4 figures, values parsed from raw eval logs by `scripts/make_blog_figures.py` (provenance in `docs/blog/assets/README.md`)
+- Discovery pointer added to the `[[lawrenz.com]]` vault note
